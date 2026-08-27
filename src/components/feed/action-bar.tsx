@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Heart, MessageCircle, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount } from "@/lib/format";
@@ -33,6 +34,10 @@ function Action({
 
 /**
  * 게시물 우측 세로 액션 바.
+ *
+ * "바로 읽기"가 이 그룹의 마지막(=엄지에 가장 가까운) 자리에 들어간다.
+ * 나머지가 고스트 아이콘인 것과 달리 채워진 원형으로 두어, 그룹에 속하면서도
+ * 핵심 전환 버튼이라는 위계를 잃지 않게 한다 (DESIGN.md Components).
  *
  * Phase 1에서는 공유만 실제로 기록된다 (비로그인 가능).
  * 좋아요·댓글은 로그인이 필요해 Phase 2로 미뤄져 있고, 지금은 안내만 한다
@@ -87,6 +92,17 @@ export function ActionBar({ post }: { post: FeedPost }) {
       <Action label="공유" count={shareCount} onClick={handleShare}>
         <Share2 className="size-6" aria-hidden />
       </Action>
+
+      <Link
+        href={`/read/${post.books.id}`}
+        aria-label={`${post.books.title} 바로 읽기`}
+        className="focus-visible:ring-ring flex flex-col items-center gap-1 rounded-md focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <span className="bg-primary text-primary-foreground flex size-11 items-center justify-center rounded-full transition-opacity hover:opacity-90">
+          <BookOpen className="size-5" aria-hidden />
+        </span>
+        <span className="text-xs">읽기</span>
+      </Link>
     </div>
   );
 }

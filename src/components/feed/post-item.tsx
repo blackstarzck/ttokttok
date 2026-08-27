@@ -1,13 +1,16 @@
 import Link from "next/link";
-import { BookOpen } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { CardCarousel } from "@/components/feed/card-carousel";
 import { ActionBar } from "@/components/feed/action-bar";
 import { BookCover } from "@/components/feed/book-cover";
 import type { FeedPost } from "@/lib/feed";
 
-/** 피드의 게시물 한 개. 뷰포트 높이를 꽉 채우고 스냅된다. */
+/**
+ * 피드의 게시물 한 개. 뷰포트 높이를 꽉 채우고 스냅된다.
+ *
+ * 레이아웃은 오버레이가 아니라 분할이다 — 카드가 텍스트 위주라 UI를 겹치면
+ * 읽기를 방해한다. "바로 읽기" CTA는 우측 액션 바 그룹 안에 있다.
+ */
 export function PostItem({ post }: { post: FeedPost }) {
   return (
     <article
@@ -51,14 +54,6 @@ export function PostItem({ post }: { post: FeedPost }) {
             </span>
           </span>
         </Link>
-
-        {/* 핵심 전환 버튼. shadcn 기본 높이(h-8)는 터치 타깃 44px에 못 미친다. */}
-        <Button asChild size="lg" className="ml-auto min-h-11 shrink-0 px-4">
-          <Link href={`/read/${post.books.id}`}>
-            <BookOpen aria-hidden />
-            바로 읽기
-          </Link>
-        </Button>
       </footer>
     </article>
   );

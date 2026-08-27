@@ -16,19 +16,21 @@ export function QuoteCard({
   book: FeedBook;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 px-8 py-8">
+    // figure/figcaption을 쓴다 — <footer>는 게시물 푸터의 자리이고,
+    // article 안에 두 개가 생기면 의미가 겹친다.
+    <figure className="flex h-full flex-col items-center justify-center gap-6 px-8 py-8">
       <Quote className="text-muted-foreground size-6 shrink-0" aria-hidden />
 
       <blockquote className="text-xl leading-loose font-medium break-keep text-balance">
         {body["description-01"]}
       </blockquote>
 
-      <footer className="text-muted-foreground flex flex-col items-center gap-1 text-xs">
+      <figcaption className="text-muted-foreground flex flex-col items-center gap-1 text-xs">
         {body["caption-01"] ? <span>{body["caption-01"]}</span> : null}
         <cite className="not-italic">
           {book.title} · {book.author}
         </cite>
-      </footer>
-    </div>
+      </figcaption>
+    </figure>
   );
 }
