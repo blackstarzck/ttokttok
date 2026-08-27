@@ -83,3 +83,53 @@ export async function getFeed(
     ),
   }));
 }
+
+/** 카드를 sort_order 순으로 정렬한다. 조인 결과의 순서는 보장되지 않는다. */
+function sortCards(post: FeedPost): FeedPost {
+  return {
+    ...post,
+    post_cards: [...post.post_cards].sort((a, b) => a.sort_order - b.sort_order),
+  };
+}
+
+/**
+ * 게시물 하나. 공유 딥링크(/p/[postId])의 랜딩에 쓴다.
+ * 발행되지 않은 글은 RLS가 막으므로 null이 된다.
+ */
+export async function getPost(postId: string): Promise<FeedPost | null> {
+  const db = await createClient();
+
+  const { data, error } = await db
+    .from("posts")
+    .select(SELECT)
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("getPost:", error.message);
+    return null;
+  }
+  return data ? sortCards(data as unknown as FeedPost) : null;
+}
+
+/** 채널 하나의 발행 게시물. 채널 페이지에서 쓴다. */
+export async function getChannelPosts(
+  channelId: string,
+  limit = 30,
+): Promise<FeedPost[]> {
+  const db = await createClient();
+
+  const { data, error } = await db
+    .from("posts")
+    .select(SELECT)
+    .eq("channel_id", channelId)
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("getChannelPosts:", error.message);
+    return [];
+  }
+  return ((data ?? []) as unknown as FeedPost[]).map(sortCards);
+}
