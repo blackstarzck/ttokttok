@@ -4,6 +4,7 @@ import { CardCarousel } from "@/components/feed/card-carousel";
 import { ActionBar } from "@/components/feed/action-bar";
 import { BookCover } from "@/components/feed/book-cover";
 import { BookSheet } from "@/components/book/book-sheet";
+import { VideoPlayer } from "@/components/feed/video-player";
 import type { FeedPost } from "@/lib/feed";
 
 /**
@@ -21,10 +22,17 @@ export function PostItem({ post }: { post: FeedPost }) {
       <div className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1">
           {post.type === "video" ? (
-            // 영상 게시물은 Phase 3. 그때까지 빈 화면 대신 도서만 보여준다.
-            <div className="flex h-full items-center justify-center px-6">
-              <BookCover book={post.books} className="w-32" />
-            </div>
+            post.post_videos ? (
+              <VideoPlayer
+                video={post.post_videos}
+                poster={post.books.cover_url}
+              />
+            ) : (
+              // 영상 레코드가 없는 영상 게시물 — 빈 화면 대신 도서를 보여준다.
+              <div className="flex h-full items-center justify-center px-6">
+                <BookCover book={post.books} className="w-32" />
+              </div>
+            )
           ) : (
             <CardCarousel cards={post.post_cards} book={post.books} />
           )}

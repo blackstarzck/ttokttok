@@ -32,6 +32,13 @@ export type FeedChannel = {
   avatar_url: string | null;
 };
 
+export type FeedVideo = {
+  source_type: "upload" | "youtube";
+  video_path: string | null;
+  youtube_id: string | null;
+  duration_sec: number | null;
+};
+
 export type FeedPost = {
   id: string;
   type: "cards" | "video";
@@ -42,6 +49,8 @@ export type FeedPost = {
   books: FeedBook;
   channels: FeedChannel;
   post_cards: FeedCard[];
+  /** 영상 게시물일 때만 채워진다 (PRD §5.3). */
+  post_videos: FeedVideo | null;
 };
 
 const SELECT = `
@@ -50,7 +59,8 @@ const SELECT = `
           page_count, pub_date_paper, pub_date_ebook, intro, toc,
           epub_path, purchase_links ),
   channels ( id, name, slug, avatar_url ),
-  post_cards ( sort_order, template_category, body )
+  post_cards ( sort_order, template_category, body ),
+  post_videos ( source_type, video_path, youtube_id, duration_sec )
 `;
 
 /**

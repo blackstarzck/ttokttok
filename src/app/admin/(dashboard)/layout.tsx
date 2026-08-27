@@ -21,6 +21,7 @@ const NAV = [
   { href: "/admin/books", label: "도서" },
   { href: "/admin/posts", label: "게시물" },
   { href: "/admin/channels", label: "채널" },
+  { href: "/admin/featured", label: "추천" },
 ] as const;
 
 export default async function AdminLayout({

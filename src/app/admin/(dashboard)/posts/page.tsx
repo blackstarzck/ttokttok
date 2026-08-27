@@ -37,9 +37,14 @@ export default async function AdminPostsPage({
             카드를 조합해 피드에 내보냅니다.
           </p>
         </div>
-        <Button asChild className="min-h-11">
-          <Link href="/admin/posts/new">새 게시물</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild className="min-h-11">
+            <Link href="/admin/posts/new">새 카드 게시물</Link>
+          </Button>
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href="/admin/posts/new?type=video">새 영상 게시물</Link>
+          </Button>
+        </div>
       </header>
 
       <AdminNotice
@@ -52,6 +57,7 @@ export default async function AdminPostsPage({
           <TableRow>
             <TableHead>도서</TableHead>
             <TableHead>채널</TableHead>
+            <TableHead>유형</TableHead>
             <TableHead>상태</TableHead>
             <TableHead className="text-right">조회</TableHead>
             <TableHead className="text-right">좋아요</TableHead>
@@ -70,6 +76,9 @@ export default async function AdminPostsPage({
                     {book?.title ?? "—"}
                   </TableCell>
                   <TableCell>{channel?.name ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {p.type === "video" ? "영상" : "카드"}
+                  </TableCell>
                   <TableCell>
                     {p.status === "published" ? (
                       <Badge>발행</Badge>
@@ -104,7 +113,7 @@ export default async function AdminPostsPage({
             })
           ) : (
             <TableRow>
-              <TableCell colSpan={7} className="text-muted-foreground text-center">
+              <TableCell colSpan={8} className="text-muted-foreground text-center">
                 게시물이 없습니다.
               </TableCell>
             </TableRow>
