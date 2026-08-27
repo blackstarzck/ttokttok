@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Heart, MessageCircle, Share2 } from "lucide-react";
+import { BookOpen, Heart, Info, MessageCircle, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { BookSheet } from "@/components/book/book-sheet";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
 
 function Action({
@@ -93,16 +95,46 @@ export function ActionBar({ post }: { post: FeedPost }) {
         <Share2 className="size-6" aria-hidden />
       </Action>
 
-      <Link
-        href={`/read/${post.books.id}`}
-        aria-label={`${post.books.title} 바로 읽기`}
-        className="focus-visible:ring-ring flex flex-col items-center gap-1 rounded-md focus-visible:ring-2 focus-visible:outline-none"
-      >
-        <span className="bg-primary text-primary-foreground flex size-11 items-center justify-center rounded-full transition-opacity hover:opacity-90">
-          <BookOpen className="size-5" aria-hidden />
-        </span>
-        <span className="text-xs">읽기</span>
-      </Link>
+      {/* 전문 도서는 뷰어로 직행, 링크형은 도서 상세 시트로 (PRD §11-31) */}
+      {post.books.epub_path !== null ? (
+        <Link
+          href={`/read/${post.books.id}`}
+          aria-label={`${post.books.title} 바로 읽기`}
+          className={CTA_CLASS}
+        >
+          <span className={CTA_ICON_CLASS}>
+            <BookOpen className="size-5" aria-hidden />
+          </span>
+          <span className="text-xs">읽기</span>
+        </Link>
+      ) : (
+        <BookSheet book={post.books}>
+          <button
+            type="button"
+            aria-label={`${post.books.title} 도서 정보 보기`}
+            className={CTA_CLASS}
+          >
+            <span className={CTA_ICON_CLASS}>
+              <Info className="size-5" aria-hidden />
+            </span>
+            <span className="text-xs">도서</span>
+          </button>
+        </BookSheet>
+      )}
     </div>
   );
 }
+
+/**
+ * 두 CTA는 생김새가 같아야 한다 — 도서 유형이 달라도 그룹 안에서
+ * 같은 위계로 읽혀야 하기 때문. 채워진 원형이 곧 "이 게시물의 목적지"다.
+ */
+const CTA_CLASS = cn(
+  "focus-visible:ring-ring flex flex-col items-center gap-1 rounded-md",
+  "focus-visible:ring-2 focus-visible:outline-none",
+);
+
+const CTA_ICON_CLASS = cn(
+  "bg-primary text-primary-foreground flex size-11 items-center",
+  "justify-center rounded-full transition-opacity hover:opacity-90",
+);
