@@ -67,3 +67,7 @@ export function DetailCard({
     </div>
   );
 }
+
+export const detailCardSlots = [
+  { key: "title-01", label: "섹션 제목", type: "text", required: true },
+] as const;

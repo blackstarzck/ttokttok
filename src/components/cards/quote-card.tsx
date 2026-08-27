@@ -34,3 +34,8 @@ export function QuoteCard({
     </figure>
   );
 }
+
+export const quoteCardSlots = [
+  { key: "description-01", label: "인용 문장", type: "textarea", required: true },
+  { key: "caption-01", label: "출처", type: "text", required: false },
+] as const;

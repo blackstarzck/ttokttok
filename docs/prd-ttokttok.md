@@ -511,3 +511,4 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 | 30 | 도서 상세 | 별도 페이지 없음 — 바텀시트 하나로 통일 (피드·더보기·검색·보관함 공통 진입) |
 | 31 | 링크형 CTA | "도서 보기" → 도서 상세 시트 (서점 직행 아님 — 찜 기회 확보) |
 | 32 | 지표 분리 | reader_open·열람 시간·완독 = 전문 도서 전용. 링크형은 post_view → book_sheet_open → purchase_link_click 깔때기 |
+| 33 | 어드민 인증 | 이메일+비밀번호(Supabase Auth). 계정은 scripts/create-admin.mjs(service role)로만 생성 — 공개 가입 경로 없음. 소셜로그인은 대시보드에 OAuth 앱 등록이 선행돼야 해 어드민을 막는다 |

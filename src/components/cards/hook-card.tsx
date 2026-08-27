@@ -44,3 +44,9 @@ export function HookCard({
     </div>
   );
 }
+
+/** 어드민 폼이 그릴 슬롯 정의. 스키마와 같은 파일에 둬 어긋나지 않게 한다. */
+export const hookCardSlots = [
+  { key: "title-01", label: "훅 헤드라인", type: "text", required: true },
+  { key: "description-01", label: "부연 설명", type: "textarea", required: false },
+] as const;
