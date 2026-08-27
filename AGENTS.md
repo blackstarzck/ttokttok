@@ -19,10 +19,10 @@ Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 다크 단일 테�
 
 | 작업 유형 | 먼저 읽을 문서 |
 |---|---|
-| 화면·컴포넌트·훅 등 **프론트 작업 전부** | [FRONTEND.md](./FRONTEND.md) + [DESIGN.md](./DESIGN.md) |
-| 색·타이포·간격·라운딩 등 **스타일 판단** | [DESIGN.md](./DESIGN.md) |
-| DB 스키마·RLS·RPC 변경 | [prd-ttokttok.md](./prd-ttokttok.md) §6 + `supabase/migrations/` 기존 파일 |
-| 기능 범위·동작 판단 (뭘 만들지/안 만들지) | [prd-ttokttok.md](./prd-ttokttok.md) — 결정 기록은 §11 |
+| 화면·컴포넌트·훅 등 **프론트 작업 전부** | [FRONTEND.md](./docs/FRONTEND.md) + [DESIGN.md](./docs/DESIGN.md) |
+| 색·타이포·간격·라운딩 등 **스타일 판단** | [DESIGN.md](./docs/DESIGN.md) |
+| DB 스키마·RLS·RPC 변경 | [prd-ttokttok.md](./docs/prd-ttokttok.md) §6 + `supabase/migrations/` 기존 파일 |
+| 기능 범위·동작 판단 (뭘 만들지/안 만들지) | [prd-ttokttok.md](./docs/prd-ttokttok.md) — 결정 기록은 §11 |
 
 ## 불변 규칙 (요약 — 상세는 각 문서)
 
@@ -41,7 +41,7 @@ Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 다크 단일 테�
 
 | 문서 | 역할 |
 |---|---|
-| [prd-ttokttok.md](./prd-ttokttok.md) | 제품 요구사항 — 기능 명세, 데이터 모델, 로드맵, 결정 기록 |
-| [DESIGN.md](./DESIGN.md) | 디자인 시스템 — 토큰(YAML) + 사용 규칙. 토큰 원천은 `src/app/globals.css` |
-| [FRONTEND.md](./FRONTEND.md) | 프론트 구조 규칙 — 디렉터리, 컴포넌트, 상태, 데이터 접근, 성능, 완료 기준 |
+| [prd-ttokttok.md](./docs/prd-ttokttok.md) | 제품 요구사항 — 기능 명세, 데이터 모델, 로드맵, 결정 기록 |
+| [DESIGN.md](./docs/DESIGN.md) | 디자인 시스템 — 토큰(YAML) + 사용 규칙. 토큰 원천은 `src/app/globals.css` |
+| [FRONTEND.md](./docs/FRONTEND.md) | 프론트 구조 규칙 — 디렉터리, 컴포넌트, 상태, 데이터 접근, 성능, 완료 기준 |
 | `supabase/migrations/` | DB의 진실 — 스키마·RLS·RPC는 마이그레이션 파일로만 변경 |
