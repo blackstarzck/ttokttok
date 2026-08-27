@@ -44,7 +44,12 @@ export function PostItem({ post }: { post: FeedPost }) {
               {post.channels.name.slice(0, 1)}
             </AvatarFallback>
           </Avatar>
-          <span className="truncate text-sm">{post.channels.name}</span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm">{post.channels.name}</span>
+            <span className="text-muted-foreground truncate text-xs">
+              {post.books.title} · {post.books.author}
+            </span>
+          </span>
         </Link>
 
         {/* 핵심 전환 버튼. shadcn 기본 높이(h-8)는 터치 타깃 44px에 못 미친다. */}
