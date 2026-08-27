@@ -60,7 +60,10 @@ export function ActionBar({ post }: { post: FeedPost }) {
     const { error } = await createClient().rpc("record_share", {
       p_post_id: post.id,
     });
-    if (error) setShareCount((n) => Math.max(n - 1, 0));
+    if (error) {
+      setShareCount((n) => Math.max(n - 1, 0));
+      toast.error("공유 집계에 실패했어요");
+    }
   }
 
   return (

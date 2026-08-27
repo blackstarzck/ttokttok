@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { PostItem } from "@/components/feed/post-item";
+import { Children, useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getSessionId } from "@/lib/session-id";
-import type { FeedPost } from "@/lib/feed";
 
 /** 활성 게시물 기준 앞뒤로 마운트할 개수 (FRONTEND.md §6 가상화). */
 const WINDOW = 2;
@@ -12,9 +10,23 @@ const WINDOW = 2;
 /** 조회로 집계하기까지 뷰포트에 머물러야 하는 시간 (PRD §5.1). */
 const VIEW_DWELL_MS = 1000;
 
-export function FeedScroller({ posts }: { posts: FeedPost[] }) {
+/**
+ * 세로 스냅 스크롤 + 가상화 + 조회 집계.
+ *
+ * 게시물은 children으로 받는다 — 스크롤 동작만 클라이언트에 두고
+ * 카드 트리(PostItem → 카드 템플릿 → zod 스키마)는 서버 컴포넌트로
+ * 남겨 클라이언트 번들에서 뺀다 (FRONTEND.md §2, §6).
+ */
+export function FeedScroller({
+  postIds,
+  children,
+}: {
+  postIds: string[];
+  children: React.ReactNode;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const items = Children.toArray(children);
 
   // 이미 집계한 게시물 — 리렌더를 유발할 필요가 없으므로 ref로 둔다.
   const loggedRef = useRef(new Set<string>());
@@ -69,9 +81,9 @@ export function FeedScroller({ posts }: { posts: FeedPost[] }) {
       observer.disconnect();
       timers.forEach(clearTimeout);
     };
-  }, [posts, recordView]);
+  }, [postIds, recordView]);
 
-  if (posts.length === 0) {
+  if (postIds.length === 0) {
     return (
       <div className="flex h-full items-center justify-center px-6">
         <p className="text-muted-foreground text-sm">아직 게시물이 없어요.</p>
@@ -84,15 +96,15 @@ export function FeedScroller({ posts }: { posts: FeedPost[] }) {
       ref={containerRef}
       className="h-full snap-y snap-mandatory overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {posts.map((post, i) => (
+      {postIds.map((id, i) => (
         // 슬롯은 항상 자리를 지키고(스크롤 길이 유지), 내용만 창 밖에서 비운다.
         <div
-          key={post.id}
+          key={id}
           data-index={i}
-          data-post-id={post.id}
+          data-post-id={id}
           className="h-full snap-start snap-always"
         >
-          {Math.abs(i - active) <= WINDOW ? <PostItem post={post} /> : null}
+          {Math.abs(i - active) <= WINDOW ? items[i] : null}
         </div>
       ))}
     </div>
