@@ -6,12 +6,15 @@
  * 고정 UUID + upsert라 여러 번 돌려도 안전하다.
  * service role 키를 쓰므로 RLS를 우회한다 — 로컬/개발 환경에서만 실행할 것.
  *
- * 도서는 전부 저작권 만료(사후 70년 경과) 한국 근대문학이다.
- * cover_url / epub_path는 비워 둔다. 실제 파일은 어드민에서 업로드하며,
- * 커버가 없는 동안 피드는 타이포그래피 폴백으로 렌더한다.
+ * 도서는 전부 저작권 만료 한국 근대문학이다 — 저작자 1962년 이전 사망으로
+ * 2013년 개정이 소급되지 않아 구법 사후 50년이 적용된다 (PRD §5.11).
+ * 본문(EPUB)은 위키문헌에서 받아 epubs 버킷에 올린다 — 도서 모델 v2에서
+ * 전문 도서는 epub_path 없이 존재할 수 없다. 표지는 `npm run covers`가
+ * 따로 만든다.
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { fetchEpub } from "./lib/wikisource.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -64,6 +67,7 @@ const books = [
     id: bk(1),
     channel: ch(1),
     title: "운수 좋은 날",
+    rights: "현진건 1943년 사망 — 구법 사후 50년 만료(1993)",
     author: "현진건",
     category: "소설",
     intro:
@@ -84,6 +88,7 @@ const books = [
     id: bk(2),
     channel: ch(1),
     title: "봄봄",
+    rights: "김유정 1937년 사망 — 구법 사후 50년 만료(1987)",
     author: "김유정",
     category: "소설",
     intro:
@@ -104,6 +109,7 @@ const books = [
     id: bk(3),
     channel: ch(1),
     title: "메밀꽃 필 무렵",
+    rights: "이효석 1942년 사망 — 구법 사후 50년 만료(1992)",
     author: "이효석",
     category: "소설",
     intro:
@@ -124,6 +130,7 @@ const books = [
     id: bk(4),
     channel: ch(1),
     title: "벙어리 삼룡이",
+    rights: "나도향 1926년 사망 — 구법 사후 50년 만료(1976)",
     author: "나도향",
     category: "소설",
     intro:
@@ -144,6 +151,7 @@ const books = [
     id: bk(5),
     channel: ch(2),
     title: "날개",
+    rights: "이상 1937년 사망 — 구법 사후 50년 만료(1987)",
     author: "이상",
     category: "소설",
     intro:
@@ -164,21 +172,27 @@ const books = [
     id: bk(6),
     channel: ch(2),
     title: "태평천하",
+    rights: "채만식 1950년 사망 — 구법 사후 50년 만료(2000)",
     author: "채만식",
     category: "소설",
     intro:
       "만석꾼 윤직원 영감은 이 시대를 태평천하라 부른다. 그 말이 나올 때마다 독자는 서늘해진다.",
     toc: [
-      "1장 윤직원 영감 봉변기",
-      "2장 무임승차 기술",
-      "3장 서양국 명배우",
-      "4장 우리 만수 동이",
-      "5장 마음의 빈민굴",
-      "6장 관전기",
-      "7장 쇠가 쇠를 낳고",
-      "8장 상평통보 서 푼",
-      "9장 절약의 도락 정신",
-      "10장 태평천하",
+      "제1장 윤직원 영감 귀택지도(歸宅之圖)",
+      "제2장 무임승차 기술",
+      "제3장 서양국 명창대회",
+      "제4장 우리만 빼놓고 어서 망해라",
+      "제5장 마음의 빈민굴",
+      "제6장 관전기(觀戰記)",
+      "제7장 쇠가 쇠를 낳고",
+      "제8장 상평통보 서 푼과……",
+      "제9장 절약의 도락정신",
+      "제10장 실제록(失題錄)",
+      "제11장 인간 체화와 동시에 품부족 문제, 기타",
+      "제12장 세계 사업 반절기(半折記)",
+      "제13장 도끼자루는 썩어도……",
+      "제14장 해 저무는 만리장성",
+      "제15장 망진자(亡秦者)는 호야(胡也)니라",
     ],
     pageCount: 312,
     pubDate: "1938-01-01",
@@ -195,6 +209,8 @@ const books = [
     id: bk(7),
     channel: ch(3),
     title: "하늘과 바람과 별과 시",
+    wikisource: "하늘과 바람과 별과 시 (1948년)",
+    rights: "윤동주 1945년 사망 — 구법 사후 50년 만료(1995)",
     author: "윤동주",
     category: "시",
     intro:
@@ -215,6 +231,8 @@ const books = [
     id: bk(8),
     channel: ch(3),
     title: "진달래꽃",
+    wikisource: "진달래꽃 (시집)",
+    rights: "김소월 1934년 사망 — 구법 사후 50년 만료(1984)",
     author: "김소월",
     category: "시",
     intro:
@@ -250,7 +268,50 @@ async function run() {
     console.log(`✓ 채널 ${channels.length}개`);
   }
 
-  // 2) 도서 — 전부 저작권 만료작이므로 access_type='full'
+  // 2) 본문 수급 — 위키문헌 EPUB을 받아 epubs 버킷에 올린다.
+  //
+  //    도서 모델 v2에서 전문 도서는 epub_path가 있어야 성립한다
+  //    (CHECK books_needs_epub_or_store_ref). 본문 없는 전문 도서 행을
+  //    만들 수 없으므로 도서 upsert보다 먼저 돌린다.
+  const epubPaths = new Map();
+  {
+    let fetched = 0;
+    let reused = 0;
+
+    for (const b of books) {
+      const path = `${b.id}.epub`;
+      epubPaths.set(b.id, path);
+
+      const { data: existing } = await db.storage
+        .from("epubs")
+        .list("", { search: path });
+
+      if (existing?.some((f) => f.name === path)) {
+        reused++;
+        continue;
+      }
+
+      const epub = await fetchEpub(b.wikisource ?? b.title);
+      const { error } = await db.storage
+        .from("epubs")
+        .upload(path, epub, {
+          contentType: "application/epub+zip",
+          upsert: true,
+        });
+      if (error) throw new Error(`EPUB 업로드 ${b.title}: ${error.message}`);
+
+      console.log(`  ↓ ${b.title} (${Math.round(epub.length / 1024)}KB)`);
+      fetched++;
+    }
+
+    console.log(
+      `✓ 본문 ${books.length}권` +
+        (fetched ? ` — ${fetched}권 신규 수급` : "") +
+        (reused ? `, ${reused}권 재사용` : ""),
+    );
+  }
+
+  // 3) 도서 — 전부 저작권 만료작 (저작자 1962년 이전 사망, PRD §5.11)
   {
     const { error } = await db.from("books").upsert(
       books.map((b) => ({
@@ -263,15 +324,16 @@ async function run() {
         toc: b.toc,
         page_count: b.pageCount,
         pub_date_paper: b.pubDate,
-        access_type: "full",
-        preview_chapter_limit: 1,
+        epub_path: epubPaths.get(b.id),
+        source: "wikisource",
+        rights_note: b.rights,
       })),
     );
     if (error) throw new Error(`books: ${error.message}`);
-    console.log(`✓ 도서 ${books.length}권 (전부 저작권 만료작, access_type=full)`);
+    console.log(`✓ 도서 ${books.length}권 (전부 전문 도서)`);
   }
 
-  // 3) 게시물 — 도서당 1개. 피드 정렬 확인용으로 카운터를 흩어 놓는다.
+  // 4) 게시물 — 도서당 1개. 피드 정렬 확인용으로 카운터를 흩어 놓는다.
   //    (앱에서는 카운터를 직접 쓰지 않는다. 시드만 예외.)
   const posts = books.map((b, i) => ({
     id: po(i + 1),
@@ -291,7 +353,7 @@ async function run() {
     console.log(`✓ 게시물 ${posts.length}개 (전부 published)`);
   }
 
-  // 4) 카드 — 게시물당 [a 훅 → c 인용 → b 상세] 3장.
+  // 5) 카드 — 게시물당 [a 훅 → c 인용 → b 상세] 3장.
   //    카드는 id를 관리하지 않고 지웠다 다시 넣는다.
   {
     const postIds = posts.map((p) => p.id);
@@ -327,7 +389,7 @@ async function run() {
     console.log(`✓ 카드 ${cards.length}장 (게시물당 a→c→b)`);
   }
 
-  // 5) 탐색 '오늘의 추천'
+  // 6) 탐색 '오늘의 추천'
   {
     const featured = [bk(7), bk(3), bk(5)].map((book_id, i) => ({
       book_id,
@@ -339,7 +401,7 @@ async function run() {
     console.log(`✓ 오늘의 추천 ${featured.length}권`);
   }
 
-  // 6) 금칙어 — 최소 세트. 운영 중에는 어드민에서 관리한다.
+  // 7) 금칙어 — 최소 세트. 운영 중에는 어드민에서 관리한다.
   {
     const words = ["씨발", "병신", "좆", "새끼"].map((word) => ({ word }));
     const { error } = await db
@@ -349,7 +411,7 @@ async function run() {
     console.log(`✓ 금칙어 ${words.length}개`);
   }
 
-  // 7) 관리자 승격 — ADMIN_EMAIL 계정이 이미 로그인한 적 있어야 한다.
+  // 8) 관리자 승격 — ADMIN_EMAIL 계정이 이미 로그인한 적 있어야 한다.
   {
     const email = process.env.ADMIN_EMAIL;
     if (!email) {

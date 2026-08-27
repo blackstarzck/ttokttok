@@ -20,7 +20,9 @@ export type FeedBook = {
   pub_date_ebook: string | null;
   intro: string | null;
   toc: string[];
-  access_type: "full" | "preview";
+  /** 전문 도서 판별 (PRD §11-29). NOT NULL이면 뷰어 대상, NULL이면 링크형. */
+  epub_path: string | null;
+  purchase_links: Record<string, string> | null;
 };
 
 export type FeedChannel = {
@@ -45,7 +47,8 @@ export type FeedPost = {
 const SELECT = `
   id, type, like_count, comment_count, share_count, view_count,
   books ( id, title, author, translator, publisher, cover_url, category, isbn,
-          page_count, pub_date_paper, pub_date_ebook, intro, toc, access_type ),
+          page_count, pub_date_paper, pub_date_ebook, intro, toc,
+          epub_path, purchase_links ),
   channels ( id, name, slug, avatar_url ),
   post_cards ( sort_order, template_category, body )
 `;
