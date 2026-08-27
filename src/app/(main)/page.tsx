@@ -1,17 +1,10 @@
-import { PlaceholderScreen } from "@/components/layout/placeholder-screen";
+import { FeedScroller } from "@/components/feed/feed-scroller";
+import { getFeed } from "@/lib/feed";
 
-export default function HomePage() {
-  return (
-    <PlaceholderScreen
-      title="홈 피드"
-      phase="Phase 1"
-      description="세로 스냅 스크롤 피드. 카드 게시물은 좌우 스와이프, 영상 게시물은 풀스크린 자동재생."
-      todo={[
-        "게시물 세로 스냅 스크롤 + 가상화",
-        "카드 캐러셀 (template_category → 컴포넌트 레지스트리)",
-        "우측 액션 바 (좋아요/댓글/공유) + 바로 읽기 CTA",
-        "조회 로깅 (IntersectionObserver, 1초 기준)",
-      ]}
-    />
-  );
+export default async function HomePage() {
+  // 방문마다 순서를 섞는다. 페이지네이션이 붙으면 이 seed를 쿠키/URL로
+  // 이어받아 다음 페이지가 어긋나지 않게 해야 한다.
+  const posts = await getFeed(crypto.randomUUID(), 10);
+
+  return <FeedScroller posts={posts} />;
 }

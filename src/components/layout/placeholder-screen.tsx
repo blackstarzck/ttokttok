@@ -15,7 +15,7 @@ export function PlaceholderScreen({
   todo: string[];
 }) {
   return (
-    <div className="flex min-h-full flex-col gap-6 p-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <header className="space-y-3">
         <Badge variant="secondary">{phase}</Badge>
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>

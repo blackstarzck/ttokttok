@@ -72,6 +72,7 @@ src/
 - 무거운 라이브러리(epub.js 등)는 `next/dynamic`으로 해당 라우트에서만 로드.
 - 배럴 파일(`index.ts` 재수출) 만들지 않는다. 직접 경로 import.
 - 스크롤 리스너는 passive, 가급적 IntersectionObserver로 대체.
+  - 검증 주의: IO·`requestAnimationFrame`·scroll 이벤트는 모두 페이지가 **컴포지팅 중일 때만** 동작한다. 탭이 가려진 헤드리스/숨은 뷰에서는 `scrollTop`이 바뀌어도 이벤트가 오지 않으므로, 스크롤 기반 동작은 반드시 보이는 브라우저에서 확인한다.
 - 세부 패턴은 `vercel-react-best-practices` 스킬을 참조한다 (아래 §8).
 
 ## 7. 완료 기준
