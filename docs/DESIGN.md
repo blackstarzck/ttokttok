@@ -1,21 +1,21 @@
 ---
 colors:
-  background: "oklch(0.145 0 0)"
-  foreground: "oklch(0.985 0 0)"
-  card: "oklch(0.205 0 0)"
-  cardForeground: "oklch(0.985 0 0)"
-  primary: "oklch(0.922 0 0)"
-  primaryForeground: "oklch(0.205 0 0)"
-  secondary: "oklch(0.269 0 0)"
-  secondaryForeground: "oklch(0.985 0 0)"
-  muted: "oklch(0.269 0 0)"
-  mutedForeground: "oklch(0.708 0 0)"
-  accent: "oklch(0.269 0 0)"
-  accentForeground: "oklch(0.985 0 0)"
-  destructive: "oklch(0.704 0.191 22.216)"
-  border: "oklch(1 0 0 / 10%)"
-  input: "oklch(1 0 0 / 15%)"
-  ring: "oklch(0.556 0 0)"
+  background: "oklch(0.98 0 0)"
+  foreground: "oklch(0.145 0 0)"
+  card: "oklch(1 0 0)"
+  cardForeground: "oklch(0.145 0 0)"
+  primary: "oklch(0.205 0 0)"
+  primaryForeground: "oklch(0.985 0 0)"
+  secondary: "oklch(0.97 0 0)"
+  secondaryForeground: "oklch(0.205 0 0)"
+  muted: "oklch(0.97 0 0)"
+  mutedForeground: "oklch(0.53 0 0)"
+  accent: "oklch(0.97 0 0)"
+  accentForeground: "oklch(0.205 0 0)"
+  destructive: "oklch(0.577 0.245 27.325)"
+  border: "oklch(0.9 0 0)"
+  input: "oklch(0.9 0 0)"
+  ring: "oklch(0.708 0 0)"
 typography:
   body:
     fontFamily: "Noto Sans KR, sans-serif"
@@ -104,8 +104,8 @@ components:
 
 디자인 원칙 세 가지:
 
-1. **콘텐츠가 주인공** — UI는 무채색으로 물러나고, 색은 도서 커버와 영상이 낸다. 크롬(chrome)은 어두운 무채색, 콘텐츠 위 오버레이는 최소한으로.
-2. **다크 단일 테마** — 숏폼 몰입 환경. 라이트 모드는 만들지 않지만, 모든 색은 시맨틱 토큰을 거치므로 훗날 테마 추가는 `globals.css`의 변수 블록 교체만으로 가능해야 한다.
+1. **콘텐츠가 주인공** — UI는 무채색으로 물러나고, 색은 도서 커버와 영상이 낸다. 크롬(chrome)은 테마의 무채색을 따르고, 콘텐츠 위 오버레이는 최소한으로.
+2. **라이트 기본, 다크 선택** — 기본은 라이트이고 사용자가 프로필에서 라이트·다크·시스템을 고른다 (결정 기록 §11-34). 모든 색이 시맨틱 토큰을 거치므로 테마 전환은 `globals.css`의 `:root`·`.dark` 변수 블록만으로 끝난다 — 컴포넌트는 손대지 않는다.
 3. **읽기가 최종 목적** — 모든 화면의 시각적 위계는 "바로 읽기" CTA로 수렴한다. 장식적 애니메이션보다 전환(피드→뷰어)의 매끄러움에 투자한다.
 
 **토큰의 유일한 원천은 `src/app/globals.css`다.** 이 문서의 YAML은 그 사본이며, 사람이 읽는 사양서다. 토큰을 바꿀 때는 globals.css와 이 문서를 **같은 커밋에서** 함께 수정한다.
@@ -114,16 +114,18 @@ components:
 
 무채색 oklch 팔레트. 유채색은 단 하나 — `destructive`(신고·삭제·오류)뿐이다.
 
+아래 표는 **역할**을 정의한다. 실제 값은 테마마다 다르고 `globals.css`의 `:root`(라이트)·`.dark`(다크) 두 블록에 산다. 컴포넌트는 역할 이름만 쓰므로 테마를 몰라도 된다.
+
 | 토큰 | 용도 |
 |---|---|
 | `background` / `foreground` | 앱 바탕 / 기본 텍스트 |
 | `card` / `cardForeground` | 카드·시트·모달 표면 (배경보다 한 단계 밝음) |
-| `primary` / `primaryForeground` | **핵심 CTA 전용** — "바로 읽기", 발행 버튼. 다크 위의 흰 버튼이 가장 강한 위계 |
+| `primary` / `primaryForeground` | **핵심 CTA 전용** — "바로 읽기", 발행 버튼. 바탕과 가장 멀리 떨어진 명도라 위계가 가장 강하다 (라이트에선 검정, 다크에선 흰색) |
 | `secondary` | 보조 버튼, 장르 칩, 뱃지 |
 | `muted` / `mutedForeground` | 비활성 표면 / 보조 텍스트(저자명, 메타 정보, 카운트) |
 | `accent` | hover/선택 상태 표면 (secondary와 동일 값 — 역할 분리를 위해 별도 토큰) |
 | `destructive` | 신고, 삭제, 오류. **유일한 유채색** |
-| `border` / `input` / `ring` | 흰색 알파 기반 경계선 / 입력 테두리 / 포커스 링 |
+| `border` / `input` / `ring` | 경계선 / 입력 테두리 / 포커스 링 (라이트는 불투명 회색, 다크는 흰색 알파) |
 
 사용 규칙:
 
@@ -131,7 +133,7 @@ components:
 - 피드 오버레이(영상·커버 위 텍스트)는 예외적으로 `text-white` + 그라디언트 스크림(`from-black/60`)을 쓴다 — 콘텐츠 위 가독성은 테마와 무관하게 항상 어두운 배경을 전제하기 때문. 이 예외는 피드 오버레이 컴포넌트 안에만 존재해야 한다.
 - **외부 브랜드 자산**도 예외다. 소셜로그인 버튼의 카카오 노란색(`#FEE500`)처럼 제공사가 색을 규정한 경우는 원시 값을 쓴다 — 토큰으로 바꾸면 브랜드 가이드 위반이다. 이 예외는 `components/auth/` 안에만 둔다.
 - 상태를 색으로만 말하지 않는다. 좋아요한 하트는 빨강이 아니라 **채움**으로 구분한다 — 유채색은 도서 표지의 몫이고, 색맹 사용자에게도 형태가 더 확실하다.
-- 텍스트 대비: `mutedForeground`(oklch 0.708)가 `background` 위에서 4.5:1을 만족하는 하한선이다. 이보다 어두운 텍스트를 본문에 쓰지 않는다.
+- 텍스트 대비: `mutedForeground`가 `background` 위에서 **4.5:1**을 만족하는 하한선이다 (측정값 — 라이트 4.94, 다크 7.66). 이보다 흐린 텍스트를 본문에 쓰지 않는다. 토큰을 조정하면 두 테마 모두 다시 재보아야 한다.
 
 ## Typography
 
@@ -153,9 +155,11 @@ components:
 
 ## Elevation & Depth
 
-그림자를 쓰지 않는다. 다크 단일 테마에서 깊이는 **표면 밝기 단차 + 경계선**으로 표현한다:
+그림자를 쓰지 않는다. 깊이는 **표면 밝기 단차 + 경계선**으로 표현한다:
 
 1. `background` (가장 깊음) → 2. `card` (+1단계) → 3. 오버레이/시트 (`card` + `border`)
+
+두 테마 모두 **`card`가 `background`보다 밝다**. 그래서 라이트에서 바탕은 순백이 아니라 살짝 낮은 회백(`oklch(0.98)`)이고 카드가 순백이다 — 둘 다 순백이면 단차가 0이 되어 이 규칙이 무너진다.
 - 모달·드로어의 배경 딤은 `bg-black/60`.
 - 플로팅 요소(BottomNav 등)는 `backdrop-blur` + 반투명 배경으로 콘텐츠 위에 뜬다.
 

@@ -11,7 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # 똑똑 (Ttokttok)
 
 숏폼 피드로 책을 발견하고 그 자리에서 읽기 시작하는 모바일 웹 서비스.
-Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 다크 단일 테마, 모바일 우선(최대 480px 프레임), 한국어 단일.
+Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 라이트 기본(다크·시스템 선택 가능), 모바일 우선(최대 480px 프레임), 한국어 단일.
 
 ## 필수 선행 독서 — 작업 유형별
 

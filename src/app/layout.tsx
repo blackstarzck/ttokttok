@@ -29,14 +29,19 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0a0a0a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    // next-themes가 하이드레이션 전에 html 클래스를 바꾸므로 경고를 끈다.
     <html
       lang="ko"
-      className={`dark ${notoSansKR.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${notoSansKR.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="bg-background min-h-full">
         <Providers>{children}</Providers>

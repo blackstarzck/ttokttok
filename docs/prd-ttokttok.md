@@ -74,7 +74,7 @@
     └─ 신고 처리 (댓글 모더레이션)
 ```
 
-디자인 톤: 레퍼런스(short-form-phi)와 같은 **다크 테마, 모바일 우선**. 데스크톱에서는 중앙 모바일 프레임 유지.
+디자인 톤: **모바일 우선**, 데스크톱에서는 중앙 모바일 프레임 유지. 테마는 라이트가 기본이고 사용자가 다크·시스템을 고를 수 있다 (결정 기록 §11-34).
 
 ---
 
@@ -384,7 +384,7 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 | DB | Supabase Postgres | RLS 사용 |
 | 스토리지 | Supabase Storage | EPUB(private), 커버/영상(public or signed) |
 | 뷰어 | epub.js | React 래퍼(react-reader 등) 검토 |
-| 스타일 | Tailwind CSS | 다크 테마 우선 |
+| 스타일 | Tailwind CSS + next-themes | 라이트 기본, 다크·시스템 선택 |
 | UI 컴포넌트 | **shadcn/ui** (Radix UI + Tailwind) | 복사-붙여넣기 방식, 코드 소유권 확보 |
 | 상태/데이터 | React Query(TanStack) + Supabase JS | 커서 기반 피드 |
 
@@ -393,7 +393,7 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 **왜 shadcn/ui인가**
 - 컴포넌트가 `node_modules`가 아니라 **프로젝트 코드로 복사**된다 → 숏폼 피드처럼 비표준 UI를 만들 때 라이브러리와 싸우지 않고 직접 고칠 수 있다.
 - Radix UI 프리미티브 기반이라 **접근성(포커스 트랩, 키보드 내비, ARIA)이 기본 제공** → 바텀시트·다이얼로그를 직접 만들 때 생기는 a11y 부채를 피한다.
-- Tailwind 토큰과 CSS 변수로 테마가 구성되어 **다크 테마 우선 설계**와 궁합이 좋다.
+- Tailwind 토큰과 CSS 변수로 테마가 구성되어 **테마 전환**과 궁합이 좋다 — 컴포넌트를 건드리지 않고 `:root`·`.dark` 변수 블록만으로 끝난다.
 
 **초기 설치 컴포넌트**
 
@@ -437,7 +437,7 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 ### Phase 1 — 핵심 루프 (발견 → 읽기)
 > 이것만으로 북극성 지표(뷰어 전환율) 측정이 시작되어야 한다.
 
-- [x] 프로젝트 셋업 (Next.js + Supabase + shadcn/ui init + 다크 테마 토큰, GNB 3탭)
+- [x] 프로젝트 셋업 (Next.js + Supabase + shadcn/ui init + 테마 토큰, GNB 3탭)
 - [x] DB 스키마 + RLS 초안
 - [x] 어드민: 도서 등록(EPUB 업로드) + 카드 게시물 작성(템플릿 a/b/c) + 채널 CRUD
 - [x] 홈 피드: 세로 스냅 스크롤 + 카드 좌우 스와이프 + 가중 랜덤 정렬(초기엔 단순 랜덤도 허용)
@@ -514,3 +514,4 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 | 31 | 링크형 CTA | "도서 보기" → 도서 상세 시트 (서점 직행 아님 — 찜 기회 확보) |
 | 32 | 지표 분리 | reader_open·열람 시간·완독 = 전문 도서 전용. 링크형은 post_view → book_sheet_open → purchase_link_click 깔때기 |
 | 33 | 어드민 인증 | 이메일+비밀번호(Supabase Auth). 계정은 scripts/create-admin.mjs(service role)로만 생성 — 공개 가입 경로 없음. 소셜로그인은 대시보드에 OAuth 앱 등록이 선행돼야 해 어드민을 막는다 |
+| 34 | 화면 테마 | 라이트 기본 + 다크·시스템 선택(next-themes). 초기 "다크 단일" 결정에서 변경. 라이트 바탕은 순백이 아닌 oklch(0.98) — card와 표면 단차를 남기기 위함 |

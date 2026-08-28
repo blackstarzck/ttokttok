@@ -8,6 +8,7 @@ import { BookCover } from "@/components/feed/book-cover";
 import { BookSheet } from "@/components/book/book-sheet";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth";
 import { getBookmarks, getReadingProgress, type ReadingItem } from "@/lib/library";
 import type { FeedBook } from "@/lib/feed";
@@ -90,6 +91,11 @@ export default async function ProfilePage() {
           </p>
         </header>
         <SocialButtons next="/profile" />
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-muted-foreground text-xs font-medium">화면 테마</h2>
+          <ThemeToggle />
+        </section>
       </div>
     );
   }
@@ -159,6 +165,11 @@ export default async function ProfilePage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <section className="flex shrink-0 flex-col gap-2 pt-2">
+        <h2 className="text-muted-foreground text-xs font-medium">화면 테마</h2>
+        <ThemeToggle />
+      </section>
     </div>
   );
 }
