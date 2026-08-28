@@ -70,7 +70,7 @@ export function PostItem({
             aria-label={`${post.books.title} 도서 정보`}
             className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
           >
-            <BookCover book={post.books} className="w-11 shrink-0" />
+            <BookCover book={post.books} className="w-16 shrink-0" />
 
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-muted-foreground truncate text-xs">
