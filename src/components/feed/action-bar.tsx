@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { BookSheet } from "@/components/book/book-sheet";
 import { LoginSheet } from "@/components/auth/login-sheet";
 import { LikeButton } from "@/components/feed/like-button";
+import { CommentSheet } from "@/components/feed/comment-sheet";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -26,10 +27,12 @@ export function ActionBar({
   post,
   liked,
   isGuest,
+  userId,
 }: {
   post: FeedPost;
   liked: boolean;
   isGuest: boolean;
+  userId: string | null;
 }) {
   const [shareCount, setShareCount] = useState(post.share_count);
 
@@ -81,18 +84,9 @@ export function ActionBar({
           {commentButton}
         </LoginSheet>
       ) : (
-        // 댓글 시트는 다음 단계. 그때까지 안내만 한다.
-        <button
-          type="button"
-          aria-label="댓글"
-          className={ACTION_CLASS}
-          onClick={() => toast("댓글은 곧 열려요")}
-        >
-          <MessageCircle className="size-6" aria-hidden />
-          <span className="text-xs tabular-nums">
-            {formatCount(post.comment_count)}
-          </span>
-        </button>
+        <CommentSheet postId={post.id} currentUserId={userId!}>
+          {commentButton}
+        </CommentSheet>
       )}
 
       <button

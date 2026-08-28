@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ReaderLoader } from "@/components/reader/reader-loader";
 import { getReaderBook } from "@/lib/book";
+import { getCurrentUser } from "@/lib/auth";
 
 /**
  * EPUB 뷰어 (PRD §5.4). (main) 그룹 밖이라 GNB가 없는 풀스크린이다.
@@ -23,5 +24,6 @@ export default async function ReadPage({ params }: PageProps<"/read/[bookId]">) 
 
   if (!book) notFound();
 
-  return <ReaderLoader book={book} />;
+  const user = await getCurrentUser();
+  return <ReaderLoader book={book} isLoggedIn={user !== null} />;
 }

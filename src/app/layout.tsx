@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 
 const notoSansKR = Noto_Sans_KR({
@@ -38,7 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`dark ${notoSansKR.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="bg-background min-h-full">
-        {children}
+        <Providers>{children}</Providers>
         <Toaster position="top-center" />
       </body>
     </html>

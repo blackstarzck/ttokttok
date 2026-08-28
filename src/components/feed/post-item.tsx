@@ -17,10 +17,12 @@ export function PostItem({
   post,
   liked = false,
   isGuest = true,
+  userId = null,
 }: {
   post: FeedPost;
   liked?: boolean;
   isGuest?: boolean;
+  userId?: string | null;
 }) {
   return (
     <article
@@ -47,7 +49,12 @@ export function PostItem({
         </div>
 
         <div className="flex shrink-0 items-end pr-2 pb-4">
-          <ActionBar post={post} liked={liked} isGuest={isGuest} />
+          <ActionBar
+            post={post}
+            liked={liked}
+            isGuest={isGuest}
+            userId={userId}
+          />
         </div>
       </div>
 

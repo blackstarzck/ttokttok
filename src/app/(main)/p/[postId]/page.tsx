@@ -78,6 +78,7 @@ export default async function PostPage({ params }: PageProps<"/p/[postId]">) {
         post={post}
         liked={likedIds.has(post.id)}
         isGuest={user === null}
+        userId={user?.id ?? null}
       />
     </div>
   );

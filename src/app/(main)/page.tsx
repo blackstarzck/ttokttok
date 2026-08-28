@@ -23,6 +23,7 @@ export default async function HomePage() {
           post={post}
           liked={likedIds.has(post.id)}
           isGuest={isGuest}
+          userId={user?.id ?? null}
         />
       ))}
     </FeedScroller>

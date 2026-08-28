@@ -14,7 +14,12 @@ import {
   savePrefs,
   type ReaderPrefs,
 } from "@/components/reader/reader-settings";
-import { loadProgress, saveProgress } from "@/lib/reading-progress";
+import {
+  loadProgress,
+  mergeGuestProgress,
+  saveProgress,
+  syncProgressToServer,
+} from "@/lib/reading-progress";
 import type { ReaderBook } from "@/lib/book";
 
 /** 좌우 끝 이 비율만큼은 페이지 넘김 영역, 가운데는 UI 토글. */
@@ -27,7 +32,13 @@ const TAP_EDGE = 0.3;
  */
 const OPEN_TIMEOUT_MS = 30_000;
 
-export function Reader({ book }: { book: ReaderBook }) {
+export function Reader({
+  book,
+  isLoggedIn,
+}: {
+  book: ReaderBook;
+  isLoggedIn: boolean;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -39,6 +50,9 @@ export function Reader({ book }: { book: ReaderBook }) {
   const [percent, setPercent] = useState(0);
   const [label, setLabel] = useState("");
   const [prefs, setPrefs] = useState<ReaderPrefs>(DEFAULT_PREFS);
+
+  /** 마지막으로 서버에 올린 퍼센트 — 같은 값을 반복해 쓰지 않는다. */
+  const lastSyncedRef = useRef(-1);
 
   // ── epub.js 초기화 ────────────────────────────────────────────
   useEffect(() => {
@@ -83,6 +97,9 @@ export function Reader({ book }: { book: ReaderBook }) {
       });
       renditionRef.current = rendition;
 
+      // 로그인 상태라면 게스트로 읽던 기록을 서버로 올린다.
+      if (isLoggedIn) await mergeGuestProgress(book.id);
+
       const saved = loadProgress(book.id);
       await rendition.display(saved?.cfi ?? undefined);
 
@@ -116,7 +133,7 @@ export function Reader({ book }: { book: ReaderBook }) {
       bookRef.current = null;
       renditionRef.current = null;
     };
-  }, [book.epubUrl, book.id]);
+  }, [book.epubUrl, book.id, isLoggedIn]);
 
   // ── 위치 변화 → 진행률 저장 ───────────────────────────────────
   useEffect(() => {
@@ -138,6 +155,13 @@ export function Reader({ book }: { book: ReaderBook }) {
       setPercent(pct);
       saveProgress(book.id, cfi, pct);
 
+      // 서버 쓰기는 페이지마다가 아니라 진행률이 실제로 움직였을 때만.
+      // 한 페이지 넘길 때마다 왕복하면 읽는 흐름에 비해 과하다.
+      if (isLoggedIn && pct !== lastSyncedRef.current) {
+        lastSyncedRef.current = pct;
+        void syncProgressToServer(book.id, cfi, pct);
+      }
+
       // 현재 챕터 이름 — 목차에서 href로 찾는다.
       const href = location.start.href;
       const hit = toc.find((t) => t.href.split("#")[0] === href.split("#")[0]);
@@ -148,7 +172,7 @@ export function Reader({ book }: { book: ReaderBook }) {
     return () => {
       rendition.off("relocated", onRelocated);
     };
-  }, [loading, book.id, toc]);
+  }, [loading, book.id, toc, isLoggedIn]);
 
   // ── 읽기 설정 적용 ────────────────────────────────────────────
   useEffect(() => {

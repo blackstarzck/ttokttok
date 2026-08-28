@@ -22,6 +22,12 @@ const Reader = dynamic(
   },
 );
 
-export function ReaderLoader({ book }: { book: ReaderBook }) {
-  return <Reader book={book} />;
+export function ReaderLoader({
+  book,
+  isLoggedIn,
+}: {
+  book: ReaderBook;
+  isLoggedIn: boolean;
+}) {
+  return <Reader book={book} isLoggedIn={isLoggedIn} />;
 }
