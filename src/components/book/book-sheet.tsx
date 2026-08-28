@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { BookOpen, Bookmark, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookCover } from "@/components/feed/book-cover";
+import { LoginSheet } from "@/components/auth/login-sheet";
+import { createClient } from "@/lib/supabase/client";
 import { buildPurchaseLinks } from "@/lib/purchase-links";
 import type { FeedBook } from "@/lib/feed";
 
@@ -31,11 +34,14 @@ import type { FeedBook } from "@/lib/feed";
  */
 export function BookSheet({
   book,
+  isGuest = true,
   children,
 }: {
   book: FeedBook;
+  isGuest?: boolean;
   children: React.ReactNode;
 }) {
+  const [bookmarking, setBookmarking] = useState(false);
   const isFullBook = book.epub_path !== null;
   const purchaseLinks = isFullBook ? [] : buildPurchaseLinks(book);
 
@@ -129,15 +135,37 @@ export function BookSheet({
           ) : null}
 
           <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="lg"
-              className="min-h-11 flex-1"
-              onClick={() => toast("로그인하면 보관함에 담을 수 있어요")}
-            >
-              <Bookmark aria-hidden />
-              찜하기
-            </Button>
+            {isGuest ? (
+              <LoginSheet reason="로그인하면 보관함에 담을 수 있어요.">
+                <Button variant="secondary" size="lg" className="min-h-11 flex-1">
+                  <Bookmark aria-hidden />
+                  찜하기
+                </Button>
+              </LoginSheet>
+            ) : (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="min-h-11 flex-1"
+                disabled={bookmarking}
+                onClick={async () => {
+                  setBookmarking(true);
+                  const { error } = await createClient()
+                    .from("bookmarks")
+                    .upsert({ book_id: book.id });
+                  setBookmarking(false);
+                  if (error) {
+                    toast.error("보관함에 담지 못했어요");
+                    console.error("bookmark:", error.message);
+                  } else {
+                    toast.success("보관함에 담았어요");
+                  }
+                }}
+              >
+                <Bookmark aria-hidden />
+                찜하기
+              </Button>
+            )}
             <DrawerClose asChild>
               <Button variant="ghost" size="lg" className="min-h-11">
                 닫기

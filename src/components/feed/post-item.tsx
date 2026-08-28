@@ -13,7 +13,15 @@ import type { FeedPost } from "@/lib/feed";
  * 레이아웃은 오버레이가 아니라 분할이다 — 카드가 텍스트 위주라 UI를 겹치면
  * 읽기를 방해한다. "바로 읽기" CTA는 우측 액션 바 그룹 안에 있다.
  */
-export function PostItem({ post }: { post: FeedPost }) {
+export function PostItem({
+  post,
+  liked = false,
+  isGuest = true,
+}: {
+  post: FeedPost;
+  liked?: boolean;
+  isGuest?: boolean;
+}) {
   return (
     <article
       data-post-id={post.id}
@@ -39,7 +47,7 @@ export function PostItem({ post }: { post: FeedPost }) {
         </div>
 
         <div className="flex shrink-0 items-end pr-2 pb-4">
-          <ActionBar post={post} />
+          <ActionBar post={post} liked={liked} isGuest={isGuest} />
         </div>
       </div>
 
@@ -61,7 +69,7 @@ export function PostItem({ post }: { post: FeedPost }) {
           </Avatar>
         </Link>
 
-        <BookSheet book={post.books}>
+        <BookSheet book={post.books} isGuest={isGuest}>
           <button
             type="button"
             className="focus-visible:ring-ring flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"

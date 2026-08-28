@@ -2,50 +2,35 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Heart, Info, MessageCircle, Share2 } from "lucide-react";
+import { BookOpen, Info, MessageCircle, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { BookSheet } from "@/components/book/book-sheet";
+import { LoginSheet } from "@/components/auth/login-sheet";
+import { LikeButton } from "@/components/feed/like-button";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
 
-function Action({
-  label,
-  count,
-  onClick,
-  children,
-}: {
-  label: string;
-  count: number;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
-    >
-      {children}
-      <span className="text-xs tabular-nums">{formatCount(count)}</span>
-    </button>
-  );
-}
+const ACTION_CLASS =
+  "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none";
 
 /**
  * 게시물 우측 세로 액션 바.
  *
- * "바로 읽기"가 이 그룹의 마지막(=엄지에 가장 가까운) 자리에 들어간다.
+ * "읽기"가 이 그룹의 마지막(=엄지에 가장 가까운) 자리에 들어간다.
  * 나머지가 고스트 아이콘인 것과 달리 채워진 원형으로 두어, 그룹에 속하면서도
  * 핵심 전환 버튼이라는 위계를 잃지 않게 한다 (DESIGN.md Components).
- *
- * Phase 1에서는 공유만 실제로 기록된다 (비로그인 가능).
- * 좋아요·댓글은 로그인이 필요해 Phase 2로 미뤄져 있고, 지금은 안내만 한다
- * (PRD Phase 1 — "소셜 카운트 UI ... 탭 시 로그인 준비 중 처리").
  */
-export function ActionBar({ post }: { post: FeedPost }) {
+export function ActionBar({
+  post,
+  liked,
+  isGuest,
+}: {
+  post: FeedPost;
+  liked: boolean;
+  isGuest: boolean;
+}) {
   const [shareCount, setShareCount] = useState(post.share_count);
 
   async function handleShare() {
@@ -73,27 +58,52 @@ export function ActionBar({ post }: { post: FeedPost }) {
     }
   }
 
+  const commentButton = (
+    <button type="button" aria-label="댓글" className={ACTION_CLASS}>
+      <MessageCircle className="size-6" aria-hidden />
+      <span className="text-xs tabular-nums">
+        {formatCount(post.comment_count)}
+      </span>
+    </button>
+  );
+
   return (
     <div className="flex flex-col items-center gap-4">
-      <Action
-        label="좋아요"
+      <LikeButton
+        postId={post.id}
         count={post.like_count}
-        onClick={() => toast("로그인하면 좋아요를 누를 수 있어요")}
-      >
-        <Heart className="size-6" aria-hidden />
-      </Action>
+        liked={liked}
+        isGuest={isGuest}
+      />
 
-      <Action
-        label="댓글"
-        count={post.comment_count}
-        onClick={() => toast("댓글은 곧 열려요")}
-      >
-        <MessageCircle className="size-6" aria-hidden />
-      </Action>
+      {isGuest ? (
+        <LoginSheet reason="로그인하면 댓글을 남길 수 있어요.">
+          {commentButton}
+        </LoginSheet>
+      ) : (
+        // 댓글 시트는 다음 단계. 그때까지 안내만 한다.
+        <button
+          type="button"
+          aria-label="댓글"
+          className={ACTION_CLASS}
+          onClick={() => toast("댓글은 곧 열려요")}
+        >
+          <MessageCircle className="size-6" aria-hidden />
+          <span className="text-xs tabular-nums">
+            {formatCount(post.comment_count)}
+          </span>
+        </button>
+      )}
 
-      <Action label="공유" count={shareCount} onClick={handleShare}>
+      <button
+        type="button"
+        onClick={handleShare}
+        aria-label="공유"
+        className={ACTION_CLASS}
+      >
         <Share2 className="size-6" aria-hidden />
-      </Action>
+        <span className="text-xs tabular-nums">{formatCount(shareCount)}</span>
+      </button>
 
       {/* 전문 도서는 뷰어로 직행, 링크형은 도서 상세 시트로 (PRD §11-31) */}
       {post.books.epub_path !== null ? (
@@ -108,7 +118,7 @@ export function ActionBar({ post }: { post: FeedPost }) {
           <span className="text-xs">읽기</span>
         </Link>
       ) : (
-        <BookSheet book={post.books}>
+        <BookSheet book={post.books} isGuest={isGuest}>
           <button
             type="button"
             aria-label={`${post.books.title} 도서 정보 보기`}

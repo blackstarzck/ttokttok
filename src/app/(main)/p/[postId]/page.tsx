@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostItem } from "@/components/feed/post-item";
 import { getPost } from "@/lib/feed";
+import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 import { CARD_REGISTRY } from "@/components/cards/registry";
 
 /**
@@ -66,9 +67,18 @@ export default async function PostPage({ params }: PageProps<"/p/[postId]">) {
   );
   if (!renderable && post.type === "cards") notFound();
 
+  const [user, likedIds] = await Promise.all([
+    getCurrentUser(),
+    getLikedPostIds([post.id]),
+  ]);
+
   return (
     <div className="h-full">
-      <PostItem post={post} />
+      <PostItem
+        post={post}
+        liked={likedIds.has(post.id)}
+        isGuest={user === null}
+      />
     </div>
   );
 }
