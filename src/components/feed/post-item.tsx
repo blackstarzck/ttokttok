@@ -60,7 +60,34 @@ export function PostItem({
 
       {/* 아바타는 채널로, 도서 정보는 상세 시트로 — 목적지가 다르므로
           하나의 링크로 묶지 않는다 (PRD §5.1). */}
-      <footer className="border-border flex shrink-0 items-center gap-2 border-t px-4 py-2">
+      {/* 도서 커버 + 서지가 본체이고 탭하면 상세 시트로 간다.
+          채널 아바타는 오른쪽에 따로 둔다 — 목적지가 다르고, 44px
+          터치 타깃을 지켜야 하므로 텍스트 링크로는 대체할 수 없다. */}
+      <footer className="border-border flex shrink-0 items-center gap-3 border-t px-4 py-2.5">
+        <BookSheet book={post.books} isGuest={isGuest}>
+          <button
+            type="button"
+            aria-label={`${post.books.title} 도서 정보`}
+            className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <BookCover book={post.books} className="w-11 shrink-0" />
+
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-muted-foreground truncate text-xs">
+                {post.books.category}
+              </span>
+              <span className="truncate text-sm font-medium break-keep">
+                {post.books.title}
+              </span>
+              <span className="text-muted-foreground truncate text-xs">
+                {post.books.author}
+                {post.books.translator ? ` · ${post.books.translator} 옮김` : ""}
+                {post.books.publisher ? ` · ${post.books.publisher}` : ""}
+              </span>
+            </span>
+          </button>
+        </BookSheet>
+
         <Link
           href={`/channel/${post.channels.slug}`}
           aria-label={`${post.channels.name} 채널`}
@@ -75,20 +102,6 @@ export function PostItem({
             </AvatarFallback>
           </Avatar>
         </Link>
-
-        <BookSheet book={post.books} isGuest={isGuest}>
-          <button
-            type="button"
-            className="focus-visible:ring-ring flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <span className="w-full truncate text-sm">
-              {post.channels.name}
-            </span>
-            <span className="text-muted-foreground w-full truncate text-xs">
-              {post.books.title} · {post.books.author}
-            </span>
-          </button>
-        </BookSheet>
       </footer>
     </article>
   );
