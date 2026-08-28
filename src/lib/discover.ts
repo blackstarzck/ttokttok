@@ -46,27 +46,57 @@ export type TrendingPost = {
   books: DiscoverBook;
 };
 
+export type TrendingSource = "recent" | "cumulative";
+
+export type Trending = {
+  posts: TrendingPost[];
+  /** 기간 집계인지, 로그가 부족해 누적으로 대체했는지 */
+  source: TrendingSource;
+};
+
 /**
  * 급상승 — 최근 7일 조회수 상위 (PRD §5.6-4).
  *
- * view_logs를 세는 게 정확하지만, 로그가 쌓이기 전에는 결과가 비어 있다.
- * 누적 조회수(posts.view_count)로 대신 정렬하고, 로그가 충분해지면
- * 기간 집계로 바꾼다.
+ * get_trending_posts가 view_logs를 기간으로 집계한다. 다만 서비스 초기나
+ * 로그를 비운 직후에는 결과가 비는데, 그때 화면에서 영역이 통째로
+ * 사라지면 탐색 탭이 휑해진다 — 누적 조회수로 대체해 채운다.
  */
-export async function getTrendingPosts(limit = 12): Promise<TrendingPost[]> {
+export async function getTrendingPosts(limit = 12): Promise<Trending> {
   const db = await createClient();
-  const { data, error } = await db
+
+  const { data: ranked, error } = await db.rpc("get_trending_posts", {
+    p_days: 7,
+    p_limit: limit,
+  });
+  if (error) console.error("get_trending_posts:", error.message);
+
+  const rows = (ranked ?? []) as { post_id: string; recent_views: number }[];
+
+  if (rows.length > 0) {
+    const { data } = await db
+      .from("posts")
+      .select(`id, view_count, books ( ${BOOK_FIELDS} )`)
+      .in("id", rows.map((r) => r.post_id));
+
+    const order = new Map(rows.map((r, i) => [r.post_id, i]));
+    const posts = ((data ?? []) as unknown as TrendingPost[]).sort(
+      (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
+    );
+    return { posts, source: "recent" };
+  }
+
+  // 폴백 — 기간 로그가 없을 때만.
+  const { data } = await db
     .from("posts")
     .select(`id, view_count, books ( ${BOOK_FIELDS} )`)
     .eq("status", "published")
     .order("view_count", { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error("getTrendingPosts:", error.message);
-    return [];
-  }
-  return (data ?? []) as unknown as TrendingPost[];
+  return {
+    posts: (data ?? []) as unknown as TrendingPost[],
+    source: "cumulative",
+  };
 }
 
 export type SearchResults = {

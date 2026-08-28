@@ -157,10 +157,12 @@ async function Browse({ category }: { category?: string }) {
         <Section title={`${category} 도서`}>
           <CategoryResults category={category} />
         </Section>
-      ) : trending.length > 0 ? (
-        <Section title="급상승">
+      ) : trending.posts.length > 0 ? (
+        <Section
+          title={trending.source === "recent" ? "이번 주 급상승" : "많이 본 글"}
+        >
           <ul className="grid grid-cols-3 gap-1">
-            {trending.map((post) => (
+            {trending.posts.map((post) => (
               <li key={post.id}>
                 <Link
                   href={`/p/${post.id}`}
