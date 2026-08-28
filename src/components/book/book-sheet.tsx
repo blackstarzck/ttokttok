@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookCover } from "@/components/feed/book-cover";
 import { LoginSheet } from "@/components/auth/login-sheet";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics";
 import { buildPurchaseLinks } from "@/lib/purchase-links";
 import type { FeedBook } from "@/lib/feed";
 
@@ -54,7 +55,12 @@ export function BookSheet({
     .join(" · ");
 
   return (
-    <Drawer>
+    <Drawer
+      onOpenChange={(open) => {
+        // 링크형 깔때기의 가운데 단계 (PRD §11-32)
+        if (open) void track("book_sheet_open", { bookId: book.id });
+      }}
+    >
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
       <DrawerContent className="mx-auto max-w-[480px]">
@@ -124,7 +130,17 @@ export function BookSheet({
                     size="lg"
                     className="min-h-11"
                   >
-                    <a href={url} target="_blank" rel="noopener noreferrer">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() =>
+                        void track("purchase_link_click", {
+                          bookId: book.id,
+                          props: { store: key },
+                        })
+                      }
+                    >
                       {label}
                       <ExternalLink aria-hidden />
                     </a>

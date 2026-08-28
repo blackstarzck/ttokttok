@@ -20,6 +20,7 @@ import {
   saveProgress,
   syncProgressToServer,
 } from "@/lib/reading-progress";
+import { track } from "@/lib/analytics";
 import type { ReaderBook } from "@/lib/book";
 
 /** 좌우 끝 이 비율만큼은 페이지 넘김 영역, 가운데는 UI 토글. */
@@ -115,6 +116,8 @@ export function Reader({
       epub.locations.generate(1600).catch(() => {});
 
       clearTimeout(timeout);
+      // 핵심 전환 지점 — 첫 페이지가 실제로 떴을 때만 센다 (PRD §7).
+      void track("reader_open", { bookId: book.id });
       setLoading(false);
     })().catch((err) => {
       clearTimeout(timeout);
@@ -157,9 +160,18 @@ export function Reader({
 
       // 서버 쓰기는 페이지마다가 아니라 진행률이 실제로 움직였을 때만.
       // 한 페이지 넘길 때마다 왕복하면 읽는 흐름에 비해 과하다.
-      if (isLoggedIn && pct !== lastSyncedRef.current) {
+      if (pct !== lastSyncedRef.current) {
+        const previous = lastSyncedRef.current;
         lastSyncedRef.current = pct;
-        void syncProgressToServer(book.id, cfi, pct);
+
+        // 10% 단위로만 남긴다 — 페이지마다 남기면 원장이 진행률로 뒤덮인다.
+        if (Math.floor(pct / 10) > Math.floor(Math.max(previous, 0) / 10)) {
+          void track("reader_progress", { bookId: book.id, props: { percent: pct } });
+        }
+        if (pct >= 100 && previous < 100) {
+          void track("book_complete", { bookId: book.id });
+        }
+        if (isLoggedIn) void syncProgressToServer(book.id, cfi, pct);
       }
 
       // 현재 챕터 이름 — 목차에서 href로 찾는다.

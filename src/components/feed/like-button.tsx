@@ -5,6 +5,7 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { LoginSheet } from "@/components/auth/login-sheet";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,8 @@ export function LikeButton({
       const { error } = next.liked
         ? await db.from("likes").insert({ post_id: postId })
         : await db.from("likes").delete().eq("post_id", postId);
+
+      if (!error && next.liked) void track("like", { postId });
 
       if (error) {
         setOptimistic(previous);

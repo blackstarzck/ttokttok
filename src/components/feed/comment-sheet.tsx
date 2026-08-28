@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { track } from "@/lib/analytics";
 import {
   REPORT_REASONS,
   addComment,
@@ -59,6 +60,7 @@ export function CommentSheet({
     mutationFn: (content: string) => addComment(postId, content),
     onSuccess: () => {
       setDraft("");
+      void track("comment", { postId });
       qc.invalidateQueries({ queryKey: key });
     },
     onError: (e: Error) => toast.error(commentErrorMessage(e.message)),

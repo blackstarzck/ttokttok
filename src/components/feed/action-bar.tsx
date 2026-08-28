@@ -9,6 +9,7 @@ import { LoginSheet } from "@/components/auth/login-sheet";
 import { LikeButton } from "@/components/feed/like-button";
 import { CommentSheet } from "@/components/feed/comment-sheet";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
@@ -52,6 +53,8 @@ export function ActionBar({
     }
 
     setShareCount((n) => n + 1);
+    void track("share", { postId: post.id, bookId: post.books.id });
+
     const { error } = await createClient().rpc("record_share", {
       p_post_id: post.id,
     });
