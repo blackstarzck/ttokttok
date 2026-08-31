@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { PostItem } from "@/components/feed/post-item";
 import { getPost } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
-import { CARD_REGISTRY } from "@/components/cards/registry";
+import { isRenderableCard } from "@/components/cards/registry";
+import type { FeedCardLayout } from "@/lib/feed";
 
 /**
  * 공유 딥링크 랜딩 (PRD §4, §5.5).
@@ -14,15 +15,14 @@ import { CARD_REGISTRY } from "@/components/cards/registry";
  * 발행되지 않은 글은 RLS가 막아 404가 된다.
  */
 
-/** 훅 카드(a)의 헤드라인을 공유 설명으로 쓴다 — 없으면 도서 소개. */
+/** 훅 영역의 문구를 공유 설명으로 쓴다 — 없으면 도서 소개. */
 function shareDescription(
-  cards: { template_category: string; body: Record<string, unknown> }[],
+  layout: FeedCardLayout | null,
   intro: string | null,
 ): string | undefined {
-  const hook = cards.find((c) => c.template_category === "a");
-  const headline = hook?.body["title-01"];
-  const sub = hook?.body["description-01"];
-  const text = [headline, sub].filter((v) => typeof v === "string").join(" — ");
+  const text = [layout?.regions?.hook?.text, layout?.regions?.desc?.text]
+    .filter((v) => typeof v === "string" && v.length > 0)
+    .join(" — ");
   return text || intro || undefined;
 }
 
@@ -61,11 +61,8 @@ export default async function PostPage({ params }: PageProps<"/p/[postId]">) {
 
   if (!post) notFound();
 
-  // 렌더 가능한 카드가 하나도 없으면 빈 화면이 된다 — 그럴 바엔 404.
-  const renderable = post.post_cards.some(
-    (c) => c.template_category in CARD_REGISTRY,
-  );
-  if (!renderable && post.type === "cards") notFound();
+  // 렌더할 수 없는 카드 게시물은 빈 화면이 된다 — 그럴 바엔 404.
+  if (post.type === "cards" && !isRenderableCard(post.post_cards)) notFound();
 
   const [user, likedIds] = await Promise.all([
     getCurrentUser(),

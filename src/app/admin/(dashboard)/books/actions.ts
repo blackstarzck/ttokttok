@@ -40,6 +40,16 @@ function parsePurchaseLinks(fd: FormData): Record<string, string> | null {
   return entries.length ? Object.fromEntries(entries) : null;
 }
 
+/**
+ * DB CHECK 위반 원문은 관리자가 읽고 고칠 수 없다 — 무엇이 빠졌는지로 바꾼다.
+ */
+function humanize(message: string): string {
+  if (message.includes("books_needs_epub_or_store_ref")) {
+    return "EPUB 파일이 없으면 ISBN이나 구매 링크 중 하나는 있어야 합니다 (링크형 도서).";
+  }
+  return message;
+}
+
 export async function saveBook(formData: FormData) {
   await requireAdmin();
 
@@ -66,37 +76,40 @@ export async function saveBook(formData: FormData) {
     pub_date_paper: str(formData, "pub_date_paper"),
     pub_date_ebook: str(formData, "pub_date_ebook"),
     intro: str(formData, "intro"),
+    quote: str(formData, "quote"),
+    quote_source: str(formData, "quote_source"),
     toc: parseToc(formData),
     source: str(formData, "source"),
     rights_note: str(formData, "rights_note"),
     purchase_links: parsePurchaseLinks(formData),
   };
 
-  // 신규는 먼저 행을 만들어 id를 얻는다 — 파일 경로에 id를 쓰기 때문.
-  let bookId = id;
-  if (!bookId) {
-    const { data, error } = await db
-      .from("books")
-      .insert(values)
-      .select("id")
-      .single();
-    if (error) redirect(`/admin/books?error=${encodeURIComponent(error.message)}`);
-    bookId = data!.id;
+  // 파일 경로에 id가 필요하지만, 행을 먼저 만들 수는 없다 — EPUB 없이
+  // INSERT하면 books_needs_epub_or_store_ref CHECK(본문·ISBN·구매 링크 중
+  // 하나)에 걸려 전문 도서 등록이 통째로 막힌다. id를 여기서 정하고
+  // 업로드를 끝낸 뒤 한 번에 INSERT한다.
+  const bookId = id ?? crypto.randomUUID();
+
+  // 신규 저장이 실패하면 방금 올린 파일만 남는다 — 되돌리려고 기록해 둔다.
+  const uploaded: { bucket: string; path: string }[] = [];
+
+  async function fail(message: string): Promise<never> {
+    if (!id) {
+      for (const f of uploaded) await admin.storage.from(f.bucket).remove([f.path]);
+    }
+    redirect(`/admin/books?error=${encodeURIComponent(humanize(message))}`);
   }
 
   // 파일 업로드는 비공개 버킷 접근이 필요해 service role로 처리한다.
   const epub = formData.get("epub");
   if (epub instanceof File && epub.size > 0) {
     const path = `${bookId}.epub`;
-    const { error } = await admin.storage
-      .from("epubs")
-      .upload(path, epub, {
-        contentType: "application/epub+zip",
-        upsert: true,
-      });
-    if (error) {
-      redirect(`/admin/books?error=EPUB 업로드 실패: ${encodeURIComponent(error.message)}`);
-    }
+    const { error } = await admin.storage.from("epubs").upload(path, epub, {
+      contentType: "application/epub+zip",
+      upsert: true,
+    });
+    if (error) await fail(`EPUB 업로드 실패: ${error.message}`);
+    uploaded.push({ bucket: "epubs", path });
     values.epub_path = path;
     values.file_size_mb = Math.round((epub.size / 1024 / 1024) * 100) / 100;
   }
@@ -108,19 +121,19 @@ export async function saveBook(formData: FormData) {
     const { error } = await admin.storage
       .from("covers")
       .upload(path, cover, { contentType: cover.type, upsert: true });
-    if (error) {
-      redirect(`/admin/books?error=표지 업로드 실패: ${encodeURIComponent(error.message)}`);
-    }
+    if (error) await fail(`표지 업로드 실패: ${error.message}`);
+    uploaded.push({ bucket: "covers", path });
     const {
       data: { publicUrl },
     } = admin.storage.from("covers").getPublicUrl(path);
     values.cover_url = publicUrl;
   }
 
-  const { error } = await db.from("books").update(values).eq("id", bookId!);
-  if (error) {
-    redirect(`/admin/books?error=${encodeURIComponent(error.message)}`);
-  }
+  const { error } = id
+    ? await db.from("books").update(values).eq("id", bookId)
+    : await db.from("books").insert({ id: bookId, ...values });
+
+  if (error) await fail(error.message);
 
   revalidatePath("/admin/books");
   revalidatePath("/");

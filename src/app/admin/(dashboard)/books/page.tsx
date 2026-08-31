@@ -12,6 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminNotice } from "@/components/admin/admin-notice";
+import { AdminToast } from "@/components/admin/admin-toast";
+import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { deleteBook } from "./actions";
 
 export const metadata: Metadata = { title: "도서 관리" };
@@ -44,9 +46,9 @@ export default async function AdminBooksPage({
         </Button>
       </header>
 
-      <AdminNotice
-        error={q(sp.error)}
-        success={
+      <AdminNotice error={q(sp.error)} />
+      <AdminToast
+        message={
           q(sp.saved) ? "저장했습니다." : q(sp.deleted) ? "삭제했습니다." : undefined
         }
       />
@@ -84,17 +86,11 @@ export default async function AdminBooksPage({
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/admin/books/${b.id}`}>수정</Link>
                     </Button>
-                    <form action={deleteBook}>
-                      <input type="hidden" name="id" value={b.id} />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                      >
-                        삭제
-                      </Button>
-                    </form>
+                    <ConfirmDelete
+                      action={deleteBook}
+                      hidden={{ id: b.id }}
+                      message={`"${b.title}"을(를) 삭제할까요? 이 도서를 쓰는 게시물이 있으면 삭제되지 않습니다.`}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

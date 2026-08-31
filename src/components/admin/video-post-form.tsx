@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BookSelect, type BookOption } from "@/components/admin/book-select";
 import { saveVideoPost } from "@/app/admin/(dashboard)/posts/actions";
 
 export type VideoPostFormValues = {
@@ -30,7 +31,7 @@ export function VideoPostForm({
 }: {
   post?: VideoPostFormValues;
   channels: { id: string; name: string }[];
-  books: { id: string; title: string; author: string }[];
+  books: BookOption[];
 }) {
   const [source, setSource] = useState<"upload" | "youtube">(
     post?.source_type ?? "upload",
@@ -66,25 +67,11 @@ export function VideoPostForm({
           </select>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="book_id">도서 *</Label>
-          <select
-            id="book_id"
-            name="book_id"
-            defaultValue={post?.book_id ?? ""}
-            required
-            className={selectClass}
-          >
-            <option value="" disabled>
-              선택하세요
-            </option>
-            {books.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.title} — {b.author}
-              </option>
-            ))}
-          </select>
-        </div>
+        <BookSelect
+          books={books}
+          defaultValue={post?.book_id}
+          currentBookId={post?.book_id ?? null}
+        />
       </div>
 
       <section className="flex flex-col gap-4">

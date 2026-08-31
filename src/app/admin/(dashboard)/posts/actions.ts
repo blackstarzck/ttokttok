@@ -4,46 +4,88 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { createClient } from "@/lib/supabase/server";
-import { CARD_REGISTRY } from "@/components/cards/registry";
+import { POST_TEMPLATES, REGION_REGISTRY } from "@/components/cards/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseYoutubeId } from "@/lib/youtube";
 
 /**
  * 카드 게시물 CRUD (PRD §5.10).
  *
- * 카드는 폼에서 `card-{index}-template`, `card-{index}-{슬롯키}` 형태로
- * 들어온다. 순서는 index가 정한다 — 저장할 때 카드를 통째로 지우고 다시
- * 넣으므로 id를 관리할 필요가 없다.
+ * 폼 필드 규약: `template`(게시물 템플릿), `region-{키}-variant`,
+ * `region-{키}-text`. 영역 구성·순서는 템플릿이 고정하므로(PRD §5.2)
+ * 폼에서 순서 정보를 받지 않는다.
  */
 
-function readCards(formData: FormData) {
-  const cards: {
-    sort_order: number;
-    template_category: string;
-    body: Record<string, string>;
-  }[] = [];
+function readCardLayout(formData: FormData):
+  | { template: string; regions: Record<string, { variant: string; text?: string }> }
+  | { error: string } {
+  const template = String(formData.get("template") ?? "");
+  const tpl = POST_TEMPLATES[template];
+  if (!tpl) return { error: "게시물 템플릿을 골라야 합니다" };
 
-  // 폼에 몇 장이 들어왔는지는 hidden 필드가 알려준다.
-  const count = Number(formData.get("cardCount") ?? 0);
+  const regions: Record<string, { variant: string; text?: string }> = {};
 
-  for (let i = 0; i < count; i++) {
-    const template = String(formData.get(`card-${i}-template`) ?? "");
-    if (!template || !(template in CARD_REGISTRY)) continue;
+  for (const key of tpl.regions) {
+    const entry = REGION_REGISTRY[key];
+    if (!entry) continue;
 
-    const body: Record<string, string> = {};
-    for (const slot of CARD_REGISTRY[template].slots) {
-      const value = String(formData.get(`card-${i}-${slot.key}`) ?? "").trim();
-      if (value) body[slot.key] = value;
+    // 폼이 모르는 variant가 오면 defaultVariant로 강제한다 — 렌더러의
+    // 폴백과 같은 규칙을 저장 시점에 먼저 적용해 데이터를 깨끗하게 둔다.
+    const raw = String(formData.get(`region-${key}-variant`) ?? "");
+    const value: { variant: string; text?: string } = {
+      variant: raw in entry.variants ? raw : entry.defaultVariant,
+    };
+
+    if (entry.input) {
+      const text = String(formData.get(`region-${key}-text`) ?? "").trim();
+      if (text) value.text = text;
+      else if (entry.required) {
+        return { error: `${entry.label} 문구를 입력해야 합니다` };
+      }
     }
 
-    cards.push({
-      sort_order: cards.length,
-      template_category: template,
-      body,
-    });
+    regions[key] = value;
   }
 
-  return cards;
+  return { template, regions };
+}
+
+/**
+ * posts 행에 넣을 값.
+ *
+ * 발행 시각은 **처음 발행할 때만** 찍는다. 수정할 때마다 갱신하면 오래된
+ * 글이 방금 쓴 글이 되어, get_feed_v2의 신선도 가중(7일 이내 1.5배)과
+ * 채널 페이지 정렬이 통째로 흔들린다.
+ */
+async function buildPostValues(
+  db: Awaited<ReturnType<typeof createClient>>,
+  args: {
+    id: string;
+    channelId: string;
+    bookId: string;
+    type: "cards" | "video";
+    publish: boolean;
+  },
+) {
+  let publishedAt: string | null = null;
+  if (args.id) {
+    const { data } = await db
+      .from("posts")
+      .select("published_at")
+      .eq("id", args.id)
+      .maybeSingle();
+    publishedAt = data?.published_at ?? null;
+  }
+
+  return {
+    channel_id: args.channelId,
+    book_id: args.bookId,
+    type: args.type,
+    status: args.publish ? ("published" as const) : ("draft" as const),
+    ...(args.publish && !publishedAt
+      ? { published_at: new Date().toISOString() }
+      : {}),
+  };
 }
 
 export async function savePost(formData: FormData) {
@@ -58,21 +100,20 @@ export async function savePost(formData: FormData) {
     redirect("/admin/posts?error=채널과 도서를 골라야 합니다");
   }
 
-  const cards = readCards(formData);
-  if (cards.length === 0) {
-    redirect("/admin/posts?error=카드를 한 장 이상 넣어야 합니다");
+  const layout = readCardLayout(formData);
+  if ("error" in layout) {
+    redirect(`/admin/posts?error=${encodeURIComponent(layout.error)}`);
   }
 
   const db = await createClient();
 
-  const values = {
-    channel_id: channelId,
-    book_id: bookId,
-    type: "cards" as const,
-    status: publish ? ("published" as const) : ("draft" as const),
-    // 처음 발행하는 순간의 시각을 남긴다. 이미 발행된 글은 건드리지 않는다.
-    ...(publish ? { published_at: new Date().toISOString() } : {}),
-  };
+  const values = await buildPostValues(db, {
+    id,
+    channelId,
+    bookId,
+    type: "cards",
+    publish,
+  });
 
   let postId = id;
   if (postId) {
@@ -88,13 +129,16 @@ export async function savePost(formData: FormData) {
     postId = data!.id;
   }
 
-  // 카드는 지우고 다시 넣는다 (post_cards는 post 삭제 시 CASCADE).
-  await db.from("post_cards").delete().eq("post_id", postId);
-  const { error: cardErr } = await db
-    .from("post_cards")
-    .insert(cards.map((c) => ({ ...c, post_id: postId })));
+  // 카드 한 장은 post_id가 PK인 1:1 상세 행 — upsert 하나로 끝난다.
+  const { error: cardErr } = await db.from("post_cards").upsert({
+    post_id: postId,
+    template: layout.template,
+    regions: layout.regions,
+  });
 
   if (cardErr) {
+    // 카드 없는 게시물이 남으면 피드에 빈 화면이 뜬다 — 방금 만든 건 되돌린다.
+    if (!id) await db.from("posts").delete().eq("id", postId);
     redirect(`/admin/posts?error=${encodeURIComponent(cardErr.message)}`);
   }
 
@@ -143,29 +187,14 @@ export async function saveVideoPost(formData: FormData) {
 
   const db = await createClient();
 
-  const values = {
-    channel_id: channelId,
-    book_id: bookId,
-    type: "video" as const,
-    status: publish ? ("published" as const) : ("draft" as const),
-    ...(publish ? { published_at: new Date().toISOString() } : {}),
-  };
+  // 게시물 행보다 영상을 먼저 확정한다. 순서가 반대면 영상 검증이나 업로드가
+  // 실패했을 때 post_videos 없는 영상 게시물이 남고, 그건 피드에서 재생기
+  // 대신 빈 도서 표지로 나온다 — 관리자는 저장에 실패한 줄 아는데 사용자
+  // 화면에는 빈 게시물이 뜬다.
+  //
+  // 파일 경로에 쓸 id도 여기서 정한다 — 업로드가 행 생성보다 앞서기 때문.
+  const postId = id || crypto.randomUUID();
 
-  let postId = id;
-  if (postId) {
-    const { error } = await db.from("posts").update(values).eq("id", postId);
-    if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
-  } else {
-    const { data, error } = await db
-      .from("posts")
-      .insert(values)
-      .select("id")
-      .single();
-    if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
-    postId = data!.id;
-  }
-
-  // 영상 상세는 post_id가 PK라 upsert로 갈아 끼운다.
   let detail: Record<string, unknown>;
 
   if (sourceType === "youtube") {
@@ -207,8 +236,24 @@ export async function saveVideoPost(formData: FormData) {
     };
   }
 
+  const values = await buildPostValues(db, {
+    id,
+    channelId,
+    bookId,
+    type: "video",
+    publish,
+  });
+
+  const { error } = id
+    ? await db.from("posts").update(values).eq("id", postId)
+    : await db.from("posts").insert({ id: postId, ...values });
+  if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+
+  // 영상 상세는 post_id가 PK라 upsert로 갈아 끼운다.
   const { error: detailErr } = await db.from("post_videos").upsert(detail);
   if (detailErr) {
+    // 영상 없는 영상 게시물이 남지 않게 되돌린다.
+    if (!id) await db.from("posts").delete().eq("id", postId);
     redirect(`/admin/posts?error=${encodeURIComponent(detailErr.message)}`);
   }
 

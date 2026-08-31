@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { AdminNotice } from "@/components/admin/admin-notice";
+import { AdminToast } from "@/components/admin/admin-toast";
 import {
   addFeatured,
   moveFeatured,
@@ -44,9 +45,9 @@ export default async function AdminFeaturedPage({
         </p>
       </header>
 
-      <AdminNotice
-        error={q(sp.error)}
-        success={
+      <AdminNotice error={q(sp.error)} />
+      <AdminToast
+        message={
           q(sp.saved) ? "저장했습니다." : q(sp.removed) ? "내렸습니다." : undefined
         }
       />

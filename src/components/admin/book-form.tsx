@@ -17,6 +17,8 @@ export type BookFormValues = {
   pub_date_paper: string | null;
   pub_date_ebook: string | null;
   intro: string | null;
+  quote: string | null;
+  quote_source: string | null;
   toc: string[];
   source: string | null;
   rights_note: string | null;
@@ -111,6 +113,31 @@ export function BookForm({ book }: { book?: BookFormValues }) {
           />
           <p className="text-muted-foreground text-xs">줄바꿈으로 구분합니다.</p>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-sm font-medium">인용구</h2>
+          <p className="text-muted-foreground text-xs">
+            게시물이 아니라 도서에 속합니다 — 도서 상세 시트의 2번째 섹션에
+            보입니다 (PRD §5.12). 비워 두면 섹션이 생략됩니다.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="quote">인용 문장</Label>
+          <Textarea
+            id="quote"
+            name="quote"
+            defaultValue={book?.quote ?? ""}
+            rows={3}
+          />
+        </div>
+        <Field
+          name="quote_source"
+          label="출처"
+          defaultValue={book?.quote_source}
+          placeholder="비워 두면 제목 · 저자로 표기됩니다"
+        />
       </section>
 
       <section className="flex flex-col gap-4">

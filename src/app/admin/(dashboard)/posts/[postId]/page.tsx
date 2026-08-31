@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PostForm } from "@/components/admin/post-form";
 import { VideoPostForm } from "@/components/admin/video-post-form";
+import { getBookOptions } from "@/lib/admin-books";
 
 export const metadata: Metadata = { title: "게시물 수정" };
 
@@ -12,16 +13,16 @@ export default async function EditPostPage({
   const { postId } = await params;
   const db = await createClient();
 
-  const [{ data: post }, { data: channels }, { data: books }] = await Promise.all([
+  const [{ data: post }, { data: channels }, books] = await Promise.all([
     db
       .from("posts")
       .select(
-        "id, channel_id, book_id, status, type, post_cards(sort_order, template_category, body), post_videos(source_type, video_path, youtube_id)",
+        "id, channel_id, book_id, status, type, post_cards(template, regions), post_videos(source_type, video_path, youtube_id)",
       )
       .eq("id", postId)
       .maybeSingle(),
-    db.from("channels").select("id, name").order("name"),
-    db.from("books").select("id, title, author").order("title"),
+    db.from("channels").select("id, name, slug, avatar_url").order("name"),
+    getBookOptions(),
   ]);
 
   if (!post) notFound();
@@ -46,18 +47,17 @@ export default async function EditPostPage({
             youtube_id: v?.youtube_id ?? null,
           }}
           channels={channels ?? []}
-          books={books ?? []}
+          books={books}
         />
       </div>
     );
   }
 
-  const cards = [...(post.post_cards ?? [])]
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((c) => ({
-      template_category: c.template_category,
-      body: (c.body ?? {}) as Record<string, string>,
-    }));
+  // post_id가 PK인 1:1 조인이라 객체(또는 null)로 온다.
+  const card = post.post_cards as unknown as {
+    template: string;
+    regions: Record<string, { variant?: string | null; text?: string | null }>;
+  } | null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,10 +68,10 @@ export default async function EditPostPage({
           channel_id: post.channel_id,
           book_id: post.book_id,
           status: post.status,
-          cards,
+          card: card ? { template: card.template, regions: card.regions ?? {} } : null,
         }}
         channels={channels ?? []}
-        books={books ?? []}
+        books={books}
       />
     </div>
   );

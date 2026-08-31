@@ -3,15 +3,14 @@ import { FeedScroller } from "@/components/feed/feed-scroller";
 import { PostItem } from "@/components/feed/post-item";
 import { getFeed } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
-
-/** 피드 순서를 정하는 seed. 방문(세션)마다 새로 뽑되 그 안에서는 유지한다. */
-const SEED_COOKIE = "ttokttok.feed-seed";
+import { FEED_SEED_COOKIE } from "@/lib/feed-seed";
 
 export default async function HomePage() {
-  // 페이지네이션이 같은 순서를 이어가려면 seed가 요청 사이에서 살아 있어야
-  // 한다. 매번 새로 뽑으면 다음 페이지가 첫 페이지와 겹친다.
+  // seed는 미들웨어가 쿠키로 심는다 — 서버 컴포넌트는 쿠키를 쓸 수 없다.
+  // 폴백은 미들웨어를 타지 않는 경로를 위한 것이고, 그 경우 순서는 이 요청
+  // 안에서만 유효하다.
   const jar = await cookies();
-  const seed = jar.get(SEED_COOKIE)?.value ?? crypto.randomUUID();
+  const seed = jar.get(FEED_SEED_COOKIE)?.value ?? crypto.randomUUID();
 
   const { posts, nextCursor } = await getFeed(seed, null, 10);
 

@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminNotice } from "@/components/admin/admin-notice";
+import { AdminToast } from "@/components/admin/admin-toast";
+import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { saveChannel, deleteChannel } from "./actions";
 
 export const metadata: Metadata = { title: "채널 관리" };
@@ -44,9 +46,9 @@ export default async function AdminChannelsPage({
         </p>
       </header>
 
-      <AdminNotice
-        error={q(sp.error)}
-        success={q(sp.saved) ? "저장했습니다." : q(sp.deleted) ? "삭제했습니다." : undefined}
+      <AdminNotice error={q(sp.error)} />
+      <AdminToast
+        message={q(sp.saved) ? "저장했습니다." : q(sp.deleted) ? "삭제했습니다." : undefined}
       />
 
       <section className="border-border flex flex-col gap-4 rounded-lg border p-4">
@@ -132,17 +134,11 @@ export default async function AdminChannelsPage({
                     <Button asChild variant="ghost" size="sm">
                       <a href={`/admin/channels?edit=${c.id}`}>수정</a>
                     </Button>
-                    <form action={deleteChannel}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                      >
-                        삭제
-                      </Button>
-                    </form>
+                    <ConfirmDelete
+                      action={deleteChannel}
+                      hidden={{ id: c.id }}
+                      message={`채널 "${c.name}"을(를) 삭제할까요? 이 채널의 게시물이 있으면 삭제되지 않습니다.`}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

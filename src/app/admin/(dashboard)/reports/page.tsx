@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminNotice } from "@/components/admin/admin-notice";
+import { AdminToast } from "@/components/admin/admin-toast";
+import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { timeAgo } from "@/lib/comments";
 import {
   addBannedWord,
@@ -96,10 +98,8 @@ export default async function AdminReportsPage({
           </p>
         </header>
 
-        <AdminNotice
-          error={q(sp.error)}
-          success={q(sp.done) ? DONE_MESSAGE[q(sp.done)!] : undefined}
-        />
+        <AdminNotice error={q(sp.error)} />
+        <AdminToast message={q(sp.done) ? DONE_MESSAGE[q(sp.done)!] : undefined} />
 
         {queue.length === 0 ? (
           <p className="text-muted-foreground border-border rounded-lg border py-10 text-center text-sm">
@@ -131,20 +131,13 @@ export default async function AdminReportsPage({
 
                 <div className="flex gap-2">
                   {item.deleted ? null : (
-                    <form action={deleteReportedComment}>
-                      <input
-                        type="hidden"
-                        name="comment_id"
-                        value={item.commentId}
-                      />
-                      <Button
-                        type="submit"
-                        variant="secondary"
-                        className="text-destructive min-h-11"
-                      >
-                        댓글 삭제
-                      </Button>
-                    </form>
+                    <ConfirmDelete
+                      action={deleteReportedComment}
+                      hidden={{ comment_id: item.commentId }}
+                      label="댓글 삭제"
+                      size="default"
+                      message="이 댓글을 삭제할까요? 이 댓글에 달린 신고도 함께 처리됩니다."
+                    />
                   )}
                   <form action={dismissReport}>
                     <input
@@ -185,18 +178,12 @@ export default async function AdminReportsPage({
           <ul className="flex flex-wrap gap-2">
             {words.map((w) => (
               <li key={w.id}>
-                <form action={removeBannedWord} className="flex">
-                  <input type="hidden" name="id" value={w.id} />
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    size="sm"
-                    className="min-h-9"
-                    aria-label={`${w.word} 삭제`}
-                  >
-                    {w.word} ×
-                  </Button>
-                </form>
+                <ConfirmDelete
+                  action={removeBannedWord}
+                  hidden={{ id: w.id }}
+                  label={`${w.word} ×`}
+                  message={`금칙어 "${w.word}"을(를) 목록에서 뺄까요?`}
+                />
               </li>
             ))}
           </ul>

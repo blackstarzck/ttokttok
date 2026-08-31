@@ -1,14 +1,14 @@
 "use server";
 
 import { PostItem } from "@/components/feed/post-item";
-import { getFeed } from "@/lib/feed";
+import { getFeed, type FeedCursor } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 
 export type MoreFeed = {
   /** 이미 렌더된 게시물들 — 카드 트리를 클라이언트 번들에 넣지 않기 위함 */
   nodes: React.ReactNode[];
   postIds: string[];
-  nextCursor: number | null;
+  nextCursor: FeedCursor | null;
 };
 
 /**
@@ -22,7 +22,7 @@ export type MoreFeed = {
 export async function loadMoreFeed(
   seed: string,
   sessionId: string | null,
-  cursor: number | null,
+  cursor: FeedCursor | null,
 ): Promise<MoreFeed> {
   const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor);
 

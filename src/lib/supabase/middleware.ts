@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { FEED_SEED_COOKIE } from "@/lib/feed-seed";
 
 /**
  * 세션 토큰 갱신 + /admin 접근 제어.
@@ -12,6 +13,13 @@ import { NextResponse, type NextRequest } from "next/server";
  * 최종 방어선은 어차피 RLS다 (FRONTEND.md §5).
  */
 export async function updateSession(request: NextRequest) {
+  // 피드 seed는 응답보다 먼저 요청에 심어야 한다 — NextResponse.next는
+  // 만들어지는 시점의 요청 헤더를 스냅숏으로 들고 가므로, 나중에 넣으면
+  // 이번 요청을 처리하는 서버 컴포넌트는 그 값을 보지 못한다.
+  const hasSeed = request.cookies.has(FEED_SEED_COOKIE);
+  const seed = request.cookies.get(FEED_SEED_COOKIE)?.value ?? crypto.randomUUID();
+  if (!hasSeed) request.cookies.set(FEED_SEED_COOKIE, seed);
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -55,6 +63,12 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/admin";
     url.search = "";
     return NextResponse.redirect(url);
+  }
+
+  // supabase의 setAll이 response를 갈아 끼우므로 여기서 심는다.
+  // maxAge를 주지 않아 브라우저를 닫으면 순서가 새로 뽑힌다.
+  if (!hasSeed) {
+    response.cookies.set(FEED_SEED_COOKIE, seed, { path: "/", sameSite: "lax" });
   }
 
   return response;

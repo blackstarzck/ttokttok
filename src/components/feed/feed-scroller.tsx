@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSessionId } from "@/lib/session-id";
 import { loadMoreFeed } from "@/app/(main)/feed-actions";
+import type { FeedCursor } from "@/lib/feed";
 
 /** 활성 게시물 기준 앞뒤로 마운트할 개수 (FRONTEND.md §6 가상화). */
 const WINDOW = 2;
@@ -24,7 +25,7 @@ export function FeedScroller({
 }: {
   postIds: string[];
   seed: string;
-  initialCursor: number | null;
+  initialCursor: FeedCursor | null;
   children: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,6 +40,10 @@ export function FeedScroller({
 
   // 이미 집계한 게시물 — 리렌더를 유발할 필요가 없으므로 ref로 둔다.
   const loggedRef = useRef(new Set<string>());
+
+  // 이미 붙인 게시물. setState 업데이터는 순수해야 하고 StrictMode에서 두 번
+  // 돌기 때문에, 중복 판정은 그 밖에서 ref로 한다.
+  const knownIdsRef = useRef(new Set(initialIds));
 
   const recordView = useCallback(async (postId: string) => {
     if (loggedRef.current.has(postId)) return;
@@ -62,9 +67,15 @@ export function FeedScroller({
     loadMoreFeed(seed, getSessionId(), cursor)
       .then((page) => {
         if (cancelled) return;
-        // 서버가 이미 렌더한 노드를 뒤에 붙인다.
-        setItems((prev) => [...prev, ...page.nodes]);
-        setPostIds((prev) => [...prev, ...page.postIds]);
+        // 이미 붙어 있는 게시물은 거른다. 키가 겹치면 React가 렌더를
+        // 뒤섞는다 — 커서가 정확해도 사이에 새 글이 발행되면 생길 수 있다.
+        const fresh = page.postIds
+          .map((pid, i) => ({ pid, node: page.nodes[i] }))
+          .filter(({ pid }) => !knownIdsRef.current.has(pid));
+        fresh.forEach(({ pid }) => knownIdsRef.current.add(pid));
+
+        setItems((prev) => [...prev, ...fresh.map((f) => f.node)]);
+        setPostIds((prev) => [...prev, ...fresh.map((f) => f.pid)]);
         setCursor(page.nextCursor);
       })
       .catch((err) => console.error("피드 추가 로드 실패:", err))

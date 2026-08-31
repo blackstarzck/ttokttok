@@ -7,7 +7,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { AdminNotice } from "@/components/admin/admin-notice";
-import { formatCount } from "@/lib/format";
+import { AdminToast } from "@/components/admin/admin-toast";
+import { ConfirmDelete } from "@/components/admin/confirm-delete";
+import { formatCount, formatDate } from "@/lib/format";
 import { deletePost } from "./actions";
 
 export const metadata: Metadata = { title: "게시물 관리" };
@@ -24,7 +26,7 @@ export default async function AdminPostsPage({
   const { data: posts } = await db
     .from("posts")
     .select(
-      "id, status, type, like_count, comment_count, view_count, books(title), channels(name)",
+      "id, status, type, published_at, created_at, like_count, comment_count, view_count, books(title), channels(name)",
     )
     .order("published_at", { ascending: false, nullsFirst: false });
 
@@ -47,9 +49,9 @@ export default async function AdminPostsPage({
         </div>
       </header>
 
-      <AdminNotice
-        error={q(sp.error)}
-        success={q(sp.saved) ? "저장했습니다." : q(sp.deleted) ? "삭제했습니다." : undefined}
+      <AdminNotice error={q(sp.error)} />
+      <AdminToast
+        message={q(sp.saved) ? "저장했습니다." : q(sp.deleted) ? "삭제했습니다." : undefined}
       />
 
       <Table>
@@ -59,6 +61,7 @@ export default async function AdminPostsPage({
             <TableHead>채널</TableHead>
             <TableHead>유형</TableHead>
             <TableHead>상태</TableHead>
+            <TableHead>날짜</TableHead>
             <TableHead className="text-right">조회</TableHead>
             <TableHead className="text-right">좋아요</TableHead>
             <TableHead className="text-right">댓글</TableHead>
@@ -72,8 +75,15 @@ export default async function AdminPostsPage({
               const channel = p.channels as unknown as { name: string } | null;
               return (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium break-keep">
-                    {book?.title ?? "—"}
+                  <TableCell className="break-keep">
+                    <span className="font-medium">{book?.title ?? "—"}</span>
+                    {/* 사용자 화면 주소가 /p/{id}다 — 그 파라미터를 그대로 보여준다. */}
+                    <code
+                      title={p.id}
+                      className="text-muted-foreground block text-[11px] font-normal"
+                    >
+                      {p.id}
+                    </code>
                   </TableCell>
                   <TableCell>{channel?.name ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">
@@ -86,6 +96,11 @@ export default async function AdminPostsPage({
                       <Badge variant="secondary">임시</Badge>
                     )}
                   </TableCell>
+                  {/* 발행 전에는 발행일이 없다 — 작성일로 대신한다. */}
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+                    {formatDate(p.published_at ?? p.created_at)}
+                    {p.published_at ? "" : " 작성"}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCount(p.view_count)}
                   </TableCell>
@@ -97,15 +112,24 @@ export default async function AdminPostsPage({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
+                      {/* 실제 사용자 화면. 임시저장 글도 관리자에게는 열린다(RLS). */}
+                      <Button asChild variant="ghost" size="sm">
+                        <Link
+                          href={`/p/${p.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          보기
+                        </Link>
+                      </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/admin/posts/${p.id}`}>수정</Link>
                       </Button>
-                      <form action={deletePost}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <Button type="submit" variant="ghost" size="sm" className="text-destructive">
-                          삭제
-                        </Button>
-                      </form>
+                      <ConfirmDelete
+                        action={deletePost}
+                        hidden={{ id: p.id }}
+                        message={`"${book?.title ?? "이 게시물"}" 게시물을 삭제할까요? 카드·영상과 좋아요·댓글이 함께 지워집니다.`}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -113,7 +137,7 @@ export default async function AdminPostsPage({
             })
           ) : (
             <TableRow>
-              <TableCell colSpan={8} className="text-muted-foreground text-center">
+              <TableCell colSpan={9} className="text-muted-foreground text-center">
                 게시물이 없습니다.
               </TableCell>
             </TableRow>

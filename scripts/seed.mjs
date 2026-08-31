@@ -15,6 +15,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { fetchEpub } from "./lib/wikisource.mjs";
+import { hasFfmpeg, makePlaceholderVideo } from "./lib/placeholder-video.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -251,6 +252,21 @@ const books = [
   },
 ];
 
+// ── 임시 영상 게시물 (PRD §5.3) ─────────────────────────────────
+//
+// 피드는 카드 게시물과 영상 게시물이 섞여야 한다(§5.1). 카드만 시드하면
+// post-item.tsx의 영상 분기가 한 번도 렌더되지 않아 확인이 불가능하다.
+// 실제 영상 자산이 없으므로 ffmpeg으로 만든 자리표시자를 올린다 —
+// 실물 콘텐츠가 생기면 이 배열과 placeholder-video.mjs를 함께 지운다.
+//
+// id는 카드 게시물의 po(1..8)과 겹치지 않게 100번대를 쓴다.
+const videoPosts = [
+  { id: po(101), book: bk(3), from: "0x141a3a", to: "0x5b4b8a",
+    like_count: 431, view_count: 6200, share_count: 33 },
+  { id: po(102), book: bk(7), from: "0x0e1b2a", to: "0x2f6d7a",
+    like_count: 158, view_count: 2400, share_count: 11 },
+];
+
 // ── 실행 ────────────────────────────────────────────────────────
 async function run() {
   // 1) 채널
@@ -321,6 +337,8 @@ async function run() {
         publisher: null,
         category: b.category,
         intro: b.intro,
+        quote: b.quote.text,
+        quote_source: b.quote.from,
         toc: b.toc,
         page_count: b.pageCount,
         pub_date_paper: b.pubDate,
@@ -353,43 +371,103 @@ async function run() {
     console.log(`✓ 게시물 ${posts.length}개 (전부 published)`);
   }
 
-  // 5) 카드 — 게시물당 [a 훅 → c 인용 → b 상세] 3장.
-  //    카드는 id를 관리하지 않고 지웠다 다시 넣는다.
+  // 5) 카드 — 게시물당 한 장(영역 레이아웃). 인용구·상세정보는 카드가
+  //    아니라 도서 메타다 (마이그레이션 20260828000003, PRD §5.2).
+  //    일부 게시물은 템플릿 b(텍스트 중심)·영역 유형 b를 써서 피드에서
+  //    조합 다양성이 실제로 보이게 한다.
   {
-    const postIds = posts.map((p) => p.id);
-    const { error: delErr } = await db
-      .from("post_cards")
-      .delete()
-      .in("post_id", postIds);
-    if (delErr) throw new Error(`post_cards delete: ${delErr.message}`);
+    const cards = books.map((b, i) => {
+      const textCentric = i % 3 === 2; // 3·6번째 게시물
 
-    const cards = books.flatMap((b, i) => [
-      {
-        post_id: po(i + 1),
-        sort_order: 0,
-        template_category: "a",
-        body: { "title-01": b.hook.title, "description-01": b.hook.desc },
-      },
-      {
-        post_id: po(i + 1),
-        sort_order: 1,
-        template_category: "c",
-        body: { "description-01": b.quote.text, "caption-01": b.quote.from },
-      },
-      {
-        post_id: po(i + 1),
-        sort_order: 2,
-        template_category: "b",
-        body: { "title-01": "상세 정보" },
-      },
-    ]);
+      return textCentric
+        ? {
+            post_id: po(i + 1),
+            template: "b",
+            regions: {
+              genre: { variant: "b" },
+              hook: { variant: "b", text: b.hook.title },
+              desc: { variant: "b", text: b.hook.desc },
+              biblio: { variant: "b" },
+            },
+          }
+        : {
+            post_id: po(i + 1),
+            template: "a",
+            regions: {
+              cover: { variant: "a" },
+              genre: { variant: "a" },
+              biblio: { variant: "a" },
+              hook: { variant: "a", text: b.hook.title },
+              desc: { variant: "a", text: b.hook.desc },
+            },
+          };
+    });
 
-    const { error } = await db.from("post_cards").insert(cards);
+    const { error } = await db.from("post_cards").upsert(cards);
     if (error) throw new Error(`post_cards: ${error.message}`);
-    console.log(`✓ 카드 ${cards.length}장 (게시물당 a→c→b)`);
+    console.log(
+      `✓ 카드 레이아웃 ${cards.length}장 (커버 중심 ${cards.filter((c) => c.template === "a").length} · 텍스트 중심 ${cards.filter((c) => c.template === "b").length})`,
+    );
   }
 
-  // 6) 탐색 '오늘의 추천'
+  // 6) 임시 영상 게시물 — 피드에 카드/영상이 섞이게 한다 (PRD §5.1, §5.3).
+  //    ffmpeg이 없으면 이 단계만 건너뛴다.
+  {
+    if (!(await hasFfmpeg())) {
+      console.log("· ffmpeg 없음 — 임시 영상 게시물 건너뜀 (카드 게시물만 시드됨)");
+    } else {
+      const byId = new Map(books.map((b) => [b.id, b]));
+      const details = [];
+
+      for (const v of videoPosts) {
+        const book = byId.get(v.book);
+        const path = `${v.id}.mp4`;
+
+        const mp4 = await makePlaceholderVideo({
+          title: book.title,
+          from: v.from,
+          to: v.to,
+        });
+
+        const { error } = await db.storage
+          .from("videos")
+          .upload(path, mp4, { contentType: "video/mp4", upsert: true });
+        if (error) throw new Error(`영상 업로드 ${book.title}: ${error.message}`);
+
+        // 어드민 업로드와 같은 규약 — video_path에 공개 URL을 넣는다.
+        details.push({
+          post_id: v.id,
+          source_type: "upload",
+          video_path: db.storage.from("videos").getPublicUrl(path).data.publicUrl,
+          youtube_id: null,
+          duration_sec: 8,
+        });
+        console.log(`  ↑ ${book.title} (${Math.round(mp4.length / 1024)}KB)`);
+      }
+
+      const { error: postErr } = await db.from("posts").upsert(
+        videoPosts.map((v, i) => ({
+          id: v.id,
+          channel_id: byId.get(v.book).channel,
+          book_id: v.book,
+          type: "video",
+          status: "published",
+          published_at: new Date(Date.UTC(2026, 7, 26 + i, 9, 0, 0)).toISOString(),
+          like_count: v.like_count,
+          view_count: v.view_count,
+          share_count: v.share_count,
+        })),
+      );
+      if (postErr) throw new Error(`video posts: ${postErr.message}`);
+
+      const { error: detailErr } = await db.from("post_videos").upsert(details);
+      if (detailErr) throw new Error(`post_videos: ${detailErr.message}`);
+
+      console.log(`✓ 임시 영상 게시물 ${videoPosts.length}개`);
+    }
+  }
+
+  // 7) 탐색 '오늘의 추천'
   {
     const featured = [bk(7), bk(3), bk(5)].map((book_id, i) => ({
       book_id,
@@ -401,7 +479,7 @@ async function run() {
     console.log(`✓ 오늘의 추천 ${featured.length}권`);
   }
 
-  // 7) 금칙어 — 최소 세트. 운영 중에는 어드민에서 관리한다.
+  // 8) 금칙어 — 최소 세트. 운영 중에는 어드민에서 관리한다.
   {
     const words = ["씨발", "병신", "좆", "새끼"].map((word) => ({ word }));
     const { error } = await db
@@ -411,7 +489,7 @@ async function run() {
     console.log(`✓ 금칙어 ${words.length}개`);
   }
 
-  // 8) 관리자 승격 — ADMIN_EMAIL 계정이 이미 로그인한 적 있어야 한다.
+  // 9) 관리자 승격 — ADMIN_EMAIL 계정이 이미 로그인한 적 있어야 한다.
   {
     const email = process.env.ADMIN_EMAIL;
     if (!email) {

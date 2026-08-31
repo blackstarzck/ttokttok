@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CardCarousel } from "@/components/feed/card-carousel";
+import { TemplateCard } from "@/components/cards/template-card";
 import { ActionBar } from "@/components/feed/action-bar";
 import { BookCover } from "@/components/feed/book-cover";
 import { BookSheet } from "@/components/book/book-sheet";
@@ -12,17 +12,23 @@ import type { FeedPost } from "@/lib/feed";
  *
  * 레이아웃은 오버레이가 아니라 분할이다 — 카드가 텍스트 위주라 UI를 겹치면
  * 읽기를 방해한다. "바로 읽기" CTA는 우측 액션 바 그룹 안에 있다.
+ *
+ * preview는 어드민 미리보기 전용이다 (PRD §5.10). 미리보기가 이 컴포넌트를
+ * 그대로 쓰는 덕분에 "관리자가 본 화면"과 "사용자가 볼 화면"이 어긋날 수
+ * 없다 — 마크업도 클래스도 한 벌뿐이다.
  */
 export function PostItem({
   post,
   liked = false,
   isGuest = true,
   userId = null,
+  preview,
 }: {
   post: FeedPost;
   liked?: boolean;
   isGuest?: boolean;
   userId?: string | null;
+  preview?: boolean;
 }) {
   return (
     <article
@@ -44,7 +50,11 @@ export function PostItem({
               </div>
             )
           ) : (
-            <CardCarousel cards={post.post_cards} book={post.books} />
+            <TemplateCard
+              layout={post.post_cards}
+              book={post.books}
+              preview={preview}
+            />
           )}
         </div>
 

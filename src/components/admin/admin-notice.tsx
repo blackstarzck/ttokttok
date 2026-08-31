@@ -1,30 +1,23 @@
 import { cn } from "@/lib/utils";
 
 /**
- * 어드민 화면의 결과 알림. 서버 액션이 리다이렉트로 넘긴 쿼리를 그대로
- * 보여준다 — 토스트를 쓰려면 클라이언트 상태가 필요한데, 폼 제출마다
- * 페이지가 갈리는 어드민에서는 쿼리 쪽이 단순하다.
+ * 어드민의 오류 알림.
+ *
+ * 오류는 관리자가 고칠 때까지 화면에 남아야 하므로 배너로 둔다. 성공은
+ * 읽고 나면 할 일이 없어 토스트로 뺐다 — AdminToast 참고.
  */
-export function AdminNotice({
-  error,
-  success,
-}: {
-  error?: string;
-  success?: string;
-}) {
-  if (!error && !success) return null;
+export function AdminNotice({ error }: { error?: string }) {
+  if (!error) return null;
 
   return (
     <p
-      role="status"
+      role="alert"
       className={cn(
         "rounded-md border px-3 py-2 text-sm",
-        error
-          ? "border-destructive/40 text-destructive"
-          : "border-border text-muted-foreground",
+        "border-destructive/40 text-destructive",
       )}
     >
-      {error ?? success}
+      {error}
     </p>
   );
 }

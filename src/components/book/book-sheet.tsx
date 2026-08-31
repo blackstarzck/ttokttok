@@ -33,6 +33,15 @@ import type { FeedBook } from "@/lib/feed";
  * 여는 방법은 트리거를 children으로 받는 조합이다 — 진입점마다 생김새가
  * 다르므로 prop으로 모양을 분기하지 않는다 (FRONTEND.md §2).
  */
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 text-sm">
+      <dt className="text-muted-foreground w-14 shrink-0">{label}</dt>
+      <dd className="break-keep">{value}</dd>
+    </div>
+  );
+}
+
 export function BookSheet({
   book,
   isGuest = true,
@@ -79,32 +88,68 @@ export function BookSheet({
           </div>
         </DrawerHeader>
 
+        {/*
+          시트 본문은 3단이다 (PRD §5.12): ① 소개 ② 인용구 ③ 상세 정보.
+          인용구·상세는 게시물 본문이 아니라 도서의 메타정보라서 여기 산다 —
+          어떤 게시물에서 열어도 같은 도서면 같은 내용을 본다.
+        */}
         <ScrollArea className="max-h-[40vh] px-4">
           <div className="flex flex-col gap-5 pb-4">
             {book.intro ? (
               <p className="text-sm leading-relaxed break-keep">{book.intro}</p>
             ) : null}
 
-            {book.toc.length > 0 ? (
-              <section className="flex flex-col gap-2">
-                <h3 className="text-muted-foreground text-xs font-medium">
-                  목차
-                </h3>
-                <ol className="flex flex-col gap-2">
-                  {book.toc.map((item, i) => (
-                    <li key={`${i}-${item}`} className="text-sm break-keep">
-                      {item}
-                    </li>
-                  ))}
-                </ol>
-              </section>
+            {book.quote ? (
+              <figure className="flex flex-col gap-2">
+                {/* DESIGN.md quote 토큰: 20px · 500 · 행간 1.7 */}
+                <blockquote className="text-xl leading-loose font-medium break-keep">
+                  {book.quote}
+                </blockquote>
+                <figcaption className="text-muted-foreground text-xs">
+                  <cite className="not-italic">
+                    {book.quote_source ?? `${book.title} · ${book.author}`}
+                  </cite>
+                </figcaption>
+              </figure>
             ) : null}
 
-            {book.isbn ? (
-              <p className="text-muted-foreground text-xs">
-                ISBN <span className="font-mono">{book.isbn}</span>
-              </p>
-            ) : null}
+            <section className="flex flex-col gap-3">
+              <h3 className="text-muted-foreground text-xs font-medium">
+                상세 정보
+              </h3>
+              <dl className="flex flex-col gap-2">
+                {book.publisher ? (
+                  <DetailRow label="출판사" value={book.publisher} />
+                ) : null}
+                {book.page_count ? (
+                  <DetailRow label="페이지" value={`${book.page_count}p`} />
+                ) : null}
+                {book.pub_date_paper ? (
+                  <DetailRow label="출간일" value={book.pub_date_paper} />
+                ) : null}
+                {book.isbn ? (
+                  <div className="flex gap-3 text-sm">
+                    <dt className="text-muted-foreground w-14 shrink-0">ISBN</dt>
+                    <dd className="font-mono">{book.isbn}</dd>
+                  </div>
+                ) : null}
+              </dl>
+
+              {book.toc.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-muted-foreground text-xs font-medium">
+                    목차
+                  </h4>
+                  <ol className="flex flex-col gap-2">
+                    {book.toc.map((item, i) => (
+                      <li key={`${i}-${item}`} className="text-sm break-keep">
+                        {item}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
+            </section>
           </div>
         </ScrollArea>
 
