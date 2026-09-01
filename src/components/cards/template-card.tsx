@@ -45,7 +45,11 @@ export function TemplateCard({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col justify-center gap-4 px-6 py-8">
+    // 세이프존: 분할이 만들던 여백을 이제 패딩이 만든다.
+    // 좌우 각 60px = 레일 우측 여백 8 + 레일 폭 44 + 여유 8.
+    // 좌우가 대칭이라야 중앙정렬 콘텐츠가 프레임 중심에서 안 밀린다.
+    // 하단 84px = 도서 정보 바 76 + 여유 8.
+    <div className="flex h-full min-h-0 flex-col justify-center gap-4 px-15 pt-5 pb-21">
       {template.regions.map((key) => {
         const entry = REGION_REGISTRY[key];
         if (!entry) return null;
