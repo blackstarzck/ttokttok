@@ -68,7 +68,14 @@ export function BookSheet({
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
       <DrawerContent className="mx-auto max-w-[480px]">
-        <DrawerHeader className="flex flex-row items-start gap-4 text-left">
+        {/*
+          text-left만으로는 안 먹는다 — DrawerHeader 기본값에
+          group-data-[vaul-drawer-direction=bottom]:text-center가 있어서
+          변형 선택자가 맨몸 유틸리티를 이긴다. 같은 변형으로 덮어써야
+          tailwind-merge가 둘을 같은 그룹으로 보고 뒤엣것을 남긴다.
+          커버가 왼쪽에 서는 가로 배치라 글줄도 왼쪽 기준이어야 한다.
+        */}
+        <DrawerHeader className="flex flex-row items-start gap-4 text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <BookCover book={book} className="w-24 shrink-0" />
           <div className="flex min-w-0 flex-col gap-1.5">
             <span className="text-muted-foreground text-xs">
