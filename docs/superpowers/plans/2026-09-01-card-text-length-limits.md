@@ -192,7 +192,12 @@ Run: `npm run build`
 Expected: 성공. `maxLength`는 선택 필드라 `cover`·`genre`·`biblio` 영역 정의는 타입 오류 없이 그대로 컴파일된다.
 
 Run: `grep -n "maxLength" src/components/cards/registry.ts src/components/cards/regions.tsx "src/app/admin/(dashboard)/posts/actions.ts"`
-Expected: `registry.ts` 1건(타입 선언), `regions.tsx` 2건(60, 90), `actions.ts` 2건(조건문과 메시지).
+Expected:
+- `registry.ts` **2건** — 타입 선언(`maxLength?: number;`)과 JSDoc의 "브라우저 maxLength와 같은 단위라" 문구
+- `regions.tsx` **2건** — 60, 90
+- `actions.ts` **3건** — 주석의 "브라우저 maxLength는", 조건문(한 줄에 두 번), 오류 메시지
+
+주석 문구 자체가 `maxLength`라는 단어를 담으므로 코드 참조보다 매치 수가 많다.
 
 Run: `npm run lint`
 Expected: 기존 5건 그대로, 신규 0건.
