@@ -5,6 +5,9 @@ import { ActionBar } from "@/components/feed/action-bar";
 import { BookCover } from "@/components/feed/book-cover";
 import { BookSheet } from "@/components/book/book-sheet";
 import { VideoPlayer } from "@/components/feed/video-player";
+import { CHROME_SAFE_AREA } from "@/components/feed/chrome";
+import { formatByline } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
 
 /**
@@ -15,7 +18,10 @@ import type { FeedPost } from "@/lib/feed";
  * 홈의 구조적 형제는 하단 액션 바와 컨텐츠 영역 둘뿐이고, 액션 레일과
  * 도서 정보 바는 컨텐츠 위에 얹히는 레이어다.
  *
- * z 계층: 본문 0 → 스크림 2 → 크롬 3 → BottomNav 50.
+ * z 계층: 본문 z-auto(기본 층) → 스크림 2 → 크롬 3 → BottomNav 50.
+ * 본문에 z-0을 주지 말 것 — position:absolute + z-index:auto는 스태킹
+ * 컨텍스트를 만들지 않지만 z-0은 만든다. z-0을 붙이면 VideoPlayer의
+ * 음소거 버튼(z-[3])이 그 컨텍스트에 갇혀 스크림·크롬 아래로 밀린다.
  *
  * 크롬은 게시물 유형·테마와 무관하게 흰색 한 벌이다. 밑에 깔린 것이
  * 우리 표면이든 남의 픽셀이든 같은 처방을 쓴다 — 인스타·유튜브·틱톡
@@ -39,13 +45,7 @@ export function PostItem({
   userId?: string | null;
   preview?: boolean;
 }) {
-  const byline = [
-    post.books.author,
-    post.books.translator ? `${post.books.translator} 옮김` : null,
-    post.books.publisher,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const byline = formatByline(post.books);
 
   return (
     <article
@@ -59,7 +59,8 @@ export function PostItem({
             <VideoPlayer video={post.post_videos} poster={post.books.cover_url} />
           ) : (
             // 영상 레코드가 없는 영상 게시물 — 빈 화면 대신 도서를 보여준다.
-            <div className="flex h-full items-center justify-center px-6">
+            // 크롬이 컨텐츠 위에 얹히므로 이 조기 반환 분기도 세이프존을 진다.
+            <div className={cn("flex h-full items-center justify-center", CHROME_SAFE_AREA)}>
               <BookCover book={post.books} className="w-32" />
             </div>
           )
@@ -99,9 +100,9 @@ export function PostItem({
           <button
             type="button"
             aria-label={`${post.books.title} 도서 정보`}
-            className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/50 focus-visible:outline-none"
           >
-            <BookCover book={post.books} overlay className="w-10 shrink-0" />
+            <BookCover book={post.books} overlay className="w-11 shrink-0" />
 
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="feed-chrome-text truncate text-xs text-white/90">
@@ -120,9 +121,15 @@ export function PostItem({
         <Link
           href={`/channel/${post.channels.slug}`}
           aria-label={`${post.channels.name} 채널`}
-          className="focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/50 focus-visible:outline-none"
         >
-          <Avatar className="size-8 border border-white/50 bg-black/[0.28]">
+          {/*
+            Avatar 루트의 ::after 링(after:border-border)은 지울 수 없으므로
+            border 유틸을 주는 대신 의사요소 자체를 덮어쓴다 — border를 얹으면
+            링이 두 겹(테마 토큰 + 흰색)이 되고 box-sizing 때문에 32px가
+            아니라 30px로 그려진다. mix-blend-normal로 다크의 lighten도 끈다.
+          */}
+          <Avatar className="size-8 bg-black/[0.28] after:border-white/50 after:mix-blend-normal dark:after:mix-blend-normal">
             {post.channels.avatar_url ? (
               <AvatarImage src={post.channels.avatar_url} alt="" />
             ) : null}
