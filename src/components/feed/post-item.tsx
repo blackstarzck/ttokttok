@@ -82,24 +82,34 @@ export function PostItem({
         Tailwind 그라디언트 클래스 대신 인라인 스타일을 쓰는 이유: 이 값은
         설계 문서가 정한 정확한 값이고, 클래스로 옮기면 v3/v4 이름 차이
         (bg-gradient-to-t vs bg-linear-to-t)에 휘둘린다.
+
+        커브는 전 구간 단조 감소(ease-out)다 — 구간별 기울기가 위로 갈수록
+        줄어들어 어디에도 경계가 안 생기고 처음부터 끝까지 점차 투명해진다.
+        하단을 평평하게 유지하는 커브(바 가독성 우선)는 띠로 보여서 기각했다
+        (설계 문서 "스크림"). 바 구간의 흰 텍스트 가독성은 feed-chrome-text
+        그림자가 담당한다.
       */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-40"
-        style={{ background: "linear-gradient(to top, rgb(0 0 0 / 0.55), transparent)" }}
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-30"
+        style={{
+          background:
+            "linear-gradient(to top, rgb(0 0 0 / 0.45) 0%, rgb(0 0 0 / 0.26) 35%, rgb(0 0 0 / 0.15) 60%, rgb(0 0 0 / 0.06) 80%, transparent 100%)",
+        }}
       />
 
-      {/* z-3 — 우측 세로 액션 레일 */}
-      <div className="absolute right-2 bottom-[88px] z-[3]">
+      {/* z-3 — 우측 세로 액션 레일. bottom 100 = 바 하단 여백(12) + 도서 바(76) + 여유(12) */}
+      <div className="absolute right-2 bottom-[100px] z-[3]">
         <ActionBar post={post} liked={liked} isGuest={isGuest} userId={userId} />
       </div>
 
-      {/* z-3 — 하단 도서 정보 바.
+      {/* z-3 — 하단 도서 정보 바. bottom 12 — 바닥에 붙이지 않고
+          BottomNav와 숨통을 둔다.
           아바타는 채널로, 도서 정보는 상세 시트로 — 목적지가 다르므로
           하나의 링크로 묶지 않는다 (PRD §5.1). 채널 아바타는 오른쪽에
           따로 두고 44px 터치 타깃을 지킨다. 경계선은 쓰지 않는다 —
           층은 스크림이 만든다. */}
-      <footer className="absolute inset-x-0 bottom-0 z-[3] flex h-[76px] items-center gap-3 px-3">
+      <footer className="absolute inset-x-0 bottom-3 z-[3] flex h-[76px] items-center gap-3 px-3">
         <BookSheet book={post.books} isGuest={isGuest}>
           <button
             type="button"
