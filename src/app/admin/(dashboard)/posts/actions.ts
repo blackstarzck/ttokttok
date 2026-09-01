@@ -37,7 +37,12 @@ function readCardLayout(formData: FormData):
     };
 
     if (entry.input) {
-      const text = String(formData.get(`region-${key}-text`) ?? "").trim();
+      // textarea는 API value(LF)와 제출값(CRLF)이 다르다 — 편집기 카운터는
+      // 전자를, 서버는 후자를 본다. 정규화하지 않으면 카운터가 90/90인데
+      // 서버는 92자로 세어 거부하고, 사용자는 화면과 모순된 오류를 본다.
+      const text = String(formData.get(`region-${key}-text`) ?? "")
+        .replace(/\r\n/g, "\n")
+        .trim();
       if (text) {
         // 브라우저 maxLength는 formData 위조로 우회된다 — 편집기 제한과
         // 중복이 아니라 다른 신뢰 경계다. trim 이후 값을 재므로 앞뒤
