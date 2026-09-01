@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
 
 /** 레일 액션 버튼 (좋아요·댓글·공유) 공통 껍데기. 44×44 터치 타깃을 보장한다. */
 export const CHROME_ACTION = cn(
-  "focus-visible:ring-ring flex min-h-11 min-w-11 flex-col items-center",
-  "justify-center gap-1 rounded-md text-white",
-  "focus-visible:ring-2 focus-visible:outline-none",
+  "flex min-h-11 min-w-11 flex-col items-center",
+  "justify-center gap-1 rounded-md text-white transition-opacity hover:opacity-80",
+  "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2",
+  "focus-visible:ring-offset-black/50 focus-visible:outline-none",
 );
 
 /** 레일 아이콘. 그림자가 밝은 배경에서 글리프 경계를 세운다. */
@@ -31,8 +32,9 @@ export const CHROME_COUNT = "feed-chrome-text text-xs tabular-nums";
  * 그룹 안에서 같은 위계로 읽혀야 하기 때문 (PRD §11-31).
  */
 export const CHROME_CTA = cn(
-  "focus-visible:ring-ring flex flex-col items-center gap-1 rounded-md",
-  "text-white focus-visible:ring-2 focus-visible:outline-none",
+  "flex flex-col items-center gap-1 rounded-md text-white",
+  "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2",
+  "focus-visible:ring-offset-black/50 focus-visible:outline-none",
 );
 
 /**
@@ -45,3 +47,11 @@ export const CHROME_CTA_ICON = cn(
   "bg-white text-[#111111] transition-opacity hover:opacity-90",
   "shadow-[0_0_0_1px_rgb(0_0_0/0.22),0_1px_2px_rgb(0_0_0/0.2)]",
 );
+
+/**
+ * 카드 본문 세이프존. 크롬이 컨텐츠 위에 얹히므로 본문이 스스로 피한다.
+ * 좌우 각 60px = 레일 우측 여백 8 + 레일 폭 44 + 여유 8. 좌우가 대칭이라야
+ * 중앙정렬 콘텐츠가 프레임 중심에서 안 밀린다. 하단 84px = 도서 바 76 + 여유 8.
+ * 상단 20px은 피할 크롬이 없는 순수 시각 여백이다.
+ */
+export const CHROME_SAFE_AREA = "px-15 pt-5 pb-21";

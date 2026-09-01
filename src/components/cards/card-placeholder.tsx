@@ -3,6 +3,8 @@ import {
   REGION_REGISTRY,
   missingRequiredInputs,
 } from "@/components/cards/registry";
+import { CHROME_SAFE_AREA } from "@/components/feed/chrome";
+import { cn } from "@/lib/utils";
 import type { FeedCardLayout } from "@/lib/feed";
 
 /**
@@ -25,7 +27,9 @@ export function CardPlaceholder({ layout }: { layout: FeedCardLayout | null }) {
     : [];
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-6 py-8">
+    // 세이프존: 어드민 미리보기도 실제 피드와 같은 크롬 위에 얹히므로
+    // TemplateCard와 동일한 CHROME_SAFE_AREA를 쓴다 (chrome.ts).
+    <div className={cn("flex h-full flex-col items-center justify-center", CHROME_SAFE_AREA)}>
       <div className="border-border flex w-full flex-col items-center gap-2 rounded-lg border border-dashed px-5 py-8 text-center">
         <span className="text-muted-foreground text-xs">
           {template?.label ?? "알 수 없는 템플릿"}

@@ -74,7 +74,7 @@ export function VideoPlayer({
             aria-label={muted ? "소리 켜기" : "소리 끄기"}
             // 상단에는 스크림이 없다. 크롬 중 유일하게 자기 배경을 갖는
             // 요소이고, 그림자만으로는 밝은 영상 프레임에서 부족하다.
-            className="focus-visible:ring-ring absolute top-3.5 right-3.5 z-[3] flex size-11 items-center justify-center rounded-full bg-black/50 text-white focus-visible:ring-2 focus-visible:outline-none"
+            className="absolute top-3.5 right-3.5 z-[3] flex size-11 items-center justify-center rounded-full bg-black/50 text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/50 focus-visible:outline-none"
           >
             {muted ? (
               <VolumeX className="size-5" aria-hidden />
