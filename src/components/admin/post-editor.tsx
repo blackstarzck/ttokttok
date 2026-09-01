@@ -13,6 +13,7 @@ import {
   POST_TEMPLATES,
   REGION_REGISTRY,
 } from "@/components/cards/registry";
+import { cn } from "@/lib/utils";
 import type { FeedCardLayout } from "@/lib/feed";
 
 const selectClass =
@@ -186,6 +187,7 @@ export function PostEditor({
                         rows={3}
                         value={value.text}
                         required={entry.required}
+                        maxLength={entry.maxLength}
                         onChange={(e) => setRegion(key, { text: e.target.value })}
                       />
                     ) : (
@@ -194,9 +196,26 @@ export function PostEditor({
                         name={`region-${key}-text`}
                         value={value.text}
                         required={entry.required}
+                        maxLength={entry.maxLength}
                         onChange={(e) => setRegion(key, { text: e.target.value })}
                       />
                     )}
+
+                    {/* 상한이 있는 영역만 카운터를 둔다. 90%를 넘으면 색으로
+                        근접을 알린다 — 카드 본문이 좁아 넘친 텍스트는 스크롤
+                        없이 잘리므로, 저장 후에야 알면 늦다. */}
+                    {entry.maxLength ? (
+                      <p
+                        className={cn(
+                          "self-end text-xs tabular-nums",
+                          value.text.length >= entry.maxLength * 0.9
+                            ? "text-destructive"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {value.text.length}/{entry.maxLength}
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-xs">
