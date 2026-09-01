@@ -38,8 +38,17 @@ function readCardLayout(formData: FormData):
 
     if (entry.input) {
       const text = String(formData.get(`region-${key}-text`) ?? "").trim();
-      if (text) value.text = text;
-      else if (entry.required) {
+      if (text) {
+        // 브라우저 maxLength는 formData 위조로 우회된다 — 편집기 제한과
+        // 중복이 아니라 다른 신뢰 경계다. trim 이후 값을 재므로 앞뒤
+        // 공백만으로 상한을 넘길 수 없다.
+        if (entry.maxLength && text.length > entry.maxLength) {
+          return {
+            error: `${entry.label} 문구는 ${entry.maxLength}자까지 입력할 수 있습니다 (현재 ${text.length}자)`,
+          };
+        }
+        value.text = text;
+      } else if (entry.required) {
         return { error: `${entry.label} 문구를 입력해야 합니다` };
       }
     }

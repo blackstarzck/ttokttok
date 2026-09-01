@@ -100,6 +100,8 @@ export const hookRegion: RegionEntry = {
   label: "훅",
   input: "text",
   required: true,
+  // 시드의 원문 인용(최장 54자)을 담으면서 375px에서 5줄 안에 들어가는 값.
+  maxLength: 60,
   defaultVariant: "a",
   variants: {
     a: {
@@ -125,6 +127,8 @@ export const descRegion: RegionEntry = {
   label: "부연 설명",
   input: "textarea",
   required: false,
+  // 기존 최장 43자에 2배 여유. 375px에서 5줄.
+  maxLength: 90,
   defaultVariant: "a",
   variants: {
     a: {
