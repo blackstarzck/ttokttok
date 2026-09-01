@@ -64,14 +64,17 @@ export function VideoPlayer({
             loop
             playsInline
             preload="metadata"
-            className="h-full w-full object-contain"
+            // 풀블리드다 — 분할된 상자에 맞추려던 레터박스가 더는 필요 없다.
+            className="h-full w-full object-cover"
           />
 
           <button
             type="button"
             onClick={() => setMuted((m) => !m)}
             aria-label={muted ? "소리 켜기" : "소리 끄기"}
-            className="focus-visible:ring-ring absolute top-3 right-3 flex size-11 items-center justify-center rounded-full bg-black/50 text-white focus-visible:ring-2 focus-visible:outline-none"
+            // 상단에는 스크림이 없다. 크롬 중 유일하게 자기 배경을 갖는
+            // 요소이고, 그림자만으로는 밝은 영상 프레임에서 부족하다.
+            className="focus-visible:ring-ring absolute top-3.5 right-3.5 z-[3] flex size-11 items-center justify-center rounded-full bg-black/50 text-white focus-visible:ring-2 focus-visible:outline-none"
           >
             {muted ? (
               <VolumeX className="size-5" aria-hidden />
