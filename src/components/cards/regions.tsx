@@ -1,5 +1,5 @@
 import { BookCover } from "@/components/feed/book-cover";
-import type { FeedBook } from "@/lib/feed";
+import { formatByline } from "@/lib/format";
 import type { RegionEntry } from "@/components/cards/registry";
 
 /**
@@ -15,16 +15,6 @@ import type { RegionEntry } from "@/components/cards/registry";
  * 정렬 규약: 부모(TemplateCard)는 좌측 정렬 세로 스택이다. 중앙 유형은
  * 스스로 self-center / text-center를 갖는다.
  */
-
-function byline(book: FeedBook) {
-  return [
-    book.author,
-    book.translator ? `${book.translator} 옮김` : null,
-    book.publisher,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
 
 /* ── 도서(커버) 영역 ─────────────────────────────────────────────── */
 
@@ -86,7 +76,7 @@ export const biblioRegion: RegionEntry = {
           <h2 className="text-lg leading-snug font-medium break-keep">
             {book.title}
           </h2>
-          <p className="text-muted-foreground text-xs">{byline(book)}</p>
+          <p className="text-muted-foreground text-xs">{formatByline(book)}</p>
         </div>
       ),
     },
@@ -97,7 +87,7 @@ export const biblioRegion: RegionEntry = {
           <h2 className="text-lg leading-snug font-medium break-keep">
             {book.title}
           </h2>
-          <p className="text-muted-foreground text-xs">{byline(book)}</p>
+          <p className="text-muted-foreground text-xs">{formatByline(book)}</p>
         </div>
       ),
     },

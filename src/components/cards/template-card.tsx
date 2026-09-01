@@ -4,6 +4,8 @@ import {
   missingRequiredInputs,
 } from "@/components/cards/registry";
 import { CardPlaceholder } from "@/components/cards/card-placeholder";
+import { CHROME_SAFE_AREA } from "@/components/feed/chrome";
+import { cn } from "@/lib/utils";
 import type { FeedBook, FeedCardLayout } from "@/lib/feed";
 
 /**
@@ -45,7 +47,10 @@ export function TemplateCard({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col justify-center gap-4 px-6 py-8">
+    // 세이프존: 분할이 만들던 여백을 이제 패딩이 만든다. 값의 근거는
+    // CHROME_SAFE_AREA(chrome.ts) 주석 참고 — card-placeholder.tsx와
+    // post-item.tsx의 영상 폴백 분기도 같은 상수를 쓴다.
+    <div className={cn("flex h-full min-h-0 flex-col justify-center gap-4", CHROME_SAFE_AREA)}>
       {template.regions.map((key) => {
         const entry = REGION_REGISTRY[key];
         if (!entry) return null;

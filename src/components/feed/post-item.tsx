@@ -5,17 +5,32 @@ import { ActionBar } from "@/components/feed/action-bar";
 import { BookCover } from "@/components/feed/book-cover";
 import { BookSheet } from "@/components/book/book-sheet";
 import { VideoPlayer } from "@/components/feed/video-player";
+import { CHROME_SAFE_AREA } from "@/components/feed/chrome";
+import { formatByline } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
 
 /**
  * 피드의 게시물 한 개. 뷰포트 높이를 꽉 채우고 스냅된다.
  *
- * 레이아웃은 오버레이가 아니라 분할이다 — 카드가 텍스트 위주라 UI를 겹치면
- * 읽기를 방해한다. "바로 읽기" CTA는 우측 액션 바 그룹 안에 있다.
+ * 레이아웃은 분할이 아니라 오버레이다 (설계:
+ * docs/superpowers/specs/2026-09-01-home-feed-overlay-design.md).
+ * 홈의 구조적 형제는 하단 액션 바와 컨텐츠 영역 둘뿐이고, 액션 레일과
+ * 도서 정보 바는 컨텐츠 위에 얹히는 레이어다.
+ *
+ * z 계층: 본문 z-auto(기본 층) → 스크림 2 → 크롬 3 → BottomNav 50.
+ * 본문에 z-0을 주지 말 것 — position:absolute + z-index:auto는 스태킹
+ * 컨텍스트를 만들지 않지만 z-0은 만든다. z-0을 붙이면 VideoPlayer의
+ * 음소거 버튼(z-[3])이 그 컨텍스트에 갇혀 스크림·크롬 아래로 밀린다.
+ *
+ * 크롬은 게시물 유형·테마와 무관하게 흰색 한 벌이다. 밑에 깔린 것이
+ * 우리 표면이든 남의 픽셀이든 같은 처방을 쓴다 — 인스타·유튜브·틱톡
+ * 실측에서 확인한 규칙이다 (설계 문서 "선례 조사").
  *
  * preview는 어드민 미리보기 전용이다 (PRD §5.10). 미리보기가 이 컴포넌트를
  * 그대로 쓰는 덕분에 "관리자가 본 화면"과 "사용자가 볼 화면"이 어긋날 수
- * 없다 — 마크업도 클래스도 한 벌뿐이다.
+ * 없다 — 마크업도 클래스도 한 벌뿐이다. 어드민은 라이트 고정이라
+ * 가장 불리한 조건이 항상 노출된다.
  */
 export function PostItem({
   post,
@@ -30,69 +45,74 @@ export function PostItem({
   userId?: string | null;
   preview?: boolean;
 }) {
+  const byline = formatByline(post.books);
+
   return (
     <article
       data-post-id={post.id}
-      className="relative flex h-full snap-start snap-always flex-col"
+      className="relative h-full snap-start snap-always overflow-hidden"
     >
-      <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1">
-          {post.type === "video" ? (
-            post.post_videos ? (
-              <VideoPlayer
-                video={post.post_videos}
-                poster={post.books.cover_url}
-              />
-            ) : (
-              // 영상 레코드가 없는 영상 게시물 — 빈 화면 대신 도서를 보여준다.
-              <div className="flex h-full items-center justify-center px-6">
-                <BookCover book={post.books} className="w-32" />
-              </div>
-            )
+      {/* z-0 — 본문. 풀블리드로 컨텐츠 영역을 꽉 채운다. */}
+      <div className="absolute inset-0">
+        {post.type === "video" ? (
+          post.post_videos ? (
+            <VideoPlayer video={post.post_videos} poster={post.books.cover_url} />
           ) : (
-            <TemplateCard
-              layout={post.post_cards}
-              book={post.books}
-              preview={preview}
-            />
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-end pr-2 pb-4">
-          <ActionBar
-            post={post}
-            liked={liked}
-            isGuest={isGuest}
-            userId={userId}
+            // 영상 레코드가 없는 영상 게시물 — 빈 화면 대신 도서를 보여준다.
+            // 크롬이 컨텐츠 위에 얹히므로 이 조기 반환 분기도 세이프존을 진다.
+            <div className={cn("flex h-full items-center justify-center", CHROME_SAFE_AREA)}>
+              <BookCover book={post.books} className="w-32" />
+            </div>
+          )
+        ) : (
+          <TemplateCard
+            layout={post.post_cards}
+            book={post.books}
+            preview={preview}
           />
-        </div>
+        )}
       </div>
 
-      {/* 아바타는 채널로, 도서 정보는 상세 시트로 — 목적지가 다르므로
-          하나의 링크로 묶지 않는다 (PRD §5.1). */}
-      {/* 도서 커버 + 서지가 본체이고 탭하면 상세 시트로 간다.
-          채널 아바타는 오른쪽에 따로 둔다 — 목적지가 다르고, 44px
-          터치 타깃을 지켜야 하므로 텍스트 링크로는 대체할 수 없다. */}
-      <footer className="border-border flex shrink-0 items-center gap-3 border-t px-4 py-2.5">
+      {/*
+        z-2 — 스크림. 검정 고정이라 테마를 면제받는다.
+        Tailwind 그라디언트 클래스 대신 인라인 스타일을 쓰는 이유: 이 값은
+        설계 문서가 정한 정확한 값이고, 클래스로 옮기면 v3/v4 이름 차이
+        (bg-gradient-to-t vs bg-linear-to-t)에 휘둘린다.
+      */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-40"
+        style={{ background: "linear-gradient(to top, rgb(0 0 0 / 0.55), transparent)" }}
+      />
+
+      {/* z-3 — 우측 세로 액션 레일 */}
+      <div className="absolute right-2 bottom-[88px] z-[3]">
+        <ActionBar post={post} liked={liked} isGuest={isGuest} userId={userId} />
+      </div>
+
+      {/* z-3 — 하단 도서 정보 바.
+          아바타는 채널로, 도서 정보는 상세 시트로 — 목적지가 다르므로
+          하나의 링크로 묶지 않는다 (PRD §5.1). 채널 아바타는 오른쪽에
+          따로 두고 44px 터치 타깃을 지킨다. 경계선은 쓰지 않는다 —
+          층은 스크림이 만든다. */}
+      <footer className="absolute inset-x-0 bottom-0 z-[3] flex h-[76px] items-center gap-3 px-3">
         <BookSheet book={post.books} isGuest={isGuest}>
           <button
             type="button"
             aria-label={`${post.books.title} 도서 정보`}
-            className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/50 focus-visible:outline-none"
           >
-            <BookCover book={post.books} className="w-16 shrink-0" />
+            <BookCover book={post.books} overlay className="w-11 shrink-0" />
 
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-muted-foreground truncate text-xs">
+              <span className="feed-chrome-text truncate text-xs text-white/90">
                 {post.books.category}
               </span>
-              <span className="truncate text-sm font-medium break-keep">
+              <span className="feed-chrome-text truncate text-sm font-medium text-white break-keep">
                 {post.books.title}
               </span>
-              <span className="text-muted-foreground truncate text-xs">
-                {post.books.author}
-                {post.books.translator ? ` · ${post.books.translator} 옮김` : ""}
-                {post.books.publisher ? ` · ${post.books.publisher}` : ""}
+              <span className="feed-chrome-text truncate text-xs text-white/90">
+                {byline}
               </span>
             </span>
           </button>
@@ -101,13 +121,19 @@ export function PostItem({
         <Link
           href={`/channel/${post.channels.slug}`}
           aria-label={`${post.channels.name} 채널`}
-          className="focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/50 focus-visible:outline-none"
         >
-          <Avatar className="size-8">
+          {/*
+            Avatar 루트의 ::after 링(after:border-border)은 지울 수 없으므로
+            border 유틸을 주는 대신 의사요소 자체를 덮어쓴다 — border를 얹으면
+            링이 두 겹(테마 토큰 + 흰색)이 되고 box-sizing 때문에 32px가
+            아니라 30px로 그려진다. mix-blend-normal로 다크의 lighten도 끈다.
+          */}
+          <Avatar className="size-8 bg-black/[0.28] after:border-white/50 after:mix-blend-normal dark:after:mix-blend-normal">
             {post.channels.avatar_url ? (
               <AvatarImage src={post.channels.avatar_url} alt="" />
             ) : null}
-            <AvatarFallback className="text-xs">
+            <AvatarFallback className="feed-chrome-text bg-transparent text-xs text-white">
               {post.channels.name.slice(0, 1)}
             </AvatarFallback>
           </Avatar>

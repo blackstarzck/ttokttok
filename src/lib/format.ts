@@ -21,3 +21,22 @@ export function formatCount(n: number): string {
   if (n < 10000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}천`;
   return `${(n / 10000).toFixed(1).replace(/\.0$/, "")}만`;
 }
+
+/**
+ * 서지 한 줄: "저자 · 역자 옮김 · 출판사" (없는 값은 생략).
+ * post-item.tsx · book-sheet.tsx · cards/regions.tsx 세 곳이 각자 조립하던
+ * 동일 로직을 한 곳으로 모은다.
+ */
+export function formatByline(book: {
+  author: string;
+  translator: string | null;
+  publisher: string | null;
+}): string {
+  return [
+    book.author,
+    book.translator ? `${book.translator} 옮김` : null,
+    book.publisher,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

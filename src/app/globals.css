@@ -128,3 +128,21 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  /* 피드 크롬 전용 — 콘텐츠 위 가독성 확보용이다.
+     DESIGN.md "그림자를 쓰지 않는다"의 예외이며, 목적이 다르다:
+     깊이 표현이 아니라 밝은 카드 위에서 흰 글리프의 경계를 세운다.
+     1px 밀착 윤곽이 가독성을 만들고 짧은 낙차가 떠 있음을 표현한다.
+     넓은 헤일로는 번짐만 만들어서 쓰지 않는다 (설계 문서 "그림자(L2)"). */
+  .feed-chrome-icon {
+    filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.65))
+      drop-shadow(0 1px 1px rgb(0 0 0 / 0.3));
+  }
+
+  .feed-chrome-text {
+    text-shadow:
+      0 0 1px rgb(0 0 0 / 0.65),
+      0 1px 1px rgb(0 0 0 / 0.3);
+  }
+}

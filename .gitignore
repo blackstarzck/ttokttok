@@ -43,3 +43,6 @@ next-env.d.ts
 
 # 로컬 검증용 임시 파일
 .tmp/
+
+# 브레인스토밍 목업 (superpowers 비주얼 컴패니언)
+.superpowers/

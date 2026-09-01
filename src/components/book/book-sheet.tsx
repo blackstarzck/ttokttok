@@ -20,6 +20,7 @@ import { BookCover } from "@/components/feed/book-cover";
 import { LoginSheet } from "@/components/auth/login-sheet";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics";
+import { formatByline } from "@/lib/format";
 import { buildPurchaseLinks } from "@/lib/purchase-links";
 import type { FeedBook } from "@/lib/feed";
 
@@ -55,13 +56,7 @@ export function BookSheet({
   const isFullBook = book.epub_path !== null;
   const purchaseLinks = isFullBook ? [] : buildPurchaseLinks(book);
 
-  const byline = [
-    book.author,
-    book.translator ? `${book.translator} 옮김` : null,
-    book.publisher,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const byline = formatByline(book);
 
   return (
     <Drawer

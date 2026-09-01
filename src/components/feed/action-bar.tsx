@@ -11,11 +11,14 @@ import { CommentSheet } from "@/components/feed/comment-sheet";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/feed";
-
-const ACTION_CLASS =
-  "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none";
+import {
+  CHROME_ACTION,
+  CHROME_COUNT,
+  CHROME_CTA,
+  CHROME_CTA_ICON,
+  CHROME_ICON,
+} from "@/components/feed/chrome";
 
 /**
  * 게시물 우측 세로 액션 바.
@@ -65,11 +68,9 @@ export function ActionBar({
   }
 
   const commentButton = (
-    <button type="button" aria-label="댓글" className={ACTION_CLASS}>
-      <MessageCircle className="size-6" aria-hidden />
-      <span className="text-xs tabular-nums">
-        {formatCount(post.comment_count)}
-      </span>
+    <button type="button" aria-label="댓글" className={CHROME_ACTION}>
+      <MessageCircle className={CHROME_ICON} aria-hidden />
+      <span className={CHROME_COUNT}>{formatCount(post.comment_count)}</span>
     </button>
   );
 
@@ -96,10 +97,10 @@ export function ActionBar({
         type="button"
         onClick={handleShare}
         aria-label="공유"
-        className={ACTION_CLASS}
+        className={CHROME_ACTION}
       >
-        <Share2 className="size-6" aria-hidden />
-        <span className="text-xs tabular-nums">{formatCount(shareCount)}</span>
+        <Share2 className={CHROME_ICON} aria-hidden />
+        <span className={CHROME_COUNT}>{formatCount(shareCount)}</span>
       </button>
 
       {/* 전문 도서는 뷰어로 직행, 링크형은 도서 상세 시트로 (PRD §11-31) */}
@@ -107,41 +108,27 @@ export function ActionBar({
         <Link
           href={`/read/${post.books.id}`}
           aria-label={`${post.books.title} 바로 읽기`}
-          className={CTA_CLASS}
+          className={CHROME_CTA}
         >
-          <span className={CTA_ICON_CLASS}>
+          <span className={CHROME_CTA_ICON}>
             <BookOpen className="size-5" aria-hidden />
           </span>
-          <span className="text-xs">읽기</span>
+          <span className={CHROME_COUNT}>읽기</span>
         </Link>
       ) : (
         <BookSheet book={post.books} isGuest={isGuest}>
           <button
             type="button"
             aria-label={`${post.books.title} 도서 정보 보기`}
-            className={CTA_CLASS}
+            className={CHROME_CTA}
           >
-            <span className={CTA_ICON_CLASS}>
+            <span className={CHROME_CTA_ICON}>
               <Info className="size-5" aria-hidden />
             </span>
-            <span className="text-xs">도서</span>
+            <span className={CHROME_COUNT}>도서</span>
           </button>
         </BookSheet>
       )}
     </div>
   );
 }
-
-/**
- * 두 CTA는 생김새가 같아야 한다 — 도서 유형이 달라도 그룹 안에서
- * 같은 위계로 읽혀야 하기 때문. 채워진 원형이 곧 "이 게시물의 목적지"다.
- */
-const CTA_CLASS = cn(
-  "focus-visible:ring-ring flex flex-col items-center gap-1 rounded-md",
-  "focus-visible:ring-2 focus-visible:outline-none",
-);
-
-const CTA_ICON_CLASS = cn(
-  "bg-primary text-primary-foreground flex size-11 items-center",
-  "justify-center rounded-full transition-opacity hover:opacity-90",
-);
