@@ -268,6 +268,51 @@ const videoPosts = [
 ];
 
 // ── 실행 ────────────────────────────────────────────────────────
+/**
+ * 카드 문구 길이 상한.
+ *
+ * **원천은 `src/components/cards/registry.ts`의 `REGION_REGISTRY`**이고
+ * (`hookRegion.maxLength` / `descRegion.maxLength`), 여기 값은 그 사본이다.
+ * 이 스크립트는 node가 바로 실행하는 .mjs라 TSX 레지스트리를 import할 수
+ * 없어서 어쩔 수 없이 복제한다 — 레지스트리를 고치면 여기도 고쳐야 한다.
+ *
+ * 상한 자체는 데이터 정합성이 아니라 레이아웃 제약이다: 카드 본문이 좁아
+ * 넘친 문구가 스크롤 없이 잘린다 (설계:
+ * docs/superpowers/specs/2026-09-01-card-text-length-limits-design.md).
+ */
+const TEXT_LIMITS = { hook: 60, desc: 90 };
+
+/**
+ * 시드 문구가 상한을 넘지 않는지 upsert 전에 확인한다.
+ *
+ * 이 스크립트는 서버 액션(readCardLayout)을 거치지 않고 post_cards에 직접
+ * 쓰므로 거기 있는 길이 검사를 우회한다. 그대로 두면 시드 문구를 늘린
+ * 사람이 아무 신호 없이 잘리는 카드를 만든다 — 피드에서 눈으로 발견할
+ * 때까지.
+ */
+function assertWithinTextLimits(cards, books) {
+  const over = [];
+
+  for (const [i, card] of cards.entries()) {
+    for (const [key, limit] of Object.entries(TEXT_LIMITS)) {
+      const text = card.regions?.[key]?.text;
+      if (typeof text === "string" && text.length > limit) {
+        over.push(
+          `  ${books[i].title} — ${key}: ${text.length}자 (상한 ${limit})\n    「${text}」`,
+        );
+      }
+    }
+  }
+
+  if (over.length > 0) {
+    throw new Error(
+      `카드 문구가 상한을 넘었습니다 (${over.length}건):\n${over.join("\n")}\n\n` +
+        `상한을 바꾸려면 src/components/cards/registry.ts의 REGION_REGISTRY를 먼저 고치고, ` +
+        `이 파일의 TEXT_LIMITS도 같이 맞추세요.`,
+    );
+  }
+}
+
 async function run() {
   // 1) 채널
   {
@@ -375,6 +420,9 @@ async function run() {
   //    아니라 도서 메타다 (마이그레이션 20260828000003, PRD §5.2).
   //    일부 게시물은 템플릿 b(텍스트 중심)·영역 유형 b를 써서 피드에서
   //    조합 다양성이 실제로 보이게 한다.
+  //
+  //    문구 길이는 upsert 전에 assertWithinTextLimits가 검사한다 — 이 스크립트는
+  //    서버 액션을 거치지 않고 post_cards에 직접 쓰므로 상한 검사도 우회한다.
   {
     const cards = books.map((b, i) => {
       const textCentric = i % 3 === 2; // 3·6번째 게시물
@@ -402,6 +450,8 @@ async function run() {
             },
           };
     });
+
+    assertWithinTextLimits(cards, books);
 
     const { error } = await db.from("post_cards").upsert(cards);
     if (error) throw new Error(`post_cards: ${error.message}`);
