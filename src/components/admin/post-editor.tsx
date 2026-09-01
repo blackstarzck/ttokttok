@@ -19,6 +19,25 @@ import type { FeedCardLayout } from "@/lib/feed";
 const selectClass =
   "border-input bg-background focus-visible:ring-ring h-11 rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none";
 
+/** 상한의 이 비율을 넘으면 시각·청각 양쪽으로 근접을 알린다. 한 곳에서 읽어야 둘이 어긋나지 않는다. */
+const NEAR_LIMIT_RATIO = 0.9;
+
+/**
+ * 상한 근접·도달을 스크린리더에 알릴 문구.
+ *
+ * 카운터 숫자를 그대로 읽히면 타이핑마다 "1/60, 2/60…"이 나와 낭독이
+ * 불가능해진다. 그래서 숫자가 아니라 경계에서만 바뀌는 상태 문구를 쓴다 —
+ * 54자에서 60자까지 쳐도 안내는 두 번뿐이다.
+ *
+ * 도달 문구가 이 함수의 핵심이다: maxLength가 입력을 조용히 막으므로,
+ * 이 안내가 없으면 스크린리더 사용자는 글자가 안 들어가는 이유를 알 수 없다.
+ */
+function limitMessage(length: number, maxLength: number): string {
+  if (length >= maxLength) return "상한에 도달했어요. 더 입력할 수 없어요.";
+  if (length >= maxLength * NEAR_LIMIT_RATIO) return "글자 수 상한에 가까워요.";
+  return "";
+}
+
 /** 영역별 편집 상태. 템플릿과 무관하게 영역 키로 보관한다. */
 type RegionState = Record<string, { variant: string; text: string }>;
 
@@ -188,6 +207,9 @@ export function PostEditor({
                         value={value.text}
                         required={entry.required}
                         maxLength={entry.maxLength}
+                        aria-describedby={
+                          entry.maxLength ? `region-${key}-count` : undefined
+                        }
                         onChange={(e) => setRegion(key, { text: e.target.value })}
                       />
                     ) : (
@@ -197,24 +219,38 @@ export function PostEditor({
                         value={value.text}
                         required={entry.required}
                         maxLength={entry.maxLength}
+                        aria-describedby={
+                          entry.maxLength ? `region-${key}-count` : undefined
+                        }
                         onChange={(e) => setRegion(key, { text: e.target.value })}
                       />
                     )}
 
                     {/* 상한이 있는 영역만 카운터를 둔다. 90%를 넘으면 색으로
                         근접을 알린다 — 카드 본문이 좁아 넘친 텍스트는 스크롤
-                        없이 잘리므로, 저장 후에야 알면 늦다. */}
+                        없이 잘리므로, 저장 후에야 알면 늦다.
+
+                        카운터는 aria-describedby로 입력란에 묶여 포커스 시 한 번
+                        읽히고, 타이핑 중 안내는 옆의 라이브 영역이 맡는다. */}
                     {entry.maxLength ? (
-                      <p
-                        className={cn(
-                          "self-end text-xs tabular-nums",
-                          value.text.length >= entry.maxLength * 0.9
-                            ? "text-destructive"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {value.text.length}/{entry.maxLength}
-                      </p>
+                      <>
+                        <p
+                          id={`region-${key}-count`}
+                          className={cn(
+                            "self-end text-xs tabular-nums",
+                            value.text.length >=
+                              entry.maxLength * NEAR_LIMIT_RATIO
+                              ? "text-destructive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {value.text.length}/{entry.maxLength}
+                        </p>
+
+                        <span className="sr-only" aria-live="polite">
+                          {limitMessage(value.text.length, entry.maxLength)}
+                        </span>
+                      </>
                     ) : null}
                   </div>
                 ) : (

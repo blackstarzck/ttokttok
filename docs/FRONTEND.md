@@ -36,6 +36,7 @@ src/
 - 재사용은 **조합(composition)으로**: boolean prop이 늘어나면 (`isCompact`, `showMeta`…) 설계 오류 신호다. variant 컴포넌트 분리 또는 children 조합으로 푼다.
 - shadcn 컴포넌트를 감싸서 도메인 컴포넌트를 만들 때, shadcn의 prop을 그대로 통과시키지 말고 도메인 언어의 좁은 인터페이스를 노출한다.
 - 접근성 최소선: 아이콘 단독 버튼에 `aria-label`, 활성 탭에 `aria-current`, 자동재생 영상은 항상 음소거 시작.
+- 글자 수 제한이 있는 입력: 카운터를 `aria-describedby`로 입력란에 묶어 포커스 시 한 번 읽히게 하고, 상한 근접·도달 안내는 **별도의 `sr-only` + `aria-live="polite"` 영역**이 맡는다. **카운터 자체에 `aria-live`를 붙이지 말 것** — 타이핑마다 "1/60, 2/60…"이 읽혀 낭독이 불가능해진다. 라이브 영역의 내용은 숫자가 아니라 경계에서만 바뀌는 상태 문구여야 한다. `maxLength`는 입력을 조용히 차단하므로 도달 안내가 그 유일한 신호다 (설계: `docs/superpowers/specs/2026-09-01-counter-a11y-design.md`).
 
 ## 3. 게시물 템플릿 · 영역 레지스트리 (핵심 규약)
 
