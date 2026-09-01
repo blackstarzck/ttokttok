@@ -156,11 +156,23 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+#
+# 경로까지 적어야 한다 — social-buttons.tsx가 `${window.location.origin}/auth/callback`으로
+# 조립하므로 출처만 허용해도 매칭되지 않는다. localhost와 127.0.0.1은 브라우저에서
+# 서로 다른 출처라 둘 다 필요하다(어느 쪽으로 접속하는지에 따라 origin이 갈린다).
+# 포트는 `next dev` 기본값 3000이다.
+#
+# 배포 도메인은 이 파일이 아니라 Supabase 대시보드의
+# Authentication → URL Configuration에 있다 — 이 config를 push하면 원격의
+# 소셜 프로바이더 설정까지 덮어쓰므로 여기서 관리하지 않는다.
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

@@ -46,3 +46,4 @@ next-env.d.ts
 
 # 브레인스토밍 목업 (superpowers 비주얼 컴패니언)
 .superpowers/
+.env*.local
