@@ -100,6 +100,9 @@ export const hookRegion: RegionEntry = {
   label: "훅",
   input: "text",
   required: true,
+  // 훅을 원문 인용으로도 쓰기 위한 값(편집 정책). 현재 데이터는 최장 20자다.
+  // 375px에서 5줄 안에 들어간다 — 설계 문서의 실측표 참조.
+  maxLength: 60,
   defaultVariant: "a",
   variants: {
     a: {
@@ -125,6 +128,8 @@ export const descRegion: RegionEntry = {
   label: "부연 설명",
   input: "textarea",
   required: false,
+  // 기존 최장 43자에 2배 여유. 375px에서 5줄.
+  maxLength: 90,
   defaultVariant: "a",
   variants: {
     a: {

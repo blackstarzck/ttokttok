@@ -37,9 +37,28 @@ function readCardLayout(formData: FormData):
     };
 
     if (entry.input) {
-      const text = String(formData.get(`region-${key}-text`) ?? "").trim();
-      if (text) value.text = text;
-      else if (entry.required) {
+      // 개행을 LF로 통일한 뒤 센다. 브라우저에서는 무동작이다 — Chromium은
+      // textarea의 API value 단계에서 이미 CR을 벗겨내고 FormData도 같은
+      // 값을 내므로, 편집기 카운터와 서버가 같은 수를 센다(실측 확인).
+      //
+      // 남겨두는 이유는 브라우저가 아닌 클라이언트다. 이 서버 액션은 임의의
+      // formData를 받으므로 스크립트가 CRLF를 직접 보낼 수 있고, 그러면
+      // 개행 하나가 두 글자로 세어져 편집기에서 통과할 문구가 거부된다.
+      // 서버가 신뢰 경계이므로 여기서 단위를 고정한다.
+      const text = String(formData.get(`region-${key}-text`) ?? "")
+        .replace(/\r\n/g, "\n")
+        .trim();
+      if (text) {
+        // 브라우저 maxLength는 formData 위조로 우회된다 — 편집기 제한과
+        // 중복이 아니라 다른 신뢰 경계다. trim 이후 값을 재므로 앞뒤
+        // 공백만으로 상한을 넘길 수 없다.
+        if (entry.maxLength && text.length > entry.maxLength) {
+          return {
+            error: `${entry.label} 문구는 ${entry.maxLength}자까지 입력할 수 있습니다 (현재 ${text.length}자)`,
+          };
+        }
+        value.text = text;
+      } else if (entry.required) {
         return { error: `${entry.label} 문구를 입력해야 합니다` };
       }
     }

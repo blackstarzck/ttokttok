@@ -48,10 +48,14 @@ export function PostItem({
   const byline = formatByline(post.books);
 
   return (
-    <article
-      data-post-id={post.id}
-      className="relative h-full snap-start snap-always overflow-hidden"
-    >
+    // data-post-id·data-index와 스냅 정렬(snap-start/snap-always)은 여기가 아니라
+    // FeedScroller의 슬롯 래퍼에 있다 — 조회 대상이 슬롯이기 때문이다
+    // (IntersectionObserver가 [data-index]를 관찰하고 그 dataset.postId를 읽는다).
+    // 슬롯은 창 밖에서 내용이 비워져도 자리를 지켜야 하므로 스냅도 슬롯의 몫이다.
+    // 여기에 사본을 두면 [data-post-id] 조회가 게시물당 두 번 걸린다.
+    //
+    // h-full은 남긴다 — 아래 absolute 자식들이 이 박스를 기준으로 풀린다.
+    <article className="relative h-full overflow-hidden">
       {/* z-0 — 본문. 풀블리드로 컨텐츠 영역을 꽉 채운다. */}
       <div className="absolute inset-0">
         {post.type === "video" ? (

@@ -41,6 +41,17 @@ export type RegionEntry = {
   input: "text" | "textarea" | null;
   /** input이 있는 영역만 의미가 있다. */
   required: boolean;
+  /**
+   * 글자 수 상한 (String.length 기준 — 브라우저 maxLength와 같은 단위라
+   * 편집기와 서버가 어긋나지 않는다).
+   *
+   * 오버레이 전환으로 카드 본문 가용 폭이 22% 줄고 overflow-hidden이
+   * 붙어서, 넘친 텍스트가 스크롤 없이 잘려 사라진다. 근거와 실측은
+   * docs/superpowers/specs/2026-09-01-card-text-length-limits-design.md.
+   *
+   * input이 있는 영역만 의미가 있다.
+   */
+  maxLength?: number;
   /** 저장된 variant가 사라졌을 때 여기로 폴백한다. */
   defaultVariant: string;
   variants: Record<string, RegionVariant>;
