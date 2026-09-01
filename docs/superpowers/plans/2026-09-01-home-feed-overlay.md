@@ -876,7 +876,7 @@ git commit -m "feat(feed): 영상 게시물을 풀블리드로 전환하고 음�
 교체 후:
 
 ```markdown
-- **피드 크롬은 테마 면제 구역이다.** 액션 레일과 도서 정보 바는 게시물 유형·테마와 무관하게 흰색 고정(`#ffffff`, 보조 텍스트 `rgb(255 255 255 / 0.9)`)이고, 컨텐츠 영역 하단의 검정 스크림 `linear-gradient(to top, rgb(0 0 0 / 0.55), transparent)` 160px가 대비를 만든다. 시맨틱 토큰을 쓰지 않는 유일한 예외이며, 범위는 `src/components/feed/chrome.ts`를 import하는 컴포넌트로 한정한다. 근거와 실측은 `docs/superpowers/specs/2026-09-01-home-feed-overlay-design.md`.
+- **피드 크롬은 테마 면제 구역이다.** 액션 레일과 도서 정보 바는 게시물 유형·테마와 무관하게 흰색 고정(`#ffffff`, 보조 텍스트 `rgb(255 255 255 / 0.9)`)이고, 컨텐츠 영역 하단의 검정 스크림 `linear-gradient(to top, rgb(0 0 0 / 0.55), transparent)` 160px가 대비를 만든다. 시맨틱 토큰을 쓰지 않는 유일한 예외이며, 범위는 **피드 게시물 위에 얹히는 크롬**으로 한정한다 — 구체적으로 `src/components/feed/chrome.ts`의 상수들과 `BookCover`의 `overlay` 변형이다. `BookCover`는 탐색 그리드에서도 쓰이므로 `chrome.ts`를 import하지 않는다. 기본 변형은 지금처럼 시맨틱 토큰을 쓰고, 면제는 `overlay` 분기 안에만 존재한다. 근거와 실측은 `docs/superpowers/specs/2026-09-01-home-feed-overlay-design.md`.
 ```
 
 - [ ] **Step 4: DESIGN.md의 그림자 규칙에 예외를 추가한다**
