@@ -100,7 +100,8 @@ export const hookRegion: RegionEntry = {
   label: "훅",
   input: "text",
   required: true,
-  // 시드의 원문 인용(최장 54자)을 담으면서 375px에서 5줄 안에 들어가는 값.
+  // 훅을 원문 인용으로도 쓰기 위한 값(편집 정책). 현재 데이터는 최장 20자다.
+  // 375px에서 5줄 안에 들어간다 — 설계 문서의 실측표 참조.
   maxLength: 60,
   defaultVariant: "a",
   variants: {
