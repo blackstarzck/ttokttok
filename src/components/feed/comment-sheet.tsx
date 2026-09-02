@@ -5,6 +5,7 @@ import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
+  type InfiniteData,
 } from "@tanstack/react-query";
 import { Loader2, Send, X } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +26,10 @@ import {
   type RowActions,
 } from "@/components/feed/comment-item";
 import { track } from "@/lib/analytics";
+import {
+  insertOptimistic,
+  makeOptimisticComment,
+} from "@/lib/comment-cache";
 import {
   addComment,
   commentErrorMessage,
@@ -49,10 +54,13 @@ import {
 export function CommentSheet({
   postId,
   currentUserId,
+  onAdded,
   children,
 }: {
   postId: string;
   currentUserId: string;
+  /** 등록이 성공했을 때. 레일 배지의 로컬 델타에 쓴다. */
+  onAdded?: () => void;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -89,17 +97,43 @@ export function CommentSheet({
       content: string;
       parentId: string | null;
     }) => addComment(postId, content, parentId),
-    onSuccess: (_data, { parentId }) => {
+
+    onMutate: async ({ content, parentId }) => {
+      const target = parentId ? ["replies", parentId] : key;
+      await qc.cancelQueries({ queryKey: target });
+      const previous = qc.getQueryData<InfiniteData<CommentPage>>(target);
+
+      const optimistic = makeOptimisticComment({
+        content,
+        userId: currentUserId,
+        parentId,
+      });
+      qc.setQueryData<InfiniteData<CommentPage>>(target, (old) =>
+        insertOptimistic(old, optimistic),
+      );
+
       setDraft("");
       setReplyTo(null);
+      return { target, previous };
+    },
+
+    onError: (e: Error, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(ctx.target, ctx.previous);
+      toast.error(commentErrorMessage(e.message));
+    },
+
+    onSuccess: () => {
       void track("comment", { postId });
-      // 답글이면 그 부모의 답글 목록만, 최상위면 목록 전체를 새로 받는다.
+      onAdded?.();
+    },
+
+    // 성공이든 실패든 서버 상태로 정렬을 맞춘다.
+    onSettled: (_data, _e, { parentId }) => {
       void qc.invalidateQueries({
         queryKey: parentId ? ["replies", parentId] : key,
       });
       if (parentId) void qc.invalidateQueries({ queryKey: key });
     },
-    onError: (e: Error) => toast.error(commentErrorMessage(e.message)),
   });
 
   const remove = useMutation({

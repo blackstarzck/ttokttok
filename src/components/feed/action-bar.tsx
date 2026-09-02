@@ -39,6 +39,7 @@ export function ActionBar({
   userId: string | null;
 }) {
   const [shareCount, setShareCount] = useState(post.share_count);
+  const [commentCount, setCommentCount] = useState(post.comment_count);
 
   async function handleShare() {
     const url = `${window.location.origin}/p/${post.id}`;
@@ -70,7 +71,7 @@ export function ActionBar({
   const commentButton = (
     <button type="button" aria-label="댓글" className={CHROME_ACTION}>
       <MessageCircle className={CHROME_ICON} aria-hidden />
-      <span className={CHROME_COUNT}>{formatCount(post.comment_count)}</span>
+      <span className={CHROME_COUNT}>{formatCount(commentCount)}</span>
     </button>
   );
 
@@ -88,7 +89,11 @@ export function ActionBar({
           {commentButton}
         </LoginSheet>
       ) : (
-        <CommentSheet postId={post.id} currentUserId={userId!}>
+        <CommentSheet
+          postId={post.id}
+          currentUserId={userId!}
+          onAdded={() => setCommentCount((n) => n + 1)}
+        >
           {commentButton}
         </CommentSheet>
       )}
