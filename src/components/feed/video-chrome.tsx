@@ -1,6 +1,8 @@
 "use client";
 
-import { Play, Volume2, VolumeX } from "lucide-react";
+import { Pause, Play, Volume2, VolumeX } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 
 /**
  * 재생기 두 종류(업로드 mp4 / 유튜브 임베드)가 공통으로 만들어 내는 조작.
@@ -31,12 +33,18 @@ export function VideoChrome({
   togglePlay,
   toggleMute,
   busy = false,
+  flash = false,
 }: VideoControls & {
   /**
    * 아직 재생이 시작될지 판정되지 않은 구간. 가운데 표시를 유보한다 —
    * 안 그러면 게시물에 진입할 때마다 ▶ 가 잠깐 깜빡였다 사라진다.
    */
   busy?: boolean;
+  /**
+   * 재생 중에도 가운데 표시를 띄워 둔다. 유튜브가 상태 전환 글리프를 그리는
+   * 동안 그 자리를 우리 표시로 덮기 위한 것이다 (`youtube-video.tsx`).
+   */
+  flash?: boolean;
 }) {
   return (
     <>
@@ -47,17 +55,26 @@ export function VideoChrome({
         className="absolute inset-0 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset focus-visible:outline-none"
       />
 
-      {/* 멈춘 동안에만. pointer-events-none — 탭 레이어가 계속 포인터를 받아야 한다. */}
-      {playing || busy ? null : (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center"
-        >
-          <span className="flex size-16 items-center justify-center rounded-full bg-black/50 text-white">
+      {/*
+        멈춘 동안, 그리고 flash 구간에. 마운트를 유지하고 opacity로 여닫는다 —
+        덮개 역할을 하므로 사라질 때 툭 끊기지 않아야 한다.
+        pointer-events-none — 탭 레이어가 계속 포인터를 받아야 한다.
+      */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 z-[3] flex items-center justify-center transition-opacity duration-200",
+          !busy && (!playing || flash) ? "opacity-100" : "opacity-0",
+        )}
+      >
+        <span className="flex size-16 items-center justify-center rounded-full bg-black/50 text-white">
+          {playing ? (
+            <Pause className="size-7 fill-current" />
+          ) : (
             <Play className="size-7 fill-current" />
-          </span>
+          )}
         </span>
-      )}
+      </span>
 
       <button
         type="button"

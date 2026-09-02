@@ -8,10 +8,17 @@ import { youtubeEmbedUrl, youtubeThumbnailUrl } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
 
 /**
- * 재생이 시작된 뒤 유튜브가 그리는 컨트롤이 사라질 때까지 덮어 두는 시간.
- * 실측 1~2초 — 넉넉히 잡되 진입 체감이 상하지 않는 값.
+ * 유튜브가 상태 전환 글리프(⏸·▶)를 스스로 지우기까지 걸리는 시간. 끌 수도
+ * 없고 타이밍도 유튜브가 정하므로, 그동안 우리 표시로 그 자리를 덮는다.
+ * 유일한 조정 손잡이다 — 글리프가 삐져나오면 이 값을 올린다.
  */
-const CHROME_FADE_MS = 1500;
+const YT_GLYPH_MS = 1500;
+
+/**
+ * 썸네일 마스크를 잡아 두는 시간. 글리프는 위의 덮개가 담당하므로 여기서는
+ * 플레이어가 첫 프레임을 그리기 전의 검은 화면만 가린다 — 짧게 잡는다.
+ */
+const POSTER_HOLD_MS = 700;
 
 /**
  * 자동재생이 시작되기를 기다려 주는 시간. 이 동안에는 가운데 ▶ 표시를
@@ -29,8 +36,9 @@ const AUTOPLAY_GRACE_MS = 2500;
  * 2) 축소 — iframe을 3배 크기로 만들고 scale(1/3)로 되돌린다. 플레이어가
  *    자기 UI를 CSS 픽셀 기준으로 그리므로 화면상 유튜브 UI만 1/3 크기가 된다.
  *    영상은 폭에 맞춰 iframe 중앙에 놓이므로 축소 후 크기·위치가 그대로다.
- *    재생 시작 때 스치는 ⏸ 글리프는 끌 수 없어서(상태 전환 표시) 대신
- *    작게 만든다. 대가는 더 큰 해상도를 받아 오는 것이다 (480px 프레임 → 1440px 플레이어).
+ *    상태 전환 글리프(⏸)는 끌 수 없어서 작게 만들고, 남는 것은 우리
+ *    표시가 덮는다(YT_GLYPH_MS). 대가는 더 큰 해상도를 받아 오는 것이다
+ *    (480px 프레임 → 1440px 플레이어).
  *
  * iframe은 replaced 요소라 top·bottom만 주면 늘어나지 않고 기본 150px로
  * 돌아간다 — 높이를 직접 준다.
@@ -44,9 +52,10 @@ const PLAYER = [
  * 유튜브 영상 게시물 재생기 (PRD §5.3, 설계:
  * docs/superpowers/specs/2026-09-02-video-controls-design.md).
  *
- * 유튜브 자체 UI는 지울 수 없으므로 네 겹으로 가린다: 크롭·축소(위 상수),
+ * 유튜브 자체 UI는 지울 수 없으므로 다섯 겹으로 가린다: 크롭·축소(위 상수),
  * playlist 파라미터 제거(⏮⏭가 재생목록 UI라서 생긴다 — 루프는 이 훅이
- * 되감아 처리한다), 그리고 시작 직후의 마스크.
+ * 되감아 처리한다), 시작 직후의 마스크, 그리고 재생이 걸리는 순간을 덮는
+ * 우리 가운데 표시.
  */
 export function YoutubeVideo({
   videoId,
@@ -68,9 +77,22 @@ export function YoutubeVideo({
   const [hasPlayed, setHasPlayed] = useState(false);
   const [masked, setMasked] = useState(true);
   const [graceOver, setGraceOver] = useState(false);
+  // 재생이 걸리는 순간 유튜브가 자기 글리프를 그린다. 그동안만 우리 표시를
+  // 띄워 그 자리를 덮는다 — 멈출 때는 상시 ▶ 표시가 이미 덮고 있다.
+  const [covering, setCovering] = useState(false);
+  const wasPlaying = useRef(false);
 
   useEffect(() => {
     if (playing) setHasPlayed(true);
+  }, [playing]);
+
+  useEffect(() => {
+    const resumed = playing && !wasPlaying.current;
+    wasPlaying.current = playing;
+    if (!resumed) return;
+    setCovering(true);
+    const id = window.setTimeout(() => setCovering(false), YT_GLYPH_MS);
+    return () => window.clearTimeout(id);
   }, [playing]);
 
   useEffect(() => {
@@ -80,7 +102,7 @@ export function YoutubeVideo({
 
   useEffect(() => {
     if (!hasPlayed) return;
-    const id = window.setTimeout(() => setMasked(false), CHROME_FADE_MS);
+    const id = window.setTimeout(() => setMasked(false), POSTER_HOLD_MS);
     return () => window.clearTimeout(id);
   }, [hasPlayed]);
 
@@ -129,6 +151,7 @@ export function YoutubeVideo({
         togglePlay={togglePlay}
         toggleMute={toggleMute}
         busy={!hasPlayed && !graceOver}
+        flash={covering}
       />
     </>
   );
