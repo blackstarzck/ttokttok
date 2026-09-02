@@ -151,9 +151,12 @@ export function useYoutubePlayer({
             },
             onStateChange: (event) => {
               if (cancelled) return;
-              setPlaying(event.data === YT.PlayerState.PLAYING);
-              // 폴링이 늦어 끝에 닿은 경우의 안전망.
-              if (event.data === YT.PlayerState.ENDED) {
+              // BUFFERING·UNSTARTED는 표시를 흔들지 않는다 — 재생 중 버퍼링이
+              // 걸릴 때마다 ▶ 가 튀어나오면 안 된다. 재생 의도는 그대로다.
+              if (event.data === YT.PlayerState.PLAYING) setPlaying(true);
+              else if (event.data === YT.PlayerState.PAUSED) setPlaying(false);
+              else if (event.data === YT.PlayerState.ENDED) {
+                // 폴링이 늦어 끝에 닿은 경우의 안전망.
                 playerRef.current?.seekTo(0, true);
                 playerRef.current?.playVideo();
               }
@@ -199,9 +202,14 @@ export function useYoutubePlayer({
     if (playing) {
       pausedByUser.current = true;
       player.pauseVideo();
+      setPlaying(false);
     } else {
       pausedByUser.current = false;
       player.playVideo();
+      // 표시를 먼저 바꾼다. 유튜브 상태 이벤트는 BUFFERING을 거쳐 오므로
+      // 기다리면 탭 반응이 0.5~1.5초 늦다. 실제로 재생되지 않으면 뒤이어
+      // 오는 PAUSED 이벤트가 정정한다.
+      setPlaying(true);
     }
   }, [playing]);
 
