@@ -29,7 +29,7 @@ export function LoginSheet({
     <Drawer>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="mx-auto max-w-[480px]">
+      <DrawerContent>
         <DrawerHeader className="text-left">
           <DrawerTitle>로그인</DrawerTitle>
           <DrawerDescription>

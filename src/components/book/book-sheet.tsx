@@ -67,7 +67,7 @@ export function BookSheet({
     >
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="mx-auto max-w-[480px]">
+      <DrawerContent>
         {/*
           text-left만으로는 안 먹는다 — DrawerHeader 기본값에
           group-data-[vaul-drawer-direction=bottom]:text-center가 있어서
