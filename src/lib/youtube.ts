@@ -47,7 +47,6 @@ export function youtubeEmbedUrl(id: string): string {
     loop: "1",
     playlist: id,
     controls: "0",
-    modestbranding: "1",
     playsinline: "1",
     rel: "0",
   });

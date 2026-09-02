@@ -138,7 +138,6 @@ export function useYoutubePlayer({
             autoplay: 1,
             mute: 1,
             controls: 0,
-            modestbranding: 1,
             playsinline: 1,
             rel: 0,
             disablekb: 1,
