@@ -183,38 +183,75 @@ npx supabase db reset
 
 SQL 에디터에서 실행한다. `<post>`·`<user>`는 실제 UUID로 치환한다 (`select id from posts limit 1;`, `select id from profiles limit 1;`).
 
+> **삽입을 하나의 `WITH`로 엮지 말 것.** 데이터 변경 CTE들은 같은 스냅샷에서 실행돼 서로의 결과를 보지 못한다. `flatten_comment_depth`는 CTE가 넘겨준 값이 아니라 `select * from comments where id = new.parent_id`로 **테이블을 새로 조회**하므로, 한 문에 엮으면 부모 행이 안 보여 `PARENT_NOT_FOUND`가 난다 — 트리거가 멀쩡해도 실패로 보인다. 실제 앱은 부모와 답글을 별개 요청으로 넣으므로 아래처럼 **문을 나눠야** 실사용 경로를 재현한다.
+
 ```sql
 begin;
-with root as (
-  insert into public.comments (post_id, user_id, content)
-  values ('<post>', '<user>', 'root') returning id
-), lvl2 as (
-  insert into public.comments (post_id, user_id, content, parent_id)
-  select '<post>', '<user>', 'lvl2', id from root returning id, parent_id
-), lvl3 as (
-  insert into public.comments (post_id, user_id, content, parent_id)
-  select '<post>', '<user>', 'lvl3', id from lvl2 returning parent_id
-)
-select
-  (select parent_id from lvl2) as root_id,
-  (select id from lvl2)        as lvl2_id,
-  (select parent_id from lvl3) as lvl3_parent;
+
+insert into public.comments (post_id, user_id, content)
+values ('<post>', '<user>', 'depth-root');
+
+insert into public.comments (post_id, user_id, content, parent_id)
+select '<post>', '<user>', 'depth-lvl2', id
+  from public.comments where content = 'depth-root';
+
+insert into public.comments (post_id, user_id, content, parent_id)
+select '<post>', '<user>', 'depth-lvl3', id
+  from public.comments where content = 'depth-lvl2';
+
+select c.content,
+       (select p.content from public.comments p where p.id = c.parent_id) as parent_content
+  from public.comments c
+ where c.content like 'depth-%'
+ order by c.content;
+
 rollback;
 ```
 
-기대: `lvl3_parent` = `root_id` 이고 `lvl2_id`와는 **다르다**. 3단이 2단으로 눌렸다는 뜻이다.
+기대:
 
-- [ ] **Step 4: 연쇄 숨김과 카운터를 SQL로 검증**
+| content | parent_content |
+|---|---|
+| depth-lvl2 | depth-root |
+| depth-lvl3 | **depth-root** |
+| depth-root | (null) |
+
+`depth-lvl3`의 부모가 `depth-lvl2`가 아니라 `depth-root`여야 한다 — 3단이 2단으로 눌렸다는 뜻이다.
+
+- [ ] **Step 3b: 삭제된 부모에 답글이 막히는지 검증**
 
 ```sql
 begin;
--- 최상위 1개 + 답글 2개를 만든다
-with root as (
-  insert into public.comments (post_id, user_id, content)
-  values ('<post>', '<user>', 'cascade-root') returning id
-)
+
+insert into public.comments (post_id, user_id, content)
+values ('<post>', '<user>', 'del-root');
+
+update public.comments set deleted_at = now() where content = 'del-root';
+
+-- 아래는 반드시 실패해야 한다
 insert into public.comments (post_id, user_id, content, parent_id)
-select '<post>', '<user>', 'reply-' || g, id from root, generate_series(1, 2) g;
+select '<post>', '<user>', 'del-reply', id
+  from public.comments where content = 'del-root';
+
+rollback;
+```
+
+기대: 마지막 INSERT가 `PARENT_DELETED` 예외로 **거부된다**. 성공하면 도달 불가능한 답글이 `comment_count`만 올리는 결함이 남아 있다는 뜻이다.
+
+- [ ] **Step 4: 연쇄 숨김과 카운터를 SQL로 검증**
+
+Step 3과 같은 이유로 부모 삽입과 답글 삽입을 **별개 문으로** 나눈다.
+
+```sql
+begin;
+
+insert into public.comments (post_id, user_id, content)
+values ('<post>', '<user>', 'cascade-root');
+
+insert into public.comments (post_id, user_id, content, parent_id)
+select '<post>', '<user>', 'cascade-reply-' || g, id
+  from public.comments, generate_series(1, 2) g
+ where content = 'cascade-root';
 
 select comment_count as before_count from public.posts where id = '<post>';
 
@@ -223,14 +260,17 @@ update public.comments set deleted_at = now()
 
 select content, deleted_at is not null as hidden
   from public.comments
- where content = 'cascade-root' or content like 'reply-%'
+ where content like 'cascade-%'
  order by content;
 
 select comment_count as after_count from public.posts where id = '<post>';
+
 rollback;
 ```
 
-기대: 세 행 모두 `hidden = true`. `after_count` = `before_count` − 3.
+기대: 세 행 모두 `hidden = true`. `after_count` = `before_count` − 3 (부모 1 + 답글 2).
+
+트리거 발동 순서도 이 결과가 증명한다 — `on_comment_cascade_delete`와 `on_comment_change`는 둘 다 `after update of deleted_at`이라 이름 알파벳 순으로 연쇄가 먼저 돌지만, 두 트리거가 서로 다른 행을 건드리므로 순서와 무관하게 합계는 같아야 한다.
 
 - [ ] **Step 5: 커밋**
 
@@ -436,7 +476,8 @@ build와 375px 수동 확인이 맡는다(FRONTEND.md §7). 그 경계를 흐리
   - `fetchCommentPage(postId: string, cursor: CommentCursor | null): Promise<CommentPage>`
   - `fetchReplyPage(parentId: string, cursor: CommentCursor | null): Promise<CommentPage>`
   - `addComment(postId: string, content: string, parentId?: string | null): Promise<void>`
-- 변경 없이 유지: `REPORT_REASONS`, `ReportReason`, `commentErrorMessage`, `removeComment`, `reportComment`, `timeAgo`
+- `commentErrorMessage`에 `PARENT_DELETED` 분기 추가 (시그니처 불변)
+- 변경 없이 유지: `REPORT_REASONS`, `ReportReason`, `removeComment`, `reportComment`, `timeAgo`
 
 - [ ] **Step 1: `Comment` 타입을 교체하고 커서 타입을 추가**
 
@@ -626,6 +667,23 @@ export async function addComment(
 }
 ```
 
+같은 파일의 `commentErrorMessage`에 `PARENT_DELETED` 분기를 더한다. Task 1의 `flatten_comment_depth` 트리거가 삭제된 부모에 답글을 다는 것을 막으면서 이 예외가 새로 생겼는데, 안내가 없으면 일반 오류 문구로 떨어져 "왜 안 되는지" 알 수 없다. 시트를 열어둔 사이에 상대가 댓글을 지우면 실제로 도달하는 경로다.
+
+```ts
+export function commentErrorMessage(message: string): string {
+  if (message.includes("BANNED_WORD")) {
+    return "사용할 수 없는 표현이 포함되어 있어요.";
+  }
+  if (message.includes("PARENT_DELETED")) {
+    return "삭제된 댓글에는 답글을 달 수 없어요.";
+  }
+  if (message.includes("comments_content_check")) {
+    return "댓글은 1자 이상 1000자 이하로 써 주세요.";
+  }
+  return "댓글을 남기지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
+```
+
 - [ ] **Step 5: 새 순수 함수의 실패하는 테스트를 먼저 쓴다 (RED)**
 
 `src/lib/comments.test.ts` 상단 import를 넓히고, 파일 끝에 두 블록을 더한다.
@@ -682,6 +740,14 @@ describe("toCursor", () => {
   });
 });
 
+describe("commentErrorMessage — 삭제된 부모", () => {
+  it("PARENT_DELETED를 사람 말로 바꾼다", () => {
+    expect(commentErrorMessage("PARENT_DELETED")).toBe(
+      "삭제된 댓글에는 답글을 달 수 없어요.",
+    );
+  });
+});
+
 describe("countRepliesByParent", () => {
   it("부모별로 센다", () => {
     const counts = countRepliesByParent([
@@ -728,7 +794,7 @@ npx vitest run
 npx vitest run
 ```
 
-기대: `17 passed` (Task 2의 9개 + 이번 8개). 출력에 잡음이 없어야 한다.
+기대: `18 passed` (Task 2의 9개 + 이번 9개). 출력에 잡음이 없어야 한다.
 
 **Interfaces (UI 부분):**
 - Produces (모두 `comment-item.tsx`에서 export):
@@ -1261,7 +1327,7 @@ export function CommentSheet({
 npx vitest run && npm run build
 ```
 
-기대: 테스트 `17 passed`, 빌드 성공, 타입 오류 0건. **여기서 처음으로 빌드가 통과한다** — Step 1~4가 `fetchComments`를 없앴고 Step 9가 그 참조를 걷어냈기 때문이다. 그래서 이 태스크는 한 커밋이다.
+기대: 테스트 `18 passed`, 빌드 성공, 타입 오류 0건. **여기서 처음으로 빌드가 통과한다** — Step 1~4가 `fetchComments`를 없앴고 Step 9가 그 참조를 걷어냈기 때문이다. 그래서 이 태스크는 한 커밋이다.
 
 - [ ] **Step 11: 375px에서 실제 렌더 확인**
 
@@ -1530,7 +1596,7 @@ export function insertOptimistic(
 npx vitest run
 ```
 
-기대: `25 passed` (Task 2의 9개 + Task 3의 8개 + 이번 8개). 잡음 없음.
+기대: `26 passed` (Task 2의 9개 + Task 3의 9개 + 이번 8개). 잡음 없음.
 
 - [ ] **Step 5: `add` mutation을 낙관적으로 바꾼다**
 
@@ -1665,7 +1731,7 @@ export function CommentSheet({
 npx vitest run && npm run build
 ```
 
-기대: 테스트 `25 passed`, 빌드 성공, 타입 오류 0건.
+기대: 테스트 `26 passed`, 빌드 성공, 타입 오류 0건.
 
 - [ ] **Step 9: 375px에서 낙관적 동작 확인**
 
@@ -1763,7 +1829,7 @@ git commit -m "docs(prd): 대댓글 명세와 결정 기록 반영"
 
 ## 1단계 완료 기준
 
-- [ ] `npx vitest run` — 25 passed, 출력에 잡음 없음
+- [ ] `npx vitest run` — 26 passed, 출력에 잡음 없음
 - [ ] `npm run build` 통과
 - [ ] Task 1 Step 3·4의 SQL 검증 통과 (깊이 flatten, 연쇄 숨김 + 카운터)
 - [ ] Task 3 Step 11의 렌더 검증 10항목 전부 통과
