@@ -3,12 +3,45 @@
 import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
+import { useOverlayPresence } from "@/components/overlay-presence"
 import { cn } from "@/lib/utils"
 
+/**
+ * shadcn 원본에 한 가지를 더했다: 열려 있는 동안 오버레이 존재를 등록한다
+ * (`src/components/overlay-presence.tsx`). 영상 게시물이 시트에 덮이면
+ * 재생을 멈추기 위한 것이고, 모든 시트가 이 래퍼를 거치므로 배선은 여기
+ * 한 곳이면 된다 — 시트마다 기억할 규약이 되지 않게.
+ */
 function Drawer({
+  open,
+  defaultOpen,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+  const { register } = useOverlayPresence()
+  // 제어형이면 prop이 진실이고, 비제어형이면 이 미러가 진실이다.
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
+    defaultOpen ?? false
+  )
+  const isOpen = open ?? uncontrolledOpen
+
+  React.useEffect(() => {
+    if (!isOpen) return
+    return register()
+  }, [isOpen, register])
+
+  return (
+    <DrawerPrimitive.Root
+      data-slot="drawer"
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={(next) => {
+        setUncontrolledOpen(next)
+        onOpenChange?.(next)
+      }}
+      {...props}
+    />
+  )
 }
 
 function DrawerTrigger({
