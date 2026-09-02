@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed": "node --env-file=.env scripts/seed.mjs",
     "covers": "node --env-file=.env scripts/generate-covers.mjs",
     "admin:create": "node --env-file=.env scripts/create-admin.mjs"
@@ -38,11 +40,14 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "fflate": "^0.8.3",
     "shadcn": "^4.19.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^3.2.7"
   }
 }
