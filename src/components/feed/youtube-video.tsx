@@ -21,18 +21,24 @@ const CHROME_FADE_MS = 1500;
 const AUTOPLAY_GRACE_MS = 2500;
 
 /**
- * 유튜브 크롬 띠를 화면 밖으로 밀어내는 크롭.
+ * 유튜브 UI를 밀어내고 줄이는 배치.
  *
- * 상단 제목·채널 바와 하단 "동영상 더보기"·로고 바는 iframe의 위아래 끝에
- * 그려지므로, iframe을 위아래로 120px씩 키우면 article의 overflow-hidden이
- * 잘라낸다. 플레이어는 영상을 iframe 중앙에 맞추므로 세로로만 키우고 같은
- * 양을 위로 당기면 영상의 위치·크기는 변하지 않는다.
+ * 1) 크롭 — 상단 제목·채널 바와 하단 "동영상 더보기"·로고 바는 iframe의
+ *    위아래 끝에 그려지므로, 위아래로 120px씩 키우면 article의
+ *    overflow-hidden이 잘라낸다.
+ * 2) 축소 — iframe을 2배 크기로 만들고 scale(.5)로 되돌린다. 플레이어가
+ *    자기 UI를 CSS 픽셀 기준으로 그리므로 화면상 유튜브 UI만 절반이 된다.
+ *    영상은 폭에 맞춰 iframe 중앙에 놓이므로 축소 후 크기·위치가 그대로다.
+ *    재생 시작 때 스치는 ⏸ 글리프는 끌 수 없어서(상태 전환 표시) 대신
+ *    작게 만든다. 대가는 더 큰 해상도를 받아 오는 것 — 그래서 2배까지만.
  *
  * iframe은 replaced 요소라 top·bottom만 주면 늘어나지 않고 기본 150px로
  * 돌아간다 — 높이를 직접 준다.
  */
-const CROP =
-  "absolute inset-x-0 -top-30 h-[calc(100%+240px)] w-full border-0 pointer-events-none";
+const PLAYER = [
+  "pointer-events-none absolute top-1/2 left-1/2 border-0",
+  "h-[calc(200%+480px)] w-[200%] -translate-x-1/2 -translate-y-1/2 scale-50",
+].join(" ");
 
 /**
  * 유튜브 영상 게시물 재생기 (PRD §5.3, 설계:
@@ -87,7 +93,7 @@ export function YoutubeVideo({
         title="도서 소개 영상"
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        className={CROP}
+        className={PLAYER}
       />
     );
   }
@@ -97,7 +103,7 @@ export function YoutubeVideo({
       {/* API가 이 div 안에 iframe을 만든다. 크롭은 그 자식에게 건다. */}
       <div
         ref={mountRef}
-        className="absolute inset-0 [&>iframe]:pointer-events-none [&>iframe]:absolute [&>iframe]:inset-x-0 [&>iframe]:-top-30 [&>iframe]:h-[calc(100%+240px)] [&>iframe]:w-full [&>iframe]:border-0"
+        className="absolute inset-0 [&>iframe]:pointer-events-none [&>iframe]:absolute [&>iframe]:top-1/2 [&>iframe]:left-1/2 [&>iframe]:h-[calc(200%+480px)] [&>iframe]:w-[200%] [&>iframe]:-translate-x-1/2 [&>iframe]:-translate-y-1/2 [&>iframe]:scale-50 [&>iframe]:border-0"
       />
 
       {/* 시작 마스크. 영상이 레터박스로 들어가므로 검정 바탕 + object-contain. */}
