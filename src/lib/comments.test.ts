@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { commentErrorMessage, timeAgo } from "@/lib/comments";
+import {
+  commentErrorMessage,
+  countRepliesByParent,
+  timeAgo,
+  toCursor,
+  type Comment,
+} from "@/lib/comments";
 
 describe("timeAgo", () => {
   it("1분 미만은 '방금'", () => {
@@ -53,5 +59,85 @@ describe("commentErrorMessage", () => {
     expect(commentErrorMessage("some network failure")).toBe(
       "댓글을 남기지 못했어요. 잠시 후 다시 시도해 주세요.",
     );
+  });
+});
+
+/** 테스트용 댓글 하나. 검증에 쓰이는 필드만 의미가 있다. */
+function comment(id: string, createdAt: string): Comment {
+  return {
+    id,
+    content: "c",
+    created_at: createdAt,
+    user_id: "u",
+    parent_id: null,
+    reply_count: 0,
+    profiles: null,
+  };
+}
+
+describe("toCursor", () => {
+  it("페이지가 덜 찼으면 커서가 없다 — 마지막 페이지", () => {
+    const items = [comment("a", "2026-09-02T00:00:00Z")];
+    expect(toCursor(items, 20)).toBeNull();
+  });
+
+  it("빈 페이지도 커서가 없다", () => {
+    expect(toCursor([], 20)).toBeNull();
+  });
+
+  it("페이지가 꽉 찼으면 마지막 항목이 커서가 된다", () => {
+    const items = [
+      comment("a", "2026-09-02T00:00:02Z"),
+      comment("b", "2026-09-02T00:00:01Z"),
+    ];
+    expect(toCursor(items, 2)).toEqual({
+      createdAt: "2026-09-02T00:00:01Z",
+      id: "b",
+    });
+  });
+
+  it("정확히 size일 때 커서를 만든다 — 경계", () => {
+    const items = [comment("a", "2026-09-02T00:00:00Z")];
+    expect(toCursor(items, 1)).not.toBeNull();
+    expect(toCursor(items, 2)).toBeNull();
+  });
+});
+
+describe("commentErrorMessage — 삭제된 부모", () => {
+  it("PARENT_DELETED를 사람 말로 바꾼다", () => {
+    expect(commentErrorMessage("PARENT_DELETED")).toBe(
+      "삭제된 댓글에는 답글을 달 수 없어요.",
+    );
+  });
+});
+
+describe("countRepliesByParent", () => {
+  it("부모별로 센다", () => {
+    const counts = countRepliesByParent([
+      { parent_id: "p1" },
+      { parent_id: "p2" },
+      { parent_id: "p1" },
+    ]);
+    expect(counts.get("p1")).toBe(2);
+    expect(counts.get("p2")).toBe(1);
+  });
+
+  it("답글이 없는 부모는 맵에 없다 — 호출부가 0으로 폴백한다", () => {
+    const counts = countRepliesByParent([{ parent_id: "p1" }]);
+    expect(counts.has("p2")).toBe(false);
+    expect(counts.get("p2") ?? 0).toBe(0);
+  });
+
+  it("빈 입력은 빈 맵", () => {
+    expect(countRepliesByParent([]).size).toBe(0);
+  });
+
+  it("parent_id가 null인 행은 세지 않는다", () => {
+    const counts = countRepliesByParent([
+      { parent_id: null },
+      { parent_id: "p1" },
+    ]);
+    expect(counts.size).toBe(1);
+    expect(counts.get("p1")).toBe(1);
   });
 });
