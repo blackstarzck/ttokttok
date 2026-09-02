@@ -124,8 +124,10 @@ export function CommentSheet({
     onError: (e: Error, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(ctx.target, ctx.previous);
       if (ctx) {
-        setDraft(ctx.previousDraft);
-        setReplyTo(ctx.previousReplyTo);
+        // 사용자가 대기 중에 새로 입력한 내용을 덮어쓰지 않기 위해,
+        // 현재 상태가 onMutate가 남긴 상태(draft="", replyTo=null)일 때만 복구한다.
+        setDraft((d) => (d === "" ? ctx.previousDraft : d));
+        setReplyTo((r) => (r === null ? ctx.previousReplyTo : r));
       }
       toast.error(commentErrorMessage(e.message));
     },
