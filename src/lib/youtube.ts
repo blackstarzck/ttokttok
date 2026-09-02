@@ -25,8 +25,20 @@ export function parseYoutubeId(input: string): string | null {
 }
 
 /**
- * 피드용 임베드 주소.
+ * 시작 마스크용 썸네일.
+ * hqdefault는 모든 영상에 있다 — maxresdefault는 없는 영상이 있어 깨진다.
+ */
+export function youtubeThumbnailUrl(id: string): string {
+  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+}
+
+/**
+ * 폴백 전용 임베드 주소 — IFrame API 스크립트가 막혔을 때만 쓴다.
  * 음소거 자동재생 + 루프. 루프는 playlist에 자기 ID를 넣어야 동작한다.
+ *
+ * 평소 경로에는 쓰지 않는다: playlist를 넣으면 유튜브가 재생목록으로 보고
+ * 재생 컨트롤에 ⏮ ⏭ 를 그린다 (설계:
+ * docs/superpowers/specs/2026-09-02-video-controls-design.md).
  */
 export function youtubeEmbedUrl(id: string): string {
   const params = new URLSearchParams({

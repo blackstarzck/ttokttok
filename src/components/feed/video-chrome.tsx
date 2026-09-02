@@ -25,7 +25,19 @@ export type VideoControls = {
  * z: 탭 레이어는 z 없음(본문층, iframe 위) — 액션 레일·도서 바(z-3)의 탭을
  * 가로채지 않는다. 가운데 표시와 음소거 버튼은 스크림(z-2) 위여야 하므로 z-3.
  */
-export function VideoChrome({ playing, muted, togglePlay, toggleMute }: VideoControls) {
+export function VideoChrome({
+  playing,
+  muted,
+  togglePlay,
+  toggleMute,
+  busy = false,
+}: VideoControls & {
+  /**
+   * 아직 재생이 시작될지 판정되지 않은 구간. 가운데 표시를 유보한다 —
+   * 안 그러면 게시물에 진입할 때마다 ▶ 가 잠깐 깜빡였다 사라진다.
+   */
+  busy?: boolean;
+}) {
   return (
     <>
       <button
@@ -36,7 +48,7 @@ export function VideoChrome({ playing, muted, togglePlay, toggleMute }: VideoCon
       />
 
       {/* 멈춘 동안에만. pointer-events-none — 탭 레이어가 계속 포인터를 받아야 한다. */}
-      {playing ? null : (
+      {playing || busy ? null : (
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center"

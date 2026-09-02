@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { UploadVideo } from "@/components/feed/upload-video";
-import { youtubeEmbedUrl } from "@/lib/youtube";
+import { YoutubeVideo } from "@/components/feed/youtube-video";
 import type { FeedVideo } from "@/lib/feed";
 
 /**
@@ -43,21 +43,7 @@ export function VideoPlayer({
       {video.source_type === "upload" && video.video_path ? (
         <UploadVideo src={video.video_path} poster={poster} active={active} />
       ) : video.youtube_id ? (
-        // 화면 밖이면 iframe 자체를 떼어 재생을 멈춘다.
-        active ? (
-          <>
-            <iframe
-              src={youtubeEmbedUrl(video.youtube_id)}
-              title="도서 소개 영상"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-              className="pointer-events-none absolute inset-x-0 -top-30 h-[calc(100%+240px)] w-full border-0"
-            />
-            <div aria-hidden className="absolute inset-0" />
-          </>
-        ) : (
-          <div className="bg-card h-full w-full" />
-        )
+        <YoutubeVideo videoId={video.youtube_id} active={active} />
       ) : (
         <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
           영상을 불러올 수 없어요.
