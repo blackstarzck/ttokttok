@@ -182,7 +182,7 @@ export function CommentSheet({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full"
+                    className="min-h-11 w-full"
                     disabled={list.isFetchingNextPage}
                     onClick={() => void list.fetchNextPage()}
                   >

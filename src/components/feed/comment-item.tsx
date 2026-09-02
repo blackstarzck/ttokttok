@@ -82,7 +82,7 @@ function CommentRow({
         <button
           type="button"
           onClick={onReply}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring self-start rounded-sm text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
         >
           답글 달기
         </button>
@@ -166,7 +166,7 @@ export function CommentItem({
   });
 
   const loaded = replies.data?.pages.flatMap((p) => p.items) ?? [];
-  // 펼친 뒤에는 실제로 받은 개수를 신뢰한다 — 낙관적 추가가 반영된다.
+  // 펼친 뒤에는 실제로 받은 개수를 신뢰한다 — 서버에서 다시 받아온 값이 반영된다.
   const count = expanded ? loaded.length : comment.reply_count;
 
   return (
@@ -228,7 +228,7 @@ export function CommentItem({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="self-start"
+                    className="min-h-11 self-start"
                     disabled={replies.isFetchingNextPage}
                     onClick={() => void replies.fetchNextPage()}
                   >
