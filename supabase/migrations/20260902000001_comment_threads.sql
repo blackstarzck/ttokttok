@@ -53,6 +53,11 @@ begin
     raise exception 'PARENT_POST_MISMATCH' using errcode = 'P0001';
   end if;
 
+  -- 삭제된 부모에 붙은 답글은 UI에서 영영 도달할 수 없는데 카운터만 올린다.
+  if v_parent.deleted_at is not null then
+    raise exception 'PARENT_DELETED' using errcode = 'P0001';
+  end if;
+
   -- 부모가 답글이면 그 부모(= 최상위)로 올린다.
   if v_parent.parent_id is not null then
     new.parent_id := v_parent.parent_id;
@@ -68,8 +73,9 @@ create trigger on_comment_flatten_depth
 
 -- ------------------------------------------------------------
 -- 연쇄 숨김. 최상위 댓글이 soft delete되면 살아 있는 답글도 함께 숨긴다.
--- 답글 행마다 UPDATE가 나가므로 기존 sync_comment_count가 행마다 발동해
--- comment_count가 저절로 맞는다 — 카운터를 직접 건드리지 않는다.
+-- UPDATE 한 번으로 답글 여러 행이 한꺼번에 바뀌지만, 기존 sync_comment_count는
+-- 행 단위 트리거라 바뀐 행마다 한 번씩 발동해 comment_count가 저절로
+-- 맞는다 — 카운터를 직접 건드리지 않는다.
 --
 -- 재귀 방지: parent_id가 NULL인 행(= 최상위)일 때만 연쇄한다. 답글의
 -- UPDATE로 이 트리거가 다시 돌아도 즉시 빠져나간다.
