@@ -894,7 +894,7 @@ function CommentRow({
         <button
           type="button"
           onClick={onReply}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring self-start rounded-sm text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
         >
           답글 달기
         </button>
@@ -1040,7 +1040,7 @@ export function CommentItem({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="self-start"
+                    className="min-h-11 self-start"
                     disabled={replies.isFetchingNextPage}
                     onClick={() => void replies.fetchNextPage()}
                   >
@@ -1246,7 +1246,7 @@ export function CommentSheet({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full"
+                    className="min-h-11 w-full"
                     disabled={list.isFetchingNextPage}
                     onClick={() => void list.fetchNextPage()}
                   >
