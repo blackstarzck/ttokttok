@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, Flag, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isOptimistic } from "@/lib/comment-cache";
 import {
   REPORT_REASONS,
   fetchReplyPage,
@@ -55,6 +56,10 @@ function CommentRow({
 }) {
   const mine = comment.user_id === actions.currentUserId;
   const nickname = comment.profiles?.nickname ?? "독자";
+  // 낙관적으로 끼워 넣은 행은 id가 서버 uuid가 아니다 — 확정 전에 답글·삭제·
+  // 신고를 보내면 그 가짜 id가 그대로 요청에 실려 실패한다. 확정될 때까지
+  // 자리는 유지한 채 동작만 잠가서, 버튼이 깜빡이며 사라졌다 나타나지 않게 한다.
+  const pending = isOptimistic(comment.id);
 
   return (
     <li className="flex gap-3">
@@ -82,7 +87,8 @@ function CommentRow({
         <button
           type="button"
           onClick={onReply}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          disabled={pending}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
         >
           답글 달기
         </button>
@@ -117,7 +123,7 @@ function CommentRow({
           size="icon-lg"
           className="text-muted-foreground min-h-11 min-w-11 shrink-0"
           aria-label="댓글 삭제"
-          disabled={actions.removePending}
+          disabled={pending || actions.removePending}
           onClick={() => actions.onRemove(comment.id)}
         >
           <Trash2 className="size-4" aria-hidden />
@@ -128,6 +134,7 @@ function CommentRow({
           size="icon-lg"
           className="text-muted-foreground min-h-11 min-w-11 shrink-0"
           aria-label="댓글 신고"
+          disabled={pending}
           onClick={() => actions.onOpenReport(comment.id)}
         >
           <Flag className="size-4" aria-hidden />

@@ -112,13 +112,21 @@ export function CommentSheet({
         insertOptimistic(old, optimistic),
       );
 
+      // 비우기 전에 원래 값을 챙겨둔다 — 실패하면 onError가 그대로 되돌려서
+      // 입력창을 즉시 비우는 낙관적 UX는 유지하면서도 쓴 글을 잃지 않게 한다.
+      const previousDraft = draft;
+      const previousReplyTo = replyTo;
       setDraft("");
       setReplyTo(null);
-      return { target, previous };
+      return { target, previous, previousDraft, previousReplyTo };
     },
 
     onError: (e: Error, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(ctx.target, ctx.previous);
+      if (ctx) {
+        setDraft(ctx.previousDraft);
+        setReplyTo(ctx.previousReplyTo);
+      }
       toast.error(commentErrorMessage(e.message));
     },
 

@@ -115,4 +115,18 @@ describe("insertOptimistic", () => {
 
     expect(JSON.stringify(before)).toBe(snapshot);
   });
+
+  it("답글 경로도 원본을 변형하지 않는다 — 롤백이 성립해야 한다", () => {
+    const before = data(page("a", "b"), page("c"));
+    const snapshot = JSON.stringify(before);
+    const c = makeOptimisticComment({
+      content: "new",
+      userId: "u",
+      parentId: "p1",
+    });
+
+    insertOptimistic(before, c);
+
+    expect(JSON.stringify(before)).toBe(snapshot);
+  });
 });
