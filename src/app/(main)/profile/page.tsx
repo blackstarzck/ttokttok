@@ -11,6 +11,8 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth";
 import { getBookmarks, getReadingProgress, type ReadingItem } from "@/lib/library";
+import { getLikedPosts, getMyComments } from "@/lib/activity";
+import { ActivityTab } from "@/components/profile/activity-tab";
 import type { FeedBook } from "@/lib/feed";
 
 export const metadata: Metadata = { title: "프로필" };
@@ -100,10 +102,13 @@ export default async function ProfilePage() {
     );
   }
 
-  const [{ reading, finished }, bookmarks] = await Promise.all([
-    getReadingProgress(),
-    getBookmarks(),
-  ]);
+  const [{ reading, finished }, bookmarks, likedPosts, myComments] =
+    await Promise.all([
+      getReadingProgress(),
+      getBookmarks(),
+      getLikedPosts(),
+      getMyComments(user.id),
+    ]);
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
@@ -139,6 +144,9 @@ export default async function ProfilePage() {
           <TabsTrigger value="finished" className="flex-1">
             완독
           </TabsTrigger>
+          <TabsTrigger value="activity" className="flex-1">
+            활동
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="reading">
@@ -163,6 +171,10 @@ export default async function ProfilePage() {
           ) : (
             <Empty text="아직 완독한 책이 없어요." />
           )}
+        </TabsContent>
+
+        <TabsContent value="activity">
+          <ActivityTab likedPosts={likedPosts} comments={myComments} />
         </TabsContent>
       </Tabs>
 
