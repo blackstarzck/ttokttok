@@ -439,7 +439,7 @@ npm run build
 - [ ] **Step 11: 커밋**
 
 ```bash
-git add src/lib/comments.ts src/lib/comments.test.ts src/lib/comment-cache.ts
+git add src/lib/comments.ts src/lib/comments.test.ts src/lib/comment-cache.ts src/lib/comment-cache.test.ts
 git commit -m "feat(feed): 댓글 조회에 좋아요 수·내 좋아요 여부 병합
 
 내가 눌렀는지는 comment_likes_select_own이 본인 행만 돌려준다는 성질로
