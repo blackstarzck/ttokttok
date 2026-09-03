@@ -57,7 +57,10 @@ export function CommentLikeButton({
       disabled={disabled}
       aria-pressed={state.liked}
       aria-label={state.liked ? "좋아요 취소" : "좋아요"}
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center gap-1 rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+      // min-w-11: 카운트가 0이면 <span>이 아예 안 그려져 아이콘+패딩만
+      // 남는데, 그러면 폭이 44px에 못 미친다(DESIGN.md 155). 카운트가
+      // 보일 때도 폭을 고정해 두 상태 모두 44px 이상을 보장한다.
+      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 items-center gap-1 rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
     >
       <Heart
         className={cn("size-3.5", state.liked && "fill-current")}

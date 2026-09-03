@@ -39,16 +39,26 @@ export default async function AdminReportsPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const [{ data: reports }, { data: words }] = await Promise.all([
-    db
-      .from("reports")
-      .select(
-        "id, reason, status, created_at, comment_id, comments ( content, deleted_at, profiles ( nickname ) )",
-      )
-      .eq("status", "open")
-      .order("created_at", { ascending: false }),
-    db.from("banned_words").select("id, word").order("word"),
-  ]);
+  const [{ data: reports, error: reportsError }, { data: words }] =
+    await Promise.all([
+      db
+        .from("reports")
+        .select(
+          // comment_likes가 comments-profiles 관계를 두 경로로 갈라놓아
+          // (src/lib/comments.ts COMMENT_SELECT 주석 참고) profiles를
+          // FK 없이 그냥 embed하면 PostgREST가 300 + PGRST201로 거부한다.
+          // 여기서 다시 벗겨내지 말 것.
+          "id, reason, status, created_at, comment_id, comments ( content, deleted_at, profiles!comments_user_id_fkey ( nickname ) )",
+        )
+        .eq("status", "open")
+        .order("created_at", { ascending: false }),
+      db.from("banned_words").select("id, word").order("word"),
+    ]);
+
+  // 이 임베드는 실제로 300(PGRST201)을 반환한 적이 있다 — 조용히 삼키면
+  // reports가 null이 되어 아래 루프가 0번 돌고, 관리자는 "신고 없음"과
+  // 구분할 수 없다. 내부 어드민 화면이라 별도 에러 UI 없이 던진다.
+  if (reportsError) throw new Error(reportsError.message);
 
   // 같은 댓글에 여러 신고가 붙는다 — 댓글 단위로 묶어 한 번에 처리한다.
   const grouped = new Map<
