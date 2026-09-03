@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, Flag, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CommentLikeButton } from "@/components/feed/comment-like-button";
 import { isOptimistic } from "@/lib/comment-cache";
 import {
   REPORT_REASONS,
@@ -84,14 +85,22 @@ function CommentRow({
           {comment.content}
         </p>
 
-        <button
-          type="button"
-          onClick={onReply}
-          disabled={pending}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-        >
-          답글 달기
-        </button>
+        <div className="flex items-center gap-1">
+          <CommentLikeButton
+            commentId={comment.id}
+            count={comment.like_count}
+            liked={comment.liked}
+            disabled={pending}
+          />
+          <button
+            type="button"
+            onClick={onReply}
+            disabled={pending}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+          >
+            답글 달기
+          </button>
+        </div>
 
         {actions.reporting === comment.id ? (
           <div className="flex flex-wrap gap-1 pt-1">
