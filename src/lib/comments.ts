@@ -29,8 +29,11 @@ export const REPLY_PAGE_SIZE = 10;
 // comment_likes를 통한 경로, 둘로 갈라진다. `profiles ( ... )`처럼 FK를
 // 안 밝히면 PostgREST가 어느 쪽인지 못 골라 300 + PGRST201로 거부한다
 // (실측). 그래서 반드시 `profiles!comments_user_id_fkey`로 못박는다.
-// comments와 profiles를 잇는 세 번째 테이블을 추가할 때도 같은 문제가
-// 재발하니, 그때도 이 select의 profiles 임베드에 FK 이름을 붙여야 한다.
+// 조건은 "세 번째 테이블"이 아니라 "복합키 junction 테이블"이다 —
+// reports도 comments와 profiles를 잇지만 PK가 자체 id(스칼라)라 별도
+// 경로를 만들지 않는다. comment_id + user_id 두 FK로 된 복합 PK를 가진
+// 테이블을 새로 추가할 때만 이 문제가 재발하니, 그때만 이 select의
+// profiles 임베드에 FK 이름을 붙여야 한다.
 const COMMENT_SELECT =
   "id, content, created_at, user_id, parent_id, like_count, profiles!comments_user_id_fkey ( nickname, avatar_url )";
 

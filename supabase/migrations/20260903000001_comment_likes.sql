@@ -47,9 +47,14 @@ alter table public.comments
 -- 이 grant 목록에 일부러 추가하기 전까지는 막혀 있다. 의도된
 -- fail-closed다. 나중에 "PATCH가 이유 없이 막힌다"를 만나면 이 주석을
 -- 보고 grant 목록에 컬럼을 추가할지 판단할 것.
+-- anon은 grant 대상에서 뺀다 — comments_soft_delete는
+-- `using (auth.uid() = user_id or public.is_admin())`뿐이라 auth.uid()가
+-- null인 anon은 이 정책을 절대 통과하지 못한다. anon에 deleted_at UPDATE를
+-- 줘도 닿는 행이 없다 — 최소 권한을 표방하는 문장이 실제로 그렇게
+-- 읽히도록 revoke에서만 anon을 남기고 grant에서는 뺀다.
 revoke update on public.comments from authenticated, anon;
 grant update (deleted_at)
-  on public.comments to authenticated, anon;
+  on public.comments to authenticated;
 
 create table public.comment_likes (
   user_id uuid not null default auth.uid()
@@ -60,9 +65,16 @@ create table public.comment_likes (
   primary key (user_id, comment_id)
 );
 
--- "이 페이지의 댓글들 중 내가 누른 것"을 한 번에 조회한다.
--- PK가 (user_id, comment_id)라 user_id 고정 + comment_id IN (...) 을 그대로 받는다.
--- 별도 인덱스를 만들지 않는 이유가 이것이다.
+-- 읽기 경로("이 페이지의 댓글들 중 내가 누른 것")는 PK가 (user_id,
+-- comment_id)라 user_id 고정 + comment_id IN (...) 을 그대로 받아
+-- 별도 인덱스가 필요 없다. 하지만 comment_id는 PK의 선행 컬럼이 아니고,
+-- likes.post_id와 같은 모양의 FK 참조 컬럼이다 — Postgres는 FK 참조
+-- 컬럼을 자동으로 인덱싱하지 않는다. comment_id는 comments를 on delete
+-- cascade로 가리키고 comments는 다시 posts를 on delete cascade로
+-- 가리키는데, posts는 하드 삭제된다(admin/posts/actions.ts) — 삭제 시
+-- comment_likes에서 이 컬럼으로 고아 행을 찾는 순차 스캔을 피하려면
+-- likes_post_idx(20260827000001)와 대칭으로 인덱스가 있어야 한다.
+create index comment_likes_comment_idx on public.comment_likes (comment_id);
 
 alter table public.comment_likes enable row level security;
 

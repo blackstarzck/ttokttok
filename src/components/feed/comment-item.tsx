@@ -98,7 +98,7 @@ function CommentRow({
             type="button"
             onClick={onReply}
             disabled={pending}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center self-start rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center rounded-sm px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
           >
             답글 달기
           </button>

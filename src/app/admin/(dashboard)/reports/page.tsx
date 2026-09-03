@@ -57,7 +57,10 @@ export default async function AdminReportsPage({
 
   // 이 임베드는 실제로 300(PGRST201)을 반환한 적이 있다 — 조용히 삼키면
   // reports가 null이 되어 아래 루프가 0번 돌고, 관리자는 "신고 없음"과
-  // 구분할 수 없다. 내부 어드민 화면이라 별도 에러 UI 없이 던진다.
+  // 구분할 수 없다. src/app에 error.tsx가 없어 다음 렌더에서 던지면
+  // Next 기본 에러 화면(프로덕션에서는 메시지가 가려지고 digest만 남는다)이
+  // 뜨는데, 그것만으로도 "신고 없음"과는 구분된다 — 메시지 자체는
+  // 서버 로그에서 확인한다. 내부 어드민 화면이라 별도 에러 UI 없이 던진다.
   if (reportsError) throw new Error(reportsError.message);
 
   // 같은 댓글에 여러 신고가 붙는다 — 댓글 단위로 묶어 한 번에 처리한다.

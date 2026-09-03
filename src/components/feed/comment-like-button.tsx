@@ -56,7 +56,11 @@ export function CommentLikeButton({
       onClick={toggle}
       disabled={disabled}
       aria-pressed={state.liked}
-      aria-label={state.liked ? "좋아요 취소" : "좋아요"}
+      // 이름은 상태와 무관하게 고정한다 — aria-pressed와 함께 쓰이는
+      // 토글 버튼의 접근 가능한 이름이 상태에 따라 바뀌면(예: "좋아요 취소")
+      // 스크린 리더가 이름+상태를 이어 읽어 "좋아요 취소, 눌림"처럼
+      // 뜻이 뒤집힌 채로 들린다. like-button.tsx와 동일하게 정적으로 둔다.
+      aria-label="좋아요"
       // min-w-11: 카운트가 0이면 <span>이 아예 안 그려져 아이콘+패딩만
       // 남는데, 그러면 폭이 44px에 못 미친다(DESIGN.md 155). 카운트가
       // 보일 때도 폭을 고정해 두 상태 모두 44px 이상을 보장한다.
