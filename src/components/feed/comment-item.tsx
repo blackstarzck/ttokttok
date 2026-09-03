@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Flag, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -155,13 +155,25 @@ export function CommentItem({
   comment,
   actions,
   onReply,
+  expandFor,
 }: {
   comment: Comment;
   actions: RowActions;
   onReply: (target: ReplyTarget) => void;
+  /** 방금 답글을 단 스레드의 부모 id. 이 댓글이 그 대상이면 자동으로 펼친다. */
+  expandFor?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nickname = comment.profiles?.nickname ?? "독자";
+
+  // 답글을 단 사람이 자기 글을 봐야 한다 — 접힌 채로 두면 등록 후에도
+  // 화면이 그대로라 아무 일도 없었던 것처럼 보인다. expandFor가 이
+  // 댓글을 가리킬 때만 펼치고, 그 뒤 사용자가 직접 접어도 이 effect가
+  // 다시 펼치지 않도록 expandFor 값이 바뀔 때만 실행한다.
+  useEffect(() => {
+    if (expandFor === comment.id) setExpanded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandFor]);
 
   const replies = useInfiniteQuery({
     queryKey: ["replies", comment.id],
@@ -173,8 +185,7 @@ export function CommentItem({
   });
 
   const loaded = replies.data?.pages.flatMap((p) => p.items) ?? [];
-  // 펼친 뒤에는 실제로 받은 개수를 신뢰한다 — 서버에서 다시 받아온 값이 반영된다.
-  const count = expanded ? loaded.length : comment.reply_count;
+  const count = comment.reply_count;
 
   return (
     <li className="flex flex-col gap-3">

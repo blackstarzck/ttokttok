@@ -72,6 +72,43 @@ create trigger on_comment_flatten_depth
   for each row execute function public.flatten_comment_depth();
 
 -- ------------------------------------------------------------
+-- 1단 강제 (UPDATE 경로). 위 flatten_comment_depth는 INSERT에서만 돈다.
+-- 그런데 기존 RLS 정책 comments_soft_delete(20260827000003)는
+-- `using (auth.uid() = user_id or is_admin())`뿐이고 `with check`가 없다 —
+-- RLS는 UPDATE가 어떤 컬럼을 건드리는지 제한할 수 없으므로, 본인 댓글에
+-- 대해서는 누구나 parent_id(또는 post_id)를 바꿔치는 PATCH를 보낼 수 있다.
+-- 그렇게 만든 3단 행은 fetchReplyPage가 최상위 id로만 조회하므로 UI에서
+-- 영영 도달할 수 없는데 comment_count는 그대로 올라간다 — PARENT_DELETED가
+-- 막으려는 것과 같은 실패 모드다. 그래서 INSERT 강제와 별개로 UPDATE에서는
+-- 아예 값 변경 자체를 막는다(이 앱은 댓글을 다른 부모·게시물로 옮기지 않는다).
+--
+-- old.parent_id is distinct from new.parent_id로 가드하는 이유: soft delete
+-- (cascade_comment_delete, removeComment)는 deleted_at만 바꾸는 UPDATE라
+-- parent_id·post_id는 그대로다 — 매 UPDATE마다 발동하면 정상적인 삭제까지
+-- 막힌다. trigger 자체도 `of parent_id, post_id`로 좁혀서 다른 컬럼만
+-- 바뀌는 UPDATE에는 아예 걸리지 않게 한다.
+-- ------------------------------------------------------------
+create function public.forbid_comment_reparent()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+begin
+  if new.parent_id is distinct from old.parent_id
+     or new.post_id is distinct from old.post_id then
+    raise exception 'REPARENT_FORBIDDEN' using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$fn$;
+
+create trigger on_comment_forbid_reparent
+  before update of parent_id, post_id on public.comments
+  for each row execute function public.forbid_comment_reparent();
+
+-- ------------------------------------------------------------
 -- 연쇄 숨김. 최상위 댓글이 soft delete되면 살아 있는 답글도 함께 숨긴다.
 -- UPDATE 한 번으로 답글 여러 행이 한꺼번에 바뀌지만, 기존 sync_comment_count는
 -- 행 단위 트리거라 바뀐 행마다 한 번씩 발동해 comment_count가 저절로

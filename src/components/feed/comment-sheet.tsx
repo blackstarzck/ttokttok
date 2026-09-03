@@ -67,6 +67,10 @@ export function CommentSheet({
   const [draft, setDraft] = useState("");
   const [reporting, setReporting] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+  // 방금 답글을 등록한 스레드의 부모 id. 해당 CommentItem이 이 값을 보고
+  // 스스로 펼친다 — 접힌 스레드에 답글을 달면 등록해도 화면에 아무 변화가
+  // 없어 보이는 문제(발견 1)를 막는다.
+  const [expandFor, setExpandFor] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
 
@@ -118,6 +122,7 @@ export function CommentSheet({
       const previousReplyTo = replyTo;
       setDraft("");
       setReplyTo(null);
+      if (parentId) setExpandFor(parentId);
       return { target, previous, previousDraft, previousReplyTo };
     },
 
@@ -218,6 +223,7 @@ export function CommentSheet({
                   comment={c}
                   actions={actions}
                   onReply={setReplyTo}
+                  expandFor={expandFor}
                 />
               ))}
 
