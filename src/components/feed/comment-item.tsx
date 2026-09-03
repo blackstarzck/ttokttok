@@ -148,20 +148,27 @@ function CommentRow({
  * 최상위 댓글 + 답글 서브트리 (설계 결정 1·3).
  *
  * 답글 쿼리는 `enabled: expanded` — 접혀 있는 동안에는 네트워크를 쓰지
- * 않는다. 시트를 닫으면 이 컴포넌트가 언마운트되므로 펼침 상태도 함께
- * 초기화된다 (두 레퍼런스와 동일).
+ * 않는다. 시트를 닫으면 이 컴포넌트는 언마운트되어 `expanded`는 항상
+ * false로 다시 시작한다 — 그래서 펼침 여부를 계속 참으로 만드는 것은
+ * `expandFor` 하나뿐인데, 그 값은 소비하자마자(`onExpanded`) 부모가
+ * 비운다. 그 덕에 시트를 닫았다 다시 열어도 지난 요청이 남아 있지 않아
+ * 이전에 펼쳤던 스레드가 저절로 다시 펼쳐지는 일이 없다.
  */
 export function CommentItem({
   comment,
   actions,
   onReply,
   expandFor,
+  onExpanded,
 }: {
   comment: Comment;
   actions: RowActions;
   onReply: (target: ReplyTarget) => void;
-  /** 방금 답글을 단 스레드의 부모 id. 이 댓글이 그 대상이면 자동으로 펼친다. */
-  expandFor?: { parentId: string } | null;
+  /** 방금 답글을 단 스레드의 부모 id. 이 댓글의 id와 같으면 자동으로 펼친다. */
+  expandFor?: string | null;
+  /** expandFor 요청을 실제로 소비했을 때(펼쳤을 때만) 호출 — 부모가 값을
+   * 비워서 같은 요청이 재오픈 때 되풀이되지 않게 한다. */
+  onExpanded?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nickname = comment.profiles?.nickname ?? "독자";
@@ -169,18 +176,19 @@ export function CommentItem({
   // 답글을 단 사람이 자기 글을 봐야 한다 — 접힌 채로 두면 등록 후에도
   // 화면이 그대로라 아무 일도 없었던 것처럼 보인다. 그렇다고 "매 렌더 무조건
   // 펼치기"를 할 수는 없다 — 그러면 사용자가 방금 직접 접은 것도 즉시 다시
-  // 펼쳐진다. 그래서 effect가 "펼쳐라"라는 새 요청을 받았을 때만 실행되게
-  // 하고 싶은데, 같은 스레드에 답글을 두 번 달면 parentId 문자열 값 자체는
-  // 똑같다 — 그 값만 보고 "바뀌었는지"를 판단하면 두 번째 답글에서는
-  // 아무것도 안 바뀐 것으로 보여 effect가 실행되지 않는다(이 버그의 원인).
-  // 그래서 CommentSheet는 답글마다 `{ parentId }`를 새 객체로 만들어 보낸다
-  // — 참조가 매번 달라지므로, 같은 스레드를 다시 가리켜도 effect는 매번
-  // 실행된다. comment.id는 부모 목록이 c.id로 키를 주므로 이 값이 바뀌면
-  // 컴포넌트 자체가 새로 마운트된다 — 즉 이 인스턴스 생애주기 동안 상수라
-  // deps에 넣어도 추가 실행을 만들지 않는다.
+  // 펼쳐진다. 그래서 expandFor를 "펼쳐라"라는 소비형 요청으로 다룬다: 이
+  // 댓글이 대상이면 펼치고, 그 즉시 onExpanded로 부모에게 "다 썼다"고
+  // 알려 값을 null로 되돌리게 한다. 이렇게 매번 비워두면 같은 스레드에
+  // 다시 답글을 달아도 부모가 null → comment.id로 실제 값을 바꿔주므로
+  // effect가 다시 실행된다 — 두 번째 답글에서 값이 안 바뀐 것처럼 보여
+  // effect가 스킵되는 문제(이전 버그)가 재발하지 않는다. 그리고 값을 곧장
+  // 비우기 때문에, 시트를 닫았다 열어 이 컴포넌트가 새로 마운트돼도 그때는
+  // expandFor가 이미 null이라 자동으로 펼쳐지는 일이 없다.
   useEffect(() => {
-    if (expandFor?.parentId === comment.id) setExpanded(true);
-  }, [expandFor, comment.id]);
+    if (expandFor !== comment.id) return;
+    setExpanded(true);
+    onExpanded?.();
+  }, [expandFor, comment.id, onExpanded]);
 
   const replies = useInfiniteQuery({
     queryKey: ["replies", comment.id],

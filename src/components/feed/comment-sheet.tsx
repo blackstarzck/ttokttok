@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -71,15 +71,18 @@ export function CommentSheet({
   // 스스로 펼친다 — 접힌 스레드에 답글을 달면 등록해도 화면에 아무 변화가
   // 없어 보이는 문제(발견 1)를 막는다.
   //
-  // 문자열이 아니라 매번 새 객체로 담는다 — 같은 스레드에 두 번째 답글을
-  // 달면 parentId 문자열 자체는 똑같아서 참조가 바뀌지 않고, CommentItem의
-  // effect는 참조 동일성으로 재실행 여부를 판단하므로 두 번째 답글에서는
-  // 아예 실행되지 않는다(사용자가 이미 한 번 접어 둔 스레드가 계속 접힌
-  // 채로 남는 버그). 매번 `{ parentId }`로 새로 만들면 값이 같아도 항상
-  // 새 참조라 effect가 매번 실행된다.
-  const [expandFor, setExpandFor] = useState<{ parentId: string } | null>(
-    null,
-  );
+  // 소비형 신호다 — CommentItem은 펼치자마자 onExpanded로 이 값을 다시
+  // null로 비운다(아래 clearExpandFor). 그래서 값이 남아 있는 구간은
+  // "답글 등록 ~ 해당 CommentItem이 펼치는 순간"뿐이고, 그 다음엔 항상
+  // null로 돌아가 있다. 같은 스레드에 다시 답글을 달아도 매번 null →
+  // parentId라는 실제 값 변화가 생기므로 문자열 그대로 써도 effect가 매번
+  // 다시 실행된다 — 매번 새 객체를 만드는 우회가 필요 없다. 값을 곧장
+  // 비워두는 덕에 시트를 닫았다 다시 열어도 지난 스레드가 저절로 펼쳐지지
+  // 않는다.
+  const [expandFor, setExpandFor] = useState<string | null>(null);
+  // effect의 deps에 그대로 들어가므로 매 렌더 새 함수면 참조가 계속
+  // 바뀌어 불필요하게 effect를 다시 태운다 — useCallback으로 고정한다.
+  const clearExpandFor = useCallback(() => setExpandFor(null), []);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
 
@@ -131,7 +134,7 @@ export function CommentSheet({
       const previousReplyTo = replyTo;
       setDraft("");
       setReplyTo(null);
-      if (parentId) setExpandFor({ parentId });
+      if (parentId) setExpandFor(parentId);
       return { target, previous, previousDraft, previousReplyTo };
     },
 
@@ -233,6 +236,7 @@ export function CommentSheet({
                   actions={actions}
                   onReply={setReplyTo}
                   expandFor={expandFor}
+                  onExpanded={clearExpandFor}
                 />
               ))}
 
