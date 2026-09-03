@@ -299,7 +299,7 @@ git commit -m "feat(db): 알림 테이블·트리거 2종 — 답글·댓글 좋
   - `type NotificationRow = { id; type: "reply" | "comment_like"; commentId; postId; readAt: string | null; createdAt; actorNickname: string; commentExcerpt: string }`
   - `type NotificationGroup = { key; type; commentId; postId; createdAt; unread: boolean; ids: string[]; actorNames: string[]; excerpt: string }`
   - `groupNotifications(rows: NotificationRow[]): NotificationGroup[]`
-  - `getNotifications(): Promise<NotificationGroup[]>`
+  - `getNotifications(): Promise<{ groups: NotificationGroup[]; failed: boolean }>`
   - `markRead(ids: string[]): Promise<void>` — **`notifications-client.ts`** 쪽
 
 - [ ] **Step 1: 실패하는 테스트를 먼저 쓴다 (RED)**
@@ -499,7 +499,10 @@ export function groupNotifications(
  * comment_likes 때문에 comments↔profiles가 모호해져 모든 댓글 조회가
  * 300으로 죽은 적이 있다 — 같은 종류다.
  */
-export async function getNotifications(): Promise<NotificationGroup[]> {
+export async function getNotifications(): Promise<{
+  groups: NotificationGroup[];
+  failed: boolean;
+}> {
   const db = await createClient();
   const { data, error } = await db
     .from("notifications")
@@ -513,7 +516,12 @@ export async function getNotifications(): Promise<NotificationGroup[]> {
 
   if (error) {
     console.error("getNotifications:", error.message);
-    return [];
+    // activity.ts는 실패 시 []를 돌려주지만 여기서는 실패를 구분해 넘긴다.
+    // 알림함에서 []는 "알림 없음"으로 렌더되는데, 사용자는 방금 배지에
+    // 숫자가 떠 있는 것을 보고 들어왔다 — 빈 목록을 보여주면 앱이 거짓말을
+    // 한 것이 되고, 무엇을 못 봤는지 알 방법이 사라진다. 2단계에서 어드민
+    // 신고 목록이 300 에러를 삼켜 빈 큐로 보였던 것과 같은 모양이다.
+    return { groups: [], failed: true };
   }
 
   const rows: NotificationRow[] = (
@@ -538,7 +546,7 @@ export async function getNotifications(): Promise<NotificationGroup[]> {
     commentExcerpt: r.comments?.content ?? "",
   }));
 
-  return groupNotifications(rows);
+  return { groups: groupNotifications(rows), failed: false };
 }
 ```
 
@@ -708,7 +716,7 @@ export default async function NotificationsPage() {
   // 알림은 본인 것뿐이라 게스트에게 보여줄 내용이 없다.
   if (!user) redirect("/login?next=/notifications");
 
-  const groups = await getNotifications();
+  const { groups, failed } = await getNotifications();
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
@@ -721,8 +729,12 @@ export default async function NotificationsPage() {
           ))}
         </ul>
       ) : (
+        // 실패와 빈 목록을 다른 문구로 말한다 — 같은 화면을 보여주면
+        // 사용자가 "알림이 없다"고 잘못 믿는다.
         <p className="text-muted-foreground py-10 text-center text-sm">
-          아직 알림이 없어요.
+          {failed
+            ? "알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "아직 알림이 없어요."}
         </p>
       )}
     </div>
@@ -751,7 +763,7 @@ npx vitest run && npm run build
 5. 탭하면 읽음 표시가 즉시 사라지고 `/p/[postId]?comment=…`로 이동한다
 6. 돌아오면 그 줄이 읽음 상태다
 7. A가 자기 댓글에 단 답글·좋아요는 알림에 **없다**
-8. 알림이 없으면 빈 상태 문구가 뜬다
+8. 알림이 없으면 빈 상태 문구가 뜬다 — **실패와 다른 문구다.** 확인하려면 `notifications` 조회를 일시적으로 깨뜨려(예: `.from("notifications")`를 없는 표 이름으로 바꿔) "불러오지 못했어요"가 뜨는지 보고 되돌린다
 9. 로그아웃 상태로 `/notifications`에 가면 로그인으로 보낸다
 10. 각 줄의 터치 타깃이 44px 이상이다
 
