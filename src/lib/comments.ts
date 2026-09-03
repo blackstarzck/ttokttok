@@ -258,26 +258,64 @@ export async function fetchCommentContext(
 
   if (error || !data) return null;
 
-  const base = data as unknown as Omit<Comment, "reply_count" | "liked">;
-  const target: Comment = { ...base, reply_count: 0, liked: false };
-  if (!target.parent_id) return { root: target, target };
+  const targetBase = data as unknown as Omit<
+    Comment,
+    "reply_count" | "liked"
+  >;
+
+  // target 자체가 최상위면 root와 target이 같은 행이다 — 한 행을
+  // withReplyCounts/withLikeState에 두 번 통과시키면(별도 호출이든
+  // 배열에 중복으로 넣든) 좋아요 집계 쿼리의 in() 목록에 같은 id가
+  // 겹쳐 들어갈 뿐 아니라 root와 target이 서로 다른 객체로 갈라져
+  // "같은 댓글인데 두 사본이 다른 값"이라는, 이 함수를 만든 목적과
+  // 정반대의 상태가 될 수 있다. 그래서 한 행만 계산해 양쪽에 같은
+  // 참조를 돌려준다.
+  if (!targetBase.parent_id) {
+    const [withCount] = await withReplyCounts(db, [targetBase]);
+    const [target] = await withLikeState(db, [withCount]);
+    return { root: target, target };
+  }
 
   const { data: parentRow } = await db
     .from("comments")
     .select(COMMENT_SELECT)
-    .eq("id", target.parent_id)
+    .eq("id", targetBase.parent_id)
     .is("deleted_at", null)
     .maybeSingle();
 
+  // target에 parent_id가 있는데 그 부모가 (소프트 삭제 등으로) 안 잡히면
+  // null을 준다 — target 자신은 살아 있어도 고정 블록을 못 그린다.
+  //
+  // 오늘은 이 분기가 도달 불가능하다: flatten_comment_depth가 삭제된
+  // 부모 아래 답글 생성 자체를 막고, cascade_comment_delete가 루트
+  // 삭제 시 같은 트랜잭션에서 그 아래 살아 있는 답글을 전부 함께
+  // 소프트 삭제하기 때문에 "부모는 죽었는데 자식은 살아 있는" 행이
+  // 생기지 않는다. 두 트리거 중 하나라도 나중에 느슨해지면 이 분기가
+  // 조용히 (에러 없이) target을 버리게 된다는 걸 기억해 둔다.
   if (!parentRow) return null;
+
   const parentBase = parentRow as unknown as Omit<
     Comment,
     "reply_count" | "liked"
   >;
-  return {
-    root: { ...parentBase, reply_count: 0, liked: false },
-    target,
+
+  // root(최상위)만 실제 답글 수를 센다. target은 답글이라 자식을 가질 수
+  // 없으므로(1단 고정, fetchReplyPage와 동일 규칙) reply_count는 항상 0 —
+  // 굳이 withReplyCounts에 넣어 조회를 늘릴 이유가 없다.
+  const [rootWithCount] = await withReplyCounts(db, [parentBase]);
+  const targetWithCount: Omit<Comment, "liked"> = {
+    ...targetBase,
+    reply_count: 0,
   };
+
+  // 좋아요 여부는 두 행을 한 번에 조회한다 — withLikeState는 이미
+  // in() 배치를 지원하므로 root/target을 따로 부를 이유가 없다.
+  const [root, target] = await withLikeState(db, [
+    rootWithCount,
+    targetWithCount,
+  ]);
+
+  return { root, target };
 }
 
 export async function addComment(
