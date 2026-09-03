@@ -85,7 +85,9 @@ function CommentRow({
           {comment.content}
         </p>
 
-        <div className="flex items-center gap-1">
+        {/* gap-2 = 8px. DESIGN.md는 44×44와 함께 "인접 타깃 간 8px 이상"을
+            규정한다 — 두 44px 버튼이 붙어 있으면 크기를 지켜도 오터치가 난다. */}
+        <div className="flex items-center gap-2">
           <CommentLikeButton
             commentId={comment.id}
             count={comment.like_count}
