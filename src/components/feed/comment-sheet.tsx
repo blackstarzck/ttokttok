@@ -70,7 +70,16 @@ export function CommentSheet({
   // 방금 답글을 등록한 스레드의 부모 id. 해당 CommentItem이 이 값을 보고
   // 스스로 펼친다 — 접힌 스레드에 답글을 달면 등록해도 화면에 아무 변화가
   // 없어 보이는 문제(발견 1)를 막는다.
-  const [expandFor, setExpandFor] = useState<string | null>(null);
+  //
+  // 문자열이 아니라 매번 새 객체로 담는다 — 같은 스레드에 두 번째 답글을
+  // 달면 parentId 문자열 자체는 똑같아서 참조가 바뀌지 않고, CommentItem의
+  // effect는 참조 동일성으로 재실행 여부를 판단하므로 두 번째 답글에서는
+  // 아예 실행되지 않는다(사용자가 이미 한 번 접어 둔 스레드가 계속 접힌
+  // 채로 남는 버그). 매번 `{ parentId }`로 새로 만들면 값이 같아도 항상
+  // 새 참조라 effect가 매번 실행된다.
+  const [expandFor, setExpandFor] = useState<{ parentId: string } | null>(
+    null,
+  );
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
 
@@ -122,7 +131,7 @@ export function CommentSheet({
       const previousReplyTo = replyTo;
       setDraft("");
       setReplyTo(null);
-      if (parentId) setExpandFor(parentId);
+      if (parentId) setExpandFor({ parentId });
       return { target, previous, previousDraft, previousReplyTo };
     },
 

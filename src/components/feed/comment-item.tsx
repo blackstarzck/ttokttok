@@ -161,19 +161,26 @@ export function CommentItem({
   actions: RowActions;
   onReply: (target: ReplyTarget) => void;
   /** 방금 답글을 단 스레드의 부모 id. 이 댓글이 그 대상이면 자동으로 펼친다. */
-  expandFor?: string | null;
+  expandFor?: { parentId: string } | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nickname = comment.profiles?.nickname ?? "독자";
 
   // 답글을 단 사람이 자기 글을 봐야 한다 — 접힌 채로 두면 등록 후에도
-  // 화면이 그대로라 아무 일도 없었던 것처럼 보인다. expandFor가 이
-  // 댓글을 가리킬 때만 펼치고, 그 뒤 사용자가 직접 접어도 이 effect가
-  // 다시 펼치지 않도록 expandFor 값이 바뀔 때만 실행한다.
+  // 화면이 그대로라 아무 일도 없었던 것처럼 보인다. 그렇다고 "매 렌더 무조건
+  // 펼치기"를 할 수는 없다 — 그러면 사용자가 방금 직접 접은 것도 즉시 다시
+  // 펼쳐진다. 그래서 effect가 "펼쳐라"라는 새 요청을 받았을 때만 실행되게
+  // 하고 싶은데, 같은 스레드에 답글을 두 번 달면 parentId 문자열 값 자체는
+  // 똑같다 — 그 값만 보고 "바뀌었는지"를 판단하면 두 번째 답글에서는
+  // 아무것도 안 바뀐 것으로 보여 effect가 실행되지 않는다(이 버그의 원인).
+  // 그래서 CommentSheet는 답글마다 `{ parentId }`를 새 객체로 만들어 보낸다
+  // — 참조가 매번 달라지므로, 같은 스레드를 다시 가리켜도 effect는 매번
+  // 실행된다. comment.id는 부모 목록이 c.id로 키를 주므로 이 값이 바뀌면
+  // 컴포넌트 자체가 새로 마운트된다 — 즉 이 인스턴스 생애주기 동안 상수라
+  // deps에 넣어도 추가 실행을 만들지 않는다.
   useEffect(() => {
-    if (expandFor === comment.id) setExpanded(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandFor]);
+    if (expandFor?.parentId === comment.id) setExpanded(true);
+  }, [expandFor, comment.id]);
 
   const replies = useInfiniteQuery({
     queryKey: ["replies", comment.id],
