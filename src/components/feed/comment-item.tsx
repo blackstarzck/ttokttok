@@ -225,7 +225,14 @@ export function CommentItem({
   onReply: (target: ReplyTarget) => void;
   /** 마운트 시 한 번만 펼친 채로 시작할지 — useState 지연 초기값으로만
    * 쓰이며 소비되지도, 렌더마다 재평가되지도 않는다. expandFor와는 별개
-   * 채널이다(위 컴포넌트 설명 참고). */
+   * 채널이다(위 컴포넌트 설명 참고).
+   *
+   * **호출 측 전제**: 이 값이 확정된 뒤에 마운트해야 한다. 한 번만 평가되고
+   * effect를 타지 않으므로, 값을 모르는 채 마운트하면 `expanded`가 false로
+   * 굳고 나중에 답이 와도 되돌릴 방법이 없다. CommentSheet가 고정 블록을
+   * `pinned.data`가 있을 때만 렌더해서 이 전제를 지킨다 — 로딩 중에 스켈레톤
+   * 형태로 미리 마운트하도록 바꾸면 딥링크(대상이 답글)의 자동 펼침이 조용히
+   * 죽는다. 이걸 잡아줄 컴포넌트 테스트는 없다. */
   initialExpanded?: boolean;
   /** 방금 답글을 단 스레드의 부모 id. 이 댓글의 id와 같으면 자동으로 펼친다. */
   expandFor?: string | null;
