@@ -191,7 +191,7 @@ npx supabase db reset
 npm run seed
 ```
 
-기대: 마이그레이션 17개가 오류 없이 적용되고 마지막이 `20260903000002_notifications.sql`이다.
+기대: 마이그레이션 16개가 오류 없이 적용되고 마지막이 `20260903000002_notifications.sql`이다.
 
 - [ ] **Step 3: 답글 알림을 SQL로 검증**
 
@@ -581,7 +581,7 @@ export async function markRead(ids: string[]) {
 npx vitest run
 ```
 
-기대: `54 passed` (기존 45 + 이번 9). 잡음 없음.
+기대: `54 passed` (기존 45 + 이번 9). 잡음 없음. — 이후 리뷰가 테스트 부실을 잡아 2건이 더해져 최종 56이 된다.
 
 - [ ] **Step 6: 빌드**
 
@@ -750,7 +750,7 @@ export default async function NotificationsPage() {
 npx vitest run && npm run build
 ```
 
-기대: `54 passed`, 빌드 성공, `/notifications` 라우트가 생성 목록에 나온다.
+기대: `56 passed`, 빌드 성공, `/notifications` 라우트가 생성 목록에 나온다.
 
 - [ ] **Step 4: 375px에서 확인**
 
@@ -949,7 +949,7 @@ export default async function PostPage({
 npx vitest run && npm run build
 ```
 
-기대: `54 passed`, 빌드 성공.
+기대: `56 passed`, 빌드 성공.
 
 - [ ] **Step 6: 375px에서 딥링크를 확인**
 
@@ -1137,7 +1137,7 @@ export const CHROME_SAFE_AREA = "px-15 pt-16 pb-24";
 npx vitest run && npm run build
 ```
 
-기대: `54 passed`, 빌드 성공.
+기대: `56 passed`, 빌드 성공.
 
 - [ ] **Step 7: 375px에서 확인**
 
@@ -1206,7 +1206,7 @@ git commit -m "docs: 알림 명세와 상단 바 결정 기록 반영"
 
 ## 4단계 완료 기준
 
-- [ ] `npx vitest run` — 54 passed, 잡음 없음
+- [ ] `npx vitest run` — 56 passed, 잡음 없음
 - [ ] `npm run build` 통과
 - [ ] Task 1 Step 3~6의 SQL 검증 (답글·좋아요 알림, 자기 행위 제외, 삭제 댓글 제외, 컬럼 권한)
 - [ ] Task 3 Step 4의 렌더 검증 10항목
