@@ -34,6 +34,15 @@ describe("groupNotifications", () => {
     expect(out).toHaveLength(2);
   });
 
+  it("따로 묶인 두 그룹은 각각 자기 댓글에 대응한다 — 개수만이 아니라 정체성을 확인한다", () => {
+    const out = groupNotifications([
+      row({ id: "n1", commentId: "c1" }),
+      row({ id: "n2", commentId: "c2" }),
+    ]);
+    expect(out.map((g) => g.commentId)).toEqual(["c1", "c2"]);
+    expect(out.map((g) => g.ids)).toEqual([["n1"], ["n2"]]);
+  });
+
   it("답글은 묶지 않는다 — 내용도 목적지도 제각각이다", () => {
     const out = groupNotifications([
       row({ id: "n1", type: "reply", commentId: "c1" }),
@@ -47,6 +56,14 @@ describe("groupNotifications", () => {
     const out = groupNotifications([
       row({ id: "n1", readAt: "2026-09-03T01:00:00Z" }),
       row({ id: "n2", readAt: null }),
+    ]);
+    expect(out[0].unread).toBe(true);
+  });
+
+  it("최신(먼저 온 것)이 안 읽음이고 그다음이 읽음이어도 묶음은 안 읽음이다 — 마지막 값이 아니라 OR로 판단한다", () => {
+    const out = groupNotifications([
+      row({ id: "n1", readAt: null }),
+      row({ id: "n2", readAt: "2026-09-03T01:00:00Z" }),
     ]);
     expect(out[0].unread).toBe(true);
   });
@@ -81,6 +98,16 @@ describe("groupNotifications", () => {
       row({ id: "n2", commentId: "c1" }),
     ]);
     expect(out.map((g) => g.type)).toEqual(["reply", "comment_like"]);
+  });
+
+  it("다른 묶음이 끼어든 뒤에도 이미 나온 묶음은 처음 등장한 자리를 지킨다 — 끝으로 밀리지 않는다", () => {
+    const out = groupNotifications([
+      row({ id: "n1", commentId: "c1" }),
+      row({ id: "n2", type: "reply", commentId: "c2" }),
+      row({ id: "n3", commentId: "c1" }),
+    ]);
+    expect(out.map((g) => g.key)).toEqual(["like:c1", "reply:n2"]);
+    expect(out[0].ids).toEqual(["n1", "n3"]);
   });
 
   it("빈 입력은 빈 배열", () => {
