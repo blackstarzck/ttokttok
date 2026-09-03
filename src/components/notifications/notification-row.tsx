@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Heart, MessageCircle } from "lucide-react";
 import { markRead } from "@/lib/notifications-client";
 import { timeAgo } from "@/lib/comments";
@@ -29,6 +30,7 @@ function actorLabel(names: string[]): string {
 export function NotificationRow({ group }: { group: NotificationGroup }) {
   const [unread, setUnread] = useState(group.unread);
   const router = useRouter();
+  const qc = useQueryClient();
   // 세 번 연타해도 PATCH가 한 번만 나가게 막는 재진입 가드.
   // state가 아니면 안 되는 이유: 동기 클릭 3번이 리렌더 사이 없이 연달아
   // 들어오면 `unread`는 첫 렌더의 클로저 값 그대로라 매번 true로 읽혀
@@ -54,9 +56,25 @@ export function NotificationRow({ group }: { group: NotificationGroup }) {
       // 다음 로드의 진실이라 /notifications로 돌아오면 다시 안읽음으로
       // 정확히 뜬다 — 낙관적 갱신을 되돌릴 화면 자체가 이미 없다.
       // 실패는 콘솔에만 남겨 디버깅 단서로 쓴다.
-      void markRead(group.ids).catch((err) => {
-        console.error("markRead 실패:", err);
-      });
+      //
+      // 성공하면 헤더 배지("unread-count")를 무효화한다. 이 행은 곧
+      // router.push로 언마운트되고 그 시점엔 배지도 /notifications라
+      // 화면에 없지만, invalidateQueries는 리액트 트리가 아니라
+      // QueryClient 인스턴스에 "stale" 표시만 남기는 것이라 언마운트와
+      // 무관하게 유효하다 — 나중에 배지가 다시 마운트(홈 복귀)되면 그
+      // 표시를 보고 즉시 새로 받아온다. group.ids.length만큼 직접
+      // 빼는 낙관적 갱신은 쓰지 않는다: 좋아요 묶음은 하나라도 안
+      // 읽었으면 묶음 전체가 안읽음이라(`groupNotifications` 참고)
+      // ids에는 이미 읽은 알림도 섞여 있을 수 있어 배열 길이만큼
+      // 빼면 실제보다 더 많이 깎는 과소산정이 된다 — 서버가 다시
+      // 세게 한다.
+      void markRead(group.ids)
+        .then(() => {
+          void qc.invalidateQueries({ queryKey: ["unread-count"] });
+        })
+        .catch((err) => {
+          console.error("markRead 실패:", err);
+        });
     }
     router.push(`/p/${group.postId}?comment=${group.commentId}`);
   }
