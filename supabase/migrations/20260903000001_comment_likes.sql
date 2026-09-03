@@ -11,6 +11,26 @@
 alter table public.comments
   add column like_count int not null default 0;
 
+-- like_count는 트리거(sync_comment_like_count)만 바꾼다. comments_soft_delete
+-- (20260827000003)는 `using (auth.uid() = user_id or is_admin())`뿐이고
+-- `with check`가 없다 — RLS는 UPDATE가 어떤 컬럼을 건드리는지 제한하지
+-- 못하므로, 이게 없으면 누구나 본인 댓글에 대해
+-- `update comments set like_count = 999999`를 보낼 수 있다.
+-- forbid_comment_reparent(20260902000001)가 parent_id/post_id에 대해 막은
+-- 것과 같은 구멍이 이 컬럼에도 있었던 것이다. 트리거로 막지 않고 권한을
+-- 뺏는 이유: sync_comment_like_count는 security definer라 이 revoke의
+-- 영향을 받지 않고 계속 동작한다.
+--
+-- `revoke update (like_count) ...`만으로는 안 된다 — Supabase가 초기화 시
+-- ALTER DEFAULT PRIVILEGES로 public 스키마의 모든 테이블에 이미 테이블
+-- 단위 UPDATE(전 컬럼)를 authenticated/anon에게 부여해 두었고, 컬럼 단위
+-- REVOKE는 그 테이블 단위 권한을 걷어내지 못한다(실측: RLS 세션에서
+-- like_count PATCH가 여전히 통과했다). 그래서 테이블 단위 UPDATE를 먼저
+-- 걷어내고, like_count를 뺀 나머지 컬럼에만 다시 준다.
+revoke update on public.comments from authenticated, anon;
+grant update (id, post_id, user_id, parent_id, content, created_at, deleted_at)
+  on public.comments to authenticated, anon;
+
 create table public.comment_likes (
   user_id uuid not null default auth.uid()
     references public.profiles (id) on delete cascade,
