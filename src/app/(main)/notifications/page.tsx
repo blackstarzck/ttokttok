@@ -18,7 +18,9 @@ export default async function NotificationsPage() {
       <h1 className="text-lg font-bold break-keep">알림</h1>
 
       {groups.length ? (
-        <ul className="flex flex-col gap-1">
+        // gap-2 = 8px. DESIGN.md:155가 44×44 터치 타깃과 함께 인접 타깃 간
+        // 8px 이상을 규정한다 — gap-1(4px)로는 이 줄을 못 지킨다.
+        <ul className="flex flex-col gap-2">
           {groups.map((g) => (
             <NotificationRow key={g.key} group={g} />
           ))}
