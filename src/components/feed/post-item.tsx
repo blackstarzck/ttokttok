@@ -80,6 +80,17 @@ export function PostItem({
         )}
       </div>
 
+      {/* z-2 — 상단 스크림. 상단 바(z-3)가 흰색 고정이라 밝은 커버 위에서
+          읽히려면 대비가 필요하다. 하단과 같은 이징이라 띠가 안 보인다. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-24"
+        style={{
+          background:
+            "linear-gradient(to bottom, rgb(0 0 0 / 0.38) 0%, rgb(0 0 0 / 0.22) 35%, rgb(0 0 0 / 0.12) 60%, rgb(0 0 0 / 0.05) 80%, transparent 100%)",
+        }}
+      />
+
       {/*
         z-2 — 스크림. 검정 고정이라 테마를 면제받는다.
         Tailwind 그라디언트 클래스 대신 인라인 스타일을 쓰는 이유: 이 값은

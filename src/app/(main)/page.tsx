@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { FeedScroller } from "@/components/feed/feed-scroller";
 import { PostItem } from "@/components/feed/post-item";
+import { TopBar } from "@/components/feed/top-bar";
 import { getFeed } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 import { FEED_SEED_COOKIE } from "@/lib/feed-seed";
@@ -21,20 +22,25 @@ export default async function HomePage() {
   const isGuest = user === null;
 
   return (
-    <FeedScroller
-      postIds={posts.map((p) => p.id)}
-      seed={seed}
-      initialCursor={nextCursor}
-    >
-      {posts.map((post) => (
-        <PostItem
-          key={post.id}
-          post={post}
-          liked={likedIds.has(post.id)}
-          isGuest={isGuest}
-          userId={user?.id ?? null}
-        />
-      ))}
-    </FeedScroller>
+    // relative — TopBar가 잡을 기준. h-full로 main을 채워야 FeedScroller가
+    // 자기 높이를 알고 스냅이 성립한다(layout.tsx의 min-h-0과 짝).
+    <div className="relative h-full">
+      <FeedScroller
+        postIds={posts.map((p) => p.id)}
+        seed={seed}
+        initialCursor={nextCursor}
+      >
+        {posts.map((post) => (
+          <PostItem
+            key={post.id}
+            post={post}
+            liked={likedIds.has(post.id)}
+            isGuest={isGuest}
+            userId={user?.id ?? null}
+          />
+        ))}
+      </FeedScroller>
+      <TopBar isGuest={isGuest} />
+    </div>
   );
 }

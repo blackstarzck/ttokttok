@@ -53,6 +53,7 @@ export const CHROME_CTA_ICON = cn(
  * 좌우 각 60px = 레일 우측 여백 8 + 레일 폭 44 + 여유 8. 좌우가 대칭이라야
  * 중앙정렬 콘텐츠가 프레임 중심에서 안 밀린다.
  * 하단 96px = 바 하단 여백 12 + 도서 바 76 + 여유 8.
- * 상단 20px은 피할 크롬이 없는 순수 시각 여백이다.
+ * 상단 64px = 상단 바 56 + 여유 8. 예전에는 피할 크롬이 없어 순수 시각
+ * 여백 20px이었는데, 상단 바(결정 12)가 생기면서 좌우·하단과 같은 산식이 됐다.
  */
-export const CHROME_SAFE_AREA = "px-15 pt-5 pb-24";
+export const CHROME_SAFE_AREA = "px-15 pt-16 pb-24";
