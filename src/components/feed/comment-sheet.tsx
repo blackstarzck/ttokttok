@@ -116,6 +116,19 @@ export function CommentSheet({
     enabled: open && !!pinnedCommentId,
   });
 
+  // 고정 블록에 이미 그려지는 루트를 일반 목록에서 한 번 더 그리면(딥링크
+  // 대상이 1페이지 안에 있을 때 실제로 벌어짐) 같은 댓글이 화면에 두 번
+  // 나온다. 두 사본은 서로 다른 CommentItem/CommentLikeButton 인스턴스라
+  // 공유 캐시 없이 각자 useState로 좋아요 상태를 들고 있어서(설계상 결정은
+  // 아니고 리뷰에서 지적된 결함), 한쪽만 눌러도 하트·카운트가 서로
+  // 어긋난다. 페이지네이션 커서는 원본 comments 배열 기준으로 이미
+  // 계산되어 있으므로(list.data.pages), 렌더링 직전에만 걸러내면
+  // "더 보기"나 커서 계산에는 영향이 없다.
+  const pinnedRootId = pinned.data?.root.id;
+  const visibleComments = pinnedRootId
+    ? comments.filter((c) => c.id !== pinnedRootId)
+    : comments;
+
   // 답글 대상이 정해지면 입력창으로 포커스를 옮긴다 —
   // 멘션이 없으므로(결정 7) 배너가 유일한 대상 표시다.
   useEffect(() => {
@@ -268,7 +281,7 @@ export function CommentSheet({
               ) : null}
 
               <ul className="flex flex-col gap-4 pb-4">
-                {comments.map((c) => (
+                {visibleComments.map((c) => (
                   <CommentItem
                     key={c.id}
                     comment={c}
