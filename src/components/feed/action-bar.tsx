@@ -32,11 +32,14 @@ export function ActionBar({
   liked,
   isGuest,
   userId,
+  pinnedCommentId,
 }: {
   post: FeedPost;
   liked: boolean;
   isGuest: boolean;
   userId: string | null;
+  /** 알림에서 들어온 대상 댓글. 댓글 시트로 그대로 흘려보낸다. */
+  pinnedCommentId?: string;
 }) {
   const [shareCount, setShareCount] = useState(post.share_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
@@ -93,6 +96,7 @@ export function ActionBar({
           postId={post.id}
           currentUserId={userId!}
           onAdded={() => setCommentCount((n) => n + 1)}
+          pinnedCommentId={pinnedCommentId}
         >
           {commentButton}
         </CommentSheet>

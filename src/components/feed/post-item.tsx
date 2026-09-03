@@ -38,12 +38,15 @@ export function PostItem({
   isGuest = true,
   userId = null,
   preview,
+  pinnedCommentId,
 }: {
   post: FeedPost;
   liked?: boolean;
   isGuest?: boolean;
   userId?: string | null;
   preview?: boolean;
+  /** 알림에서 들어온 대상 댓글. 액션 바를 거쳐 댓글 시트로 흘려보낸다. */
+  pinnedCommentId?: string;
 }) {
   const byline = formatByline(post.books);
 
@@ -100,7 +103,13 @@ export function PostItem({
 
       {/* z-3 — 우측 세로 액션 레일. bottom 100 = 바 하단 여백(12) + 도서 바(76) + 여유(12) */}
       <div className="absolute right-2 bottom-[100px] z-[3]">
-        <ActionBar post={post} liked={liked} isGuest={isGuest} userId={userId} />
+        <ActionBar
+          post={post}
+          liked={liked}
+          isGuest={isGuest}
+          userId={userId}
+          pinnedCommentId={pinnedCommentId}
+        />
       </div>
 
       {/* z-3 — 하단 도서 정보 바. bottom 12 — 바닥에 붙이지 않고

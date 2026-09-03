@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentLikeButton } from "@/components/feed/comment-like-button";
 import { isOptimistic } from "@/lib/comment-cache";
+import { cn } from "@/lib/utils";
 import {
   REPORT_REASONS,
   fetchReplyPage,
@@ -49,11 +50,14 @@ function CommentRow({
   actions,
   compact = false,
   onReply,
+  highlightId,
 }: {
   comment: Comment;
   actions: RowActions;
   compact?: boolean;
   onReply: () => void;
+  /** 딥링크 대상 댓글 id. 이 댓글과 같으면 강조한다. */
+  highlightId?: string;
 }) {
   const mine = comment.user_id === actions.currentUserId;
   const nickname = comment.profiles?.nickname ?? "독자";
@@ -63,7 +67,13 @@ function CommentRow({
   const pending = isOptimistic(comment.id);
 
   return (
-    <li className="flex gap-3">
+    <li
+      className={cn(
+        "flex gap-3",
+        highlightId === comment.id &&
+          "border-foreground bg-accent -ml-2 rounded-md border-l-2 pl-2",
+      )}
+    >
       <Avatar className={compact ? "size-6 shrink-0" : "size-8 shrink-0"}>
         {comment.profiles?.avatar_url ? (
           <AvatarImage src={comment.profiles.avatar_url} alt="" />
@@ -171,6 +181,7 @@ export function CommentItem({
   onReply,
   expandFor,
   onExpanded,
+  highlightId,
 }: {
   comment: Comment;
   actions: RowActions;
@@ -180,6 +191,8 @@ export function CommentItem({
   /** expandFor 요청을 실제로 소비했을 때(펼쳤을 때만) 호출 — 부모가 값을
    * 비워서 같은 요청이 재오픈 때 되풀이되지 않게 한다. */
   onExpanded?: () => void;
+  /** 딥링크 대상 댓글 id. 자기 행과 답글 행 양쪽에 그대로 내려보낸다. */
+  highlightId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nickname = comment.profiles?.nickname ?? "독자";
@@ -220,6 +233,7 @@ export function CommentItem({
           comment={comment}
           actions={actions}
           onReply={() => onReply({ parentId: comment.id, nickname })}
+          highlightId={highlightId}
         />
       </ul>
 
@@ -264,6 +278,7 @@ export function CommentItem({
                           nickname: r.profiles?.nickname ?? "독자",
                         })
                       }
+                      highlightId={highlightId}
                     />
                   ))}
                 </ul>

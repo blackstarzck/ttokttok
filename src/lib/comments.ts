@@ -234,6 +234,52 @@ export async function fetchReplyPage(
   return { items, cursor: toCursor(items, REPLY_PAGE_SIZE) };
 }
 
+/**
+ * 딥링크 대상 댓글 하나. 답글이면 그 부모까지 함께 가져온다.
+ *
+ * 목록을 뒤져 스크롤하지 않고 최상단에 고정해 보여주기 위한 조회다
+ * (결정 13) — 페이지네이션 깊이와 무관하게 항상 성립하고 왕복이 한 번이다.
+ * 유튜브가 알림에서 들어왔을 때 하는 것과 같다.
+ *
+ * 삭제된 댓글이면 null을 준다 — 눌러도 갈 곳이 없으니 고정 블록을
+ * 그리지 않고 시트만 연다.
+ */
+export async function fetchCommentContext(
+  commentId: string,
+): Promise<{ root: Comment; target: Comment } | null> {
+  const db = createClient();
+
+  const { data, error } = await db
+    .from("comments")
+    .select(COMMENT_SELECT)
+    .eq("id", commentId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const base = data as unknown as Omit<Comment, "reply_count" | "liked">;
+  const target: Comment = { ...base, reply_count: 0, liked: false };
+  if (!target.parent_id) return { root: target, target };
+
+  const { data: parentRow } = await db
+    .from("comments")
+    .select(COMMENT_SELECT)
+    .eq("id", target.parent_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (!parentRow) return null;
+  const parentBase = parentRow as unknown as Omit<
+    Comment,
+    "reply_count" | "liked"
+  >;
+  return {
+    root: { ...parentBase, reply_count: 0, liked: false },
+    target,
+  };
+}
+
 export async function addComment(
   postId: string,
   content: string,

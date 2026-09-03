@@ -55,8 +55,12 @@ export async function generateMetadata({
   };
 }
 
-export default async function PostPage({ params }: PageProps<"/p/[postId]">) {
+export default async function PostPage({
+  params,
+  searchParams,
+}: PageProps<"/p/[postId]">) {
   const { postId } = await params;
+  const { comment } = await searchParams;
   const post = await getPost(postId);
 
   if (!post) notFound();
@@ -76,6 +80,7 @@ export default async function PostPage({ params }: PageProps<"/p/[postId]">) {
         liked={likedIds.has(post.id)}
         isGuest={user === null}
         userId={user?.id ?? null}
+        pinnedCommentId={typeof comment === "string" ? comment : undefined}
       />
     </div>
   );

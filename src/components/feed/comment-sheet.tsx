@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ import {
 import {
   addComment,
   commentErrorMessage,
+  fetchCommentContext,
   fetchCommentPage,
   removeComment,
   reportComment,
@@ -55,12 +57,15 @@ export function CommentSheet({
   postId,
   currentUserId,
   onAdded,
+  pinnedCommentId,
   children,
 }: {
   postId: string;
   currentUserId: string;
   /** 등록이 성공했을 때. 레일 배지의 로컬 델타에 쓴다. */
   onAdded?: () => void;
+  /** 알림에서 들어온 대상 댓글. 있으면 시트를 열고 최상단에 고정한다. */
+  pinnedCommentId?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -98,6 +103,18 @@ export function CommentSheet({
   });
 
   const comments = list.data?.pages.flatMap((p) => p.items) ?? [];
+
+  // 알림에서 들어오면 시트가 이미 열려 있어야 한다 — 한 번 더 누르게
+  // 하면 알림을 탭한 의미가 없다.
+  useEffect(() => {
+    if (pinnedCommentId) setOpen(true);
+  }, [pinnedCommentId]);
+
+  const pinned = useQuery({
+    queryKey: ["comment-context", pinnedCommentId],
+    queryFn: () => fetchCommentContext(pinnedCommentId!),
+    enabled: open && !!pinnedCommentId,
+  });
 
   // 답글 대상이 정해지면 입력창으로 포커스를 옮긴다 —
   // 멘션이 없으므로(결정 7) 배너가 유일한 대상 표시다.
@@ -228,32 +245,55 @@ export function CommentSheet({
               첫 댓글을 남겨보세요.
             </p>
           ) : (
-            <ul className="flex flex-col gap-4 pb-4">
-              {comments.map((c) => (
-                <CommentItem
-                  key={c.id}
-                  comment={c}
-                  actions={actions}
-                  onReply={setReplyTo}
-                  expandFor={expandFor}
-                  onExpanded={clearExpandFor}
-                />
-              ))}
-
-              {list.hasNextPage ? (
-                <li>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="min-h-11 w-full"
-                    disabled={list.isFetchingNextPage}
-                    onClick={() => void list.fetchNextPage()}
-                  >
-                    {list.isFetchingNextPage ? "불러오는 중…" : "댓글 더 보기"}
-                  </Button>
-                </li>
+            <>
+              {pinned.data ? (
+                <div className="border-border mb-4 rounded-lg border p-2">
+                  <p className="text-muted-foreground mb-2 text-xs">
+                    알림에서 온 댓글
+                  </p>
+                  <ul className="flex flex-col gap-4">
+                    <CommentItem
+                      comment={pinned.data.root}
+                      actions={actions}
+                      onReply={setReplyTo}
+                      expandFor={
+                        pinned.data.target.id !== pinned.data.root.id
+                          ? pinned.data.root.id
+                          : null
+                      }
+                      highlightId={pinned.data.target.id}
+                    />
+                  </ul>
+                </div>
               ) : null}
-            </ul>
+
+              <ul className="flex flex-col gap-4 pb-4">
+                {comments.map((c) => (
+                  <CommentItem
+                    key={c.id}
+                    comment={c}
+                    actions={actions}
+                    onReply={setReplyTo}
+                    expandFor={expandFor}
+                    onExpanded={clearExpandFor}
+                  />
+                ))}
+
+                {list.hasNextPage ? (
+                  <li>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-11 w-full"
+                      disabled={list.isFetchingNextPage}
+                      onClick={() => void list.fetchNextPage()}
+                    >
+                      {list.isFetchingNextPage ? "불러오는 중…" : "댓글 더 보기"}
+                    </Button>
+                  </li>
+                ) : null}
+              </ul>
+            </>
           )}
         </ScrollArea>
 
