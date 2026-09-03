@@ -16,6 +16,8 @@ function page(...ids: string[]): CommentPage {
       user_id: "u",
       parent_id: null,
       reply_count: 0,
+      like_count: 0,
+      liked: false,
       profiles: null,
     })),
     cursor: null,

@@ -28,6 +28,9 @@ export function makeOptimisticComment({
     user_id: userId,
     parent_id: parentId,
     reply_count: 0,
+    // 방금 쓴 댓글이라 좋아요는 없다.
+    like_count: 0,
+    liked: false,
     // 닉네임·아바타는 아직 모른다 — 렌더가 "독자"로 폴백한다.
     profiles: null,
   };

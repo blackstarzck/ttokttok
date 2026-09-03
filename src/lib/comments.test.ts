@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   commentErrorMessage,
   countRepliesByParent,
+  likedIdSet,
   timeAgo,
   toCursor,
   type Comment,
@@ -71,6 +72,8 @@ function comment(id: string, createdAt: string): Comment {
     user_id: "u",
     parent_id: null,
     reply_count: 0,
+    like_count: 0,
+    liked: false,
     profiles: null,
   };
 }
@@ -139,5 +142,28 @@ describe("countRepliesByParent", () => {
     ]);
     expect(counts.size).toBe(1);
     expect(counts.get("p1")).toBe(1);
+  });
+});
+
+describe("likedIdSet", () => {
+  it("행들을 id 집합으로 접는다", () => {
+    const s = likedIdSet([{ comment_id: "a" }, { comment_id: "b" }]);
+    expect(s.has("a")).toBe(true);
+    expect(s.has("b")).toBe(true);
+    expect(s.size).toBe(2);
+  });
+
+  it("빈 입력은 빈 집합", () => {
+    expect(likedIdSet([]).size).toBe(0);
+  });
+
+  it("없는 id는 false — 호출부가 그대로 liked로 쓴다", () => {
+    const s = likedIdSet([{ comment_id: "a" }]);
+    expect(s.has("zzz")).toBe(false);
+  });
+
+  it("같은 id가 중복돼도 집합이라 한 번만 센다", () => {
+    const s = likedIdSet([{ comment_id: "a" }, { comment_id: "a" }]);
+    expect(s.size).toBe(1);
   });
 });

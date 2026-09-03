@@ -8,6 +8,10 @@ export type Comment = {
   parent_id: string | null;
   /** 살아 있는 답글 수. 최상위 댓글에만 의미가 있다 (답글은 항상 0). */
   reply_count: number;
+  /** 비정규화 카운터. 트리거만이 증감한다. */
+  like_count: number;
+  /** 내가 눌렀는지. RLS가 본인 행만 돌려주므로 존재 여부가 곧 답이다. */
+  liked: boolean;
   profiles: { nickname: string; avatar_url: string | null } | null;
 };
 
@@ -20,7 +24,7 @@ export const COMMENT_PAGE_SIZE = 20;
 export const REPLY_PAGE_SIZE = 10;
 
 const COMMENT_SELECT =
-  "id, content, created_at, user_id, parent_id, profiles ( nickname, avatar_url )";
+  "id, content, created_at, user_id, parent_id, like_count, profiles ( nickname, avatar_url )";
 
 /**
  * 페이지가 꽉 찼을 때만 다음 커서를 만든다 — 덜 찼으면 마지막 페이지다.
@@ -92,8 +96,12 @@ export async function fetchCommentPage(
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  const rows = (data ?? []) as unknown as Omit<Comment, "reply_count">[];
-  const items = await withReplyCounts(db, rows);
+  const rows = (data ?? []) as unknown as Omit<
+    Comment,
+    "reply_count" | "liked"
+  >[];
+  const withCounts = await withReplyCounts(db, rows);
+  const items = await withLikeState(db, withCounts);
   return { items, cursor: toCursor(items, COMMENT_PAGE_SIZE) };
 }
 
@@ -107,8 +115,8 @@ export async function fetchCommentPage(
  */
 async function withReplyCounts(
   db: ReturnType<typeof createClient>,
-  rows: Omit<Comment, "reply_count">[],
-): Promise<Comment[]> {
+  rows: Omit<Comment, "reply_count" | "liked">[],
+): Promise<Omit<Comment, "liked">[]> {
   if (!rows.length) return [];
 
   const { data, error } = await db
@@ -143,12 +151,53 @@ export function countRepliesByParent(
   return counts;
 }
 
+/**
+ * comment_likes 행들을 id 집합으로 접는다. 네트워크에서 떼어낸 순수
+ * 함수라 단위 테스트 대상이다 — 이 집합이 틀리면 하트의 채움이 틀린다.
+ */
+export function likedIdSet(rows: { comment_id: string }[]): Set<string> {
+  return new Set(rows.map((r) => r.comment_id));
+}
+
+/**
+ * 이 페이지의 댓글들 중 내가 좋아요한 것을 한 번에 표시한다.
+ *
+ * user_id로 거르지 않는 이유: comment_likes_select_own 정책이 이미 본인
+ * 행만 돌려준다. 프론트에서 권한 분기로 보안을 흉내 내지 않는다
+ * (FRONTEND.md §5). 비로그인은 시트에 도달하지 못하므로(ActionBar가
+ * LoginSheet로 분기) 빈 집합 경로만 남는다.
+ *
+ * 답글 수(withReplyCounts)와 같은 모양이다 — 페이지의 id들로 두 번째
+ * 조회를 하고 순수 함수로 접는다.
+ */
+async function withLikeState(
+  db: ReturnType<typeof createClient>,
+  rows: Omit<Comment, "liked">[],
+): Promise<Comment[]> {
+  if (!rows.length) return [];
+
+  const { data, error } = await db
+    .from("comment_likes")
+    .select("comment_id")
+    .in(
+      "comment_id",
+      rows.map((r) => r.id),
+    );
+
+  if (error) throw new Error(error.message);
+
+  const liked = likedIdSet((data ?? []) as { comment_id: string }[]);
+  return rows.map((r) => ({ ...r, liked: liked.has(r.id) }));
+}
+
 /** 한 댓글의 답글 한 페이지. 오래된 순 고정 (결정 4). */
 export async function fetchReplyPage(
   parentId: string,
   cursor: CommentCursor | null,
 ): Promise<CommentPage> {
-  let q = createClient()
+  const db = createClient();
+
+  let q = db
     .from("comments")
     .select(COMMENT_SELECT)
     .eq("parent_id", parentId)
@@ -167,9 +216,10 @@ export async function fetchReplyPage(
   if (error) throw new Error(error.message);
 
   // 답글은 자식을 가질 수 없다(1단 고정) — 집계 없이 0으로 채운다.
-  const items = ((data ?? []) as unknown as Omit<Comment, "reply_count">[]).map(
-    (r) => ({ ...r, reply_count: 0 }),
-  );
+  const withCounts = (
+    (data ?? []) as unknown as Omit<Comment, "reply_count" | "liked">[]
+  ).map((r) => ({ ...r, reply_count: 0 }));
+  const items = await withLikeState(db, withCounts);
   return { items, cursor: toCursor(items, REPLY_PAGE_SIZE) };
 }
 
@@ -206,6 +256,18 @@ export async function reportComment(commentId: string, reason: ReportReason) {
     }
     throw new Error(error.message);
   }
+}
+
+/**
+ * 좋아요 토글. like_count는 건드리지 않는다 — 트리거가 유일한 경로다
+ * (FRONTEND.md §5). user_id는 DB 기본값(auth.uid())이 채운다.
+ */
+export async function toggleCommentLike(commentId: string, next: boolean) {
+  const db = createClient();
+  const { error } = next
+    ? await db.from("comment_likes").insert({ comment_id: commentId })
+    : await db.from("comment_likes").delete().eq("comment_id", commentId);
+  if (error) throw new Error(error.message);
 }
 
 /** "3분 전", "2일 전" — 목록에서 절대 시각은 과하다. */
