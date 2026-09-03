@@ -26,15 +26,7 @@ describe("groupNotifications", () => {
     expect(out[0].actorNames).toEqual(["가", "나"]);
   });
 
-  it("다른 댓글의 좋아요는 따로 묶는다", () => {
-    const out = groupNotifications([
-      row({ id: "n1", commentId: "c1" }),
-      row({ id: "n2", commentId: "c2" }),
-    ]);
-    expect(out).toHaveLength(2);
-  });
-
-  it("따로 묶인 두 그룹은 각각 자기 댓글에 대응한다 — 개수만이 아니라 정체성을 확인한다", () => {
+  it("다른 댓글의 좋아요는 따로 묶이고, 각 묶음이 자기 댓글에 대응한다", () => {
     const out = groupNotifications([
       row({ id: "n1", commentId: "c1" }),
       row({ id: "n2", commentId: "c2" }),
