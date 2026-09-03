@@ -389,7 +389,38 @@ export async function toggleCommentLike(commentId: string, next: boolean) {
     liked: false,
 ```
 
-- [ ] **Step 8: 통과를 확인한다 (GREEN)**
+- [ ] **Step 8: 기존 테스트 픽스처를 새 필드에 맞춘다**
+
+`tsconfig.json`은 `node_modules`만 제외하므로 **테스트 파일도 `npm run build`의 타입체크 대상**이다. `Comment`에 필수 필드를 더했으니 `Comment` 객체를 만드는 두 픽스처를 고치지 않으면 빌드가 깨진다. (Vitest는 타입을 지우고 실행하므로 테스트는 통과하지만 빌드가 실패한다 — 통과만 보고 넘어가지 말 것.)
+
+`src/lib/comments.test.ts`의 `comment()` 헬퍼:
+
+```ts
+function comment(id: string, createdAt: string): Comment {
+  return {
+    id,
+    content: "c",
+    created_at: createdAt,
+    user_id: "u",
+    parent_id: null,
+    reply_count: 0,
+    like_count: 0,
+    liked: false,
+    profiles: null,
+  };
+}
+```
+
+`src/lib/comment-cache.test.ts`의 `page()` 헬퍼가 만드는 항목에도 같은 두 필드를 더한다 (`parent_id: null,` 다음 줄):
+
+```ts
+      reply_count: 0,
+      like_count: 0,
+      liked: false,
+      profiles: null,
+```
+
+- [ ] **Step 9: 통과를 확인한다 (GREEN)**
 
 ```bash
 npx vitest run
@@ -397,7 +428,7 @@ npx vitest run
 
 기대: `31 passed` (기존 27 + 이번 4). 출력에 잡음이 없어야 한다.
 
-- [ ] **Step 9: 빌드**
+- [ ] **Step 10: 빌드**
 
 ```bash
 npm run build
@@ -405,7 +436,7 @@ npm run build
 
 기대: 성공. `Comment`에 필드가 늘었으므로 이를 만드는 곳이 모두 갱신됐는지 타입체커가 확인해 준다.
 
-- [ ] **Step 10: 커밋**
+- [ ] **Step 11: 커밋**
 
 ```bash
 git add src/lib/comments.ts src/lib/comments.test.ts src/lib/comment-cache.ts
