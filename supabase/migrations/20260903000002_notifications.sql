@@ -66,7 +66,12 @@ begin
   end if;
 
   select * into v_parent from public.comments where id = new.parent_id;
-  if not found or v_parent.user_id = new.user_id then
+  -- notify_on_comment_like와 대칭으로 삭제된 부모는 걸러낸다. 오늘은
+  -- flatten_comment_depth(20260902000001)가 PARENT_DELETED로 삽입 자체를
+  -- 막아 이 트리거가 실행될 일이 없지만, 그건 다른 마이그레이션이 우연히
+  -- 세워준 방어막일 뿐이다. 이 트리거 스스로도 방어해야 두 알림 트리거가
+  -- 대칭을 이루고, 이 파일만 보고도 정확성을 확인할 수 있다.
+  if not found or v_parent.user_id = new.user_id or v_parent.deleted_at is not null then
     return new;
   end if;
 
@@ -82,6 +87,18 @@ $fn$;
 create trigger on_reply_notify
   after insert on public.comments
   for each row execute function public.notify_on_reply();
+
+-- 좋아요 알림은 (수신자, 행위자, 댓글) 조합마다 하나만 있으면 된다.
+-- 좋아요는 취소해도 알림 행을 지우지 않으므로(아래), 같은 사람이
+-- 좋아요→취소→재좋아요를 반복하면 트리거가 매번 새 행을 넣으려 든다.
+-- 목록 UI는 행위자 이름을 중복 제거해서 보여주니 눈에는 안 띄지만,
+-- 안 읽은 개수 배지는 행 수를 그대로 세므로 재좋아요 한 번마다
+-- 배지가 부풀어 사용자가 배지를 못 믿게 된다. 답글 타입은 이 제약에서
+-- 뺀다 — 같은 사람이 같은 댓글에 단 서로 다른 답글은 서로 다른 사건이라
+-- 둘 다 알려야 하기 때문에, 부분 유니크 인덱스로 comment_like에만 건다.
+create unique index notifications_comment_like_unique
+  on public.notifications (recipient_id, actor_id, comment_id)
+  where type = 'comment_like';
 
 -- ------------------------------------------------------------
 -- 좋아요 알림. 댓글 작성자에게 보낸다.
@@ -106,10 +123,16 @@ begin
     return new;
   end if;
 
+  -- 재좋아요는 조용히 흡수한다: 위 유니크 인덱스에 걸리면 이 INSERT는
+  -- 아무 것도 하지 않고 넘어간다 — 취소해도 알림이 안 지워지는 정책과
+  -- 합쳐지면, "그 사람의 첫 좋아요만 알린다"는 뜻이 된다. 두 번째
+  -- 좋아요부터는 이미 (읽었을 수도 있는) 알림이 있으니 새로 만들 것이 없다.
   insert into public.notifications
     (recipient_id, actor_id, type, comment_id, post_id)
   values
-    (v_comment.user_id, new.user_id, 'comment_like', v_comment.id, v_comment.post_id);
+    (v_comment.user_id, new.user_id, 'comment_like', v_comment.id, v_comment.post_id)
+  on conflict (recipient_id, actor_id, comment_id) where type = 'comment_like'
+    do nothing;
 
   return new;
 end;
