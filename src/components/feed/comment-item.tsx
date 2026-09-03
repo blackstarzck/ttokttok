@@ -187,6 +187,25 @@ function CommentRow({
  * 즉시(`onExpanded`) 부모가 null로 비우므로, 다시 열릴 때 남아 있는
  * 펼침 요청이 없다.
  *
+ * 펼침을 유발하는 계기는 성격이 달라 prop을 둘로 나눈다:
+ * - `initialExpanded` — "처음 그려질 때부터 펼친 채로 보여줘"라는
+ *   일회성 지시. useState의 지연 초기값으로만 쓰이고 effect를 거치지
+ *   않는다 — 마운트 이후 이 prop이 어떤 값으로 바뀌어도 이미 정해진
+ *   `expanded` 상태에는 아무 영향이 없다. 딥링크 대상이 답글이라 고정
+ *   루트를 로드 즉시 펼쳐 그 답글을 보여줘야 하는 경우(CommentSheet)에만
+ *   쓴다.
+ * - `expandFor`/`onExpanded` — "방금 이 스레드에 답글을 달았다"는
+ *   소비형 공유 신호. 여러 CommentItem 인스턴스가 부모의 같은 state를
+ *   나눠 보되, 자기 id와 일치하는 인스턴스만 펼치고 즉시 비운다.
+ *
+ * 이 둘을 하나의 prop으로 합쳐 쓰면 안 된다: 상수를 `expandFor`로
+ * 흘려보내면 effect의 deps가 컴포넌트 생애 동안 고정돼 마운트 시 딱
+ * 한 번만 실행되고 다시는 실행되지 않는다(딥링크-답글 회귀의 원인).
+ * 그렇다고 `onExpanded`를 얹으면, 값이 상수라 매 마운트마다 조건을
+ * 통과해 공유 신호를 곧장 비워버려 마침 그 순간 다른 스레드가 기다리던
+ * 진짜 펼침 요청을 가로챌 수 있다. `initialExpanded`는 effect를 타지
+ * 않으므로 이 문제 자체가 없다.
+ *
  * 언마운트에 기대지 않는다 — vaul Drawer는 닫아도 내용을 DOM에서
  * 걷어내지 않고 `data-state="closed"`로 둘 뿐이라 이 컴포넌트의
  * `expanded`는 살아남는다(실측). 안전을 보장하는 것은 소비-후-비움
@@ -196,6 +215,7 @@ export function CommentItem({
   comment,
   actions,
   onReply,
+  initialExpanded,
   expandFor,
   onExpanded,
   highlightId,
@@ -203,6 +223,10 @@ export function CommentItem({
   comment: Comment;
   actions: RowActions;
   onReply: (target: ReplyTarget) => void;
+  /** 마운트 시 한 번만 펼친 채로 시작할지 — useState 지연 초기값으로만
+   * 쓰이며 소비되지도, 렌더마다 재평가되지도 않는다. expandFor와는 별개
+   * 채널이다(위 컴포넌트 설명 참고). */
+  initialExpanded?: boolean;
   /** 방금 답글을 단 스레드의 부모 id. 이 댓글의 id와 같으면 자동으로 펼친다. */
   expandFor?: string | null;
   /** expandFor 요청을 실제로 소비했을 때(펼쳤을 때만) 호출 — 부모가 값을
@@ -211,7 +235,7 @@ export function CommentItem({
   /** 딥링크 대상 댓글 id. 자기 행과 답글 행 양쪽에 그대로 내려보낸다. */
   highlightId?: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => initialExpanded ?? false);
   const nickname = comment.profiles?.nickname ?? "독자";
 
   // 답글을 단 사람이 자기 글을 봐야 한다 — 접힌 채로 두면 등록 후에도

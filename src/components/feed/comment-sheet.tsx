@@ -84,6 +84,15 @@ export function CommentSheet({
   // 다시 실행된다 — 매번 새 객체를 만드는 우회가 필요 없다. 값을 곧장
   // 비워두는 덕에 시트를 닫았다 다시 열어도 지난 스레드가 저절로 펼쳐지지
   // 않는다.
+  //
+  // 이 값은 일반 목록과 고정 블록의 CommentItem이 동일하게 받아 소비한다
+  // (아래 렌더). "딥링크 대상이 답글이라 고정 루트를 로드 즉시 펼쳐야
+  // 한다"는 별개의 요구는 이 state를 거치지 않는다 — CommentItem의
+  // initialExpanded prop(마운트 시 1회용, effect 없음)으로 직접
+  // 처리한다. 상수를 이 소비형 채널에 억지로 흘려보내면 effect deps가
+  // 컴포넌트 생애 동안 고정돼 마운트 시 한 번만 실행되고 다시는
+  // 반응하지 않는다 — 실제로 겪은 회귀다(댓글 시트 딥링크: 대상이 답글일
+  // 때 접힌 스레드에 답글을 달아도 화면이 안 바뀌던 문제).
   const [expandFor, setExpandFor] = useState<string | null>(null);
   // effect의 deps에 그대로 들어가므로 매 렌더 새 함수면 참조가 계속
   // 바뀌어 불필요하게 effect를 다시 태운다 — useCallback으로 고정한다.
@@ -205,9 +214,18 @@ export function CommentSheet({
       // (["comment-context", pinnedCommentId])에서 온다 — 안 고치면 답글을
       // 달고 스레드를 접었을 때 "답글 N개 보기"가 방금 단 답글을 안 센
       // 숫자로 보인다. 답글을 단 스레드가 고정된 스레드와 같을 때만
-      // 무효화한다(rootId === pinnedCommentId) — 무관한 스레드에 답글을
-      // 달 때마다 이 쿼리를 불필요하게 다시 태우지 않기 위해서다.
-      if (pinnedCommentId && rootId === pinnedCommentId) {
+      // 무효화한다 — 무관한 스레드에 답글을 달 때마다 이 쿼리를
+      // 불필요하게 다시 태우지 않기 위해서다.
+      //
+      // 비교 대상은 pinnedCommentId가 아니라 pinnedRootId(고정 스레드
+      // 루트의 id)다. 딥링크 대상이 답글이면(target !== root)
+      // pinnedCommentId는 그 답글 자신의 id이고, 여기 rootId는 항상
+      // 스레드 루트의 id라 pinnedCommentId와는 절대 같아질 수 없다 —
+      // 그 분기에서 이 무효화가 한 번도 안 일어나던 버그였다(관찰된
+      // 증상: 고정 스레드에 답글을 달고 접으면 "답글 2개 보기"가 실제
+      // 3개인데도 갱신되지 않았다). pinnedRootId와 비교하면 딥링크
+      // 대상이 루트든 답글이든 두 분기 모두를 커버한다.
+      if (pinnedRootId && rootId === pinnedRootId) {
         void qc.invalidateQueries({
           queryKey: ["comment-context", pinnedCommentId],
         });
@@ -292,43 +310,39 @@ export function CommentSheet({
                       actions={actions}
                       onReply={setReplyTo}
                       // 딥링크 대상이 답글이면(target !== root) 처음 로드될
-                      // 때 한 번 루트를 펼쳐 그 답글을 보여준다 — 이 값은
-                      // pinned 쿼리가 주는 상수라 같은 딥링크가 떠 있는
-                      // 동안은 안 바뀌고, onExpanded도 없어 원래부터
-                      // 소비되지 않는다(이 경로는 이미 정상 동작하던
-                      // 것이라 그대로 둔다).
+                      // 때 한 번 루트를 펼쳐 그 답글을 보여준다. 예전에는
+                      // 이걸 expandFor에 상수(root.id)를 흘려보내는 식으로
+                      // 구현했는데, 그 상수는 컴포넌트 생애 동안 안 바뀌어
+                      // effect의 deps가 고정되고 마운트 시 딱 한 번만
+                      // 실행됐다 — 그 뒤로는 같은 스레드에 실제로 답글을
+                      // 달아도(=진짜 expandFor 신호) 두 번째로는 반응할
+                      // 수가 없었다(회귀). onExpanded를 얹어도 해결이 안
+                      // 됐다 — 상수라 매 마운트마다 조건을 통과해 공유
+                      // 신호를 곧장 비워버리므로, 마침 그 순간 다른
+                      // 스레드가 기다리던 진짜 펼침 요청을 가로챌 수
+                      // 있었다.
                       //
-                      // 딥링크 대상이 루트 자신이면(target === root —
-                      // comment_like 알림이 최상위 댓글에 온 경우) 위
-                      // 상수는 늘 null이라, 여기에 답글을 달아도 펼치라는
-                      // 신호가 없었다(회귀 — 5498ffc가 이 루트를 일반
-                      // 목록에서 걸러내면서, 답글 mutation이 남기는 공유
-                      // expandFor 신호를 받던 자리가 사라졌다). 그 공유
-                      // 신호(위 87번째 줄 state, "방금 이 스레드에 답글을
-                      // 달았다")를 이 경로에서도 그대로 물려받는다 — 일반
-                      // 목록의 CommentItem이 받는 것과 동일한 값이다.
-                      expandFor={
+                      // 그래서 "처음 펼침"과 "방금 답글을 달아 펼침"을
+                      // 완전히 다른 채널로 분리했다(CommentItem 컴포넌트
+                      // 설명 참고). initialExpanded는 useState 지연
+                      // 초기값으로만 쓰여 마운트 시 1회 평가되고 effect를
+                      // 타지 않으므로, expandFor를 대신 점유하지 않는다.
+                      // 딥링크 대상이 루트 자신이면(target === root) 처음부터
+                      // 펼칠 이유가 없으므로 false다.
+                      initialExpanded={
                         pinned.data.target.id !== pinned.data.root.id
-                          ? pinned.data.root.id
-                          : expandFor
                       }
-                      // 소비-후-비움(clearExpandFor)은 target === root
-                      // 경로에서만 연결한다. 그래야 (a) 사용자가 이 스레드를
-                      // 직접 접어도 다시 펼쳐지지 않고, (b) 같은 스레드에
-                      // 두 번째 답글을 달아도 null → rootId로 실제 값이
-                      // 바뀌어 effect가 다시 실행되며, (c) 시트를 닫았다
-                      // 열어도 지난 펼침이 되풀이되지 않는다 — 일반 목록
-                      // 항목이 지켜야 했던 것과 같은 세 조건이다.
-                      // target !== root 경로에는 일부러 onExpanded를 달지
-                      // 않는다 — 거기 달면 최초 로드 시 한 번 무조건
-                      // 실행되어(값이 상수라 매번 조건을 통과) 공유
-                      // expandFor를 곧장 비워 버리므로, 마침 그 순간 다른
-                      // 스레드가 기다리던 펼침 신호를 가로챌 수 있다.
-                      onExpanded={
-                        pinned.data.target.id === pinned.data.root.id
-                          ? clearExpandFor
-                          : undefined
-                      }
+                      // expandFor/onExpanded는 이제 두 분기 모두에서 일반
+                      // 목록 항목과 동일한 공유 소비형 신호를 그대로
+                      // 받는다 — "방금 이 스레드에 답글을 달았다"는 신호가
+                      // 어느 분기에서 왔든 고정 블록에 반드시 닿아야
+                      // 하기 때문이다. 고정 루트는 목록에서 걸러지므로(위
+                      // pinnedRootId 필터) comment.id === expandFor를
+                      // 만족하는 CommentItem 인스턴스는 항상 하나뿐이다 —
+                      // 고정 블록과 목록 항목이 서로의 신호를 가로챌 일이
+                      // 없다.
+                      expandFor={expandFor}
+                      onExpanded={clearExpandFor}
                       highlightId={pinned.data.target.id}
                     />
                   </ul>
