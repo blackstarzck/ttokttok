@@ -68,10 +68,13 @@ describe("groupNotifications", () => {
     expect(out[0].unread).toBe(false);
   });
 
-  it("묶음의 시각은 가장 최근 것이다", () => {
+  // 최신순(실제 입력 순서)으로 준다 — 뒤에 오는 것이 더 오래됐는데도 시각이
+  // 최신으로 남아야 "가장 최근"이 성립한다. 오래된 것을 먼저 주면 "무조건
+  // 마지막 값으로 덮기"라는 잘못된 구현도 통과해 테스트가 증거가 못 된다.
+  it("묶음의 시각은 가장 최근 것이다 — 뒤에 더 오래된 것이 와도 덮이지 않는다", () => {
     const out = groupNotifications([
-      row({ id: "n1", createdAt: "2026-09-03T00:00:00Z" }),
-      row({ id: "n2", createdAt: "2026-09-03T05:00:00Z" }),
+      row({ id: "n1", createdAt: "2026-09-03T05:00:00Z" }),
+      row({ id: "n2", createdAt: "2026-09-03T00:00:00Z" }),
     ]);
     expect(out[0].createdAt).toBe("2026-09-03T05:00:00Z");
   });
