@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { NOTIFICATION_LIMIT } from "@/lib/notifications-client";
 
 /**
  * 안 읽은 알림 수 (결정 14).
@@ -13,16 +14,32 @@ import { createClient } from "@/lib/supabase/client";
  *
  * 전역 기본값이 refetchOnWindowFocus: false라 여기서만 켠다.
  * RLS(notifications_select_own)가 본인 행만 주므로 recipient 조건이 없다.
+ *
+ * 전체 안 읽음 개수가 아니라 목록과 같은 최신 NOTIFICATION_LIMIT개
+ * 창에서만 센다 — notifications.ts(getNotifications)는 목록을 50개로
+ * 자르고 더보기·전체읽음이 없다. 배지가 전체 안 읽음 수(예: 62)를 보여주면
+ * 사용자는 화면에 보이는 50개를 전부 읽어도 배지가 12로 남고, 그 12개는
+ * 새 알림이 쌓일수록 점점 더 목록 밖으로 밀려나 영원히 닿을 수 없는 곳으로
+ * 간다 — 사용자가 절대 지울 수 없는 배지는, 실제보다 적게 세더라도 항상
+ * 지울 수 있는 배지보다 나쁘다. 숫자가 이 기능이 가진 유일한 신뢰 신호이기
+ * 때문이다. 목록과 같은 창을 세면 "보이는 걸 다 읽으면 배지가 0"이 항상
+ * 성립한다.
  */
 export function UnreadBadge() {
   const { data } = useQuery({
     queryKey: ["unread-count"],
     queryFn: async () => {
-      const { count } = await createClient()
+      // count: "exact"로 전체 개수를 세지 않는다 — 목록(getNotifications)이
+      // 보여주는 것과 똑같이 최신 NOTIFICATION_LIMIT개만 골라 그 안에서
+      // read_at이 null인 것만 센다. 내용은 배지에 필요 없으므로 id·read_at만
+      // 받는다.
+      const { data: rows, error } = await createClient()
         .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .is("read_at", null);
-      return count ?? 0;
+        .select("id, read_at")
+        .order("created_at", { ascending: false })
+        .limit(NOTIFICATION_LIMIT);
+      if (error) return 0;
+      return (rows ?? []).filter((r) => r.read_at === null).length;
     },
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,

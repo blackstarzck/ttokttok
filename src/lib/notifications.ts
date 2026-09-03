@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { NOTIFICATION_LIMIT } from "@/lib/notifications-client";
 
-/** 목록 상한. 개인 알림함이라 페이지네이션 없이 최근 것만 보여준다. */
-const NOTIFICATION_LIMIT = 50;
+// 목록 상한(NOTIFICATION_LIMIT). 개인 알림함이라 페이지네이션 없이 최근
+// 것만 보여준다. 값 자체는 notifications-client.ts에 있다 — unread-badge.tsx
+// 같은 클라이언트 컴포넌트도 같은 상수를 써야 배지 수와 목록이 어긋나지
+// 않는데, 이 파일은 서버 전용(next/headers)이라 그대로 import하면 클라이언트
+// 번들이 깨진다.
 
 export type NotificationRow = {
   id: string;
