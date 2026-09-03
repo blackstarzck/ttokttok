@@ -142,17 +142,26 @@ export function CommentSheet({
     }: {
       content: string;
       parentId: string | null;
+      // 캐시 조작 전용 — addComment(서버 INSERT)에는 필요 없다. rootId는
+      // mutationFn 밖(onMutate/onSettled)에서만 쓰인다.
+      rootId: string | null;
     }) => addComment(postId, content, parentId),
 
-    onMutate: async ({ content, parentId }) => {
-      const target = parentId ? ["replies", parentId] : key;
+    onMutate: async ({ content, parentId, rootId }) => {
+      // 캐시 조작은 전부 "서버가 평탄화한 뒤 실제로 놓일 자리" 기준이라
+      // rootId를 쓴다 — parentId(진짜 답글 대상)로 하면 답글의 답글일 때
+      // 엉뚱한 캐시 키(["replies", 그 답글 id])를 건드리게 된다.
+      const target = rootId ? ["replies", rootId] : key;
       await qc.cancelQueries({ queryKey: target });
       const previous = qc.getQueryData<InfiniteData<CommentPage>>(target);
 
       const optimistic = makeOptimisticComment({
         content,
         userId: currentUserId,
-        parentId,
+        // 낙관적 행의 parent_id도 서버가 실제로 놓을 자리(rootId)를
+        // 흉내 내야 한다 — 진짜 부모(parentId)를 넣으면 무효화 전까지
+        // 답글이 엉뚱한 부모 밑(또는 존재하지 않는 목록)에 나타난다.
+        parentId: rootId,
       });
       qc.setQueryData<InfiniteData<CommentPage>>(target, (old) =>
         insertOptimistic(old, optimistic),
@@ -164,7 +173,7 @@ export function CommentSheet({
       const previousReplyTo = replyTo;
       setDraft("");
       setReplyTo(null);
-      if (parentId) setExpandFor(parentId);
+      if (rootId) setExpandFor(rootId);
       return { target, previous, previousDraft, previousReplyTo };
     },
 
@@ -184,12 +193,13 @@ export function CommentSheet({
       onAdded?.();
     },
 
-    // 성공이든 실패든 서버 상태로 정렬을 맞춘다.
-    onSettled: (_data, _e, { parentId }) => {
+    // 성공이든 실패든 서버 상태로 정렬을 맞춘다 — onMutate와 마찬가지로
+    // rootId 기준이다.
+    onSettled: (_data, _e, { rootId }) => {
       void qc.invalidateQueries({
-        queryKey: parentId ? ["replies", parentId] : key,
+        queryKey: rootId ? ["replies", rootId] : key,
       });
-      if (parentId) void qc.invalidateQueries({ queryKey: key });
+      if (rootId) void qc.invalidateQueries({ queryKey: key });
     },
   });
 
@@ -337,7 +347,11 @@ export function CommentSheet({
             e.preventDefault();
             const text = draft.trim();
             if (text) {
-              add.mutate({ content: text, parentId: replyTo?.parentId ?? null });
+              add.mutate({
+                content: text,
+                parentId: replyTo?.parentId ?? null,
+                rootId: replyTo?.rootId ?? null,
+              });
             }
           }}
         >

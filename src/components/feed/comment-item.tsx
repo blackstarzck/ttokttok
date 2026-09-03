@@ -19,8 +19,21 @@ import {
   type ReportReason,
 } from "@/lib/comments";
 
-/** 컴포저가 "누구에게 다는 답글인지" 알기 위한 최소 정보. */
-export type ReplyTarget = { parentId: string; nickname: string };
+/**
+ * 컴포저가 "누구에게 다는 답글인지" 알기 위한 최소 정보.
+ *
+ * parentId와 rootId는 원래 하나였다가 갈라졌다. 최상위 댓글에 대한
+ * 답글에서는 "서버 INSERT에 실어 보낼 진짜 부모"와 "캐시 키로 쓸 스레드
+ * 루트"가 우연히 같은 값(그 최상위 댓글 자신)이라 구분할 필요가 없었다.
+ * 하지만 답글의 답글에서는 이 둘이 달라진다 — parentId는 실제로 탭한
+ * 그 답글의 id여야 DB의 flatten_comment_depth 트리거가 평탄화 직전에
+ * "원래 겨냥한 대상"을 reply_target_id에 잡아낼 수 있고(그래야 답글
+ * 작성자에게 알림이 간다), rootId는 여전히 최상위 댓글이어야 한다 —
+ * 트리거가 평탄화한 뒤 그 답글이 실제로 저장되는 자리가 거기이고, 답글
+ * 목록 쿼리(["replies", rootId])와 자동 펼침도 그 자리를 기준으로 하기
+ * 때문이다.
+ */
+export type ReplyTarget = { parentId: string; rootId: string; nickname: string };
 
 /**
  * 행 하나가 필요로 하는 동작 묶음. 최상위와 답글이 같은 행 컴포넌트를
@@ -232,7 +245,10 @@ export function CommentItem({
         <CommentRow
           comment={comment}
           actions={actions}
-          onReply={() => onReply({ parentId: comment.id, nickname })}
+          // 루트 행 자신에게 다는 답글은 진짜 부모와 스레드 루트가 같다.
+          onReply={() =>
+            onReply({ parentId: comment.id, rootId: comment.id, nickname })
+          }
           highlightId={highlightId}
         />
       </ul>
@@ -273,8 +289,14 @@ export function CommentItem({
                       compact
                       onReply={() =>
                         onReply({
-                          // 1단 고정 — 답글의 답글도 부모는 최상위다.
-                          parentId: comment.id,
+                          // 서버로 보낼 진짜 부모는 지금 탭한 이 답글(r) 자신이다
+                          // — flatten_comment_depth가 평탄화 직전에 이 값을
+                          // reply_target_id로 붙잡아야 알림이 r 작성자에게 간다.
+                          parentId: r.id,
+                          // 1단 고정은 그대로다 — 서버가 평탄화한 뒤 실제로
+                          // 저장되는 자리는 여전히 이 최상위 댓글이므로,
+                          // 캐시 키·자동 펼침은 계속 루트 id를 쓴다.
+                          rootId: comment.id,
                           nickname: r.profiles?.nickname ?? "독자",
                         })
                       }

@@ -11,7 +11,15 @@ export function isOptimistic(id: string): boolean {
   return id.startsWith(OPTIMISTIC_PREFIX);
 }
 
-/** 서버가 만들 행을 흉내 낸다. 성공 시 무효화로 진짜 행에 자리를 내준다. */
+/**
+ * 서버가 만들 행을 흉내 낸다. 성공 시 무효화로 진짜 행에 자리를 내준다.
+ *
+ * parentId는 "서버 INSERT에 실제로 보내는 부모"가 아니라 "서버가 저장한
+ * 뒤 이 행이 실제로 놓일 자리"다 — 답글의 답글이면 flatten_comment_depth가
+ * 평탄화하므로 그 자리는 항상 스레드 루트다. 호출부(comment-sheet.tsx)가
+ * 이미 그 구분을 하고 있으므로 여기서는 그대로 parent_id에 옮겨 적기만
+ * 한다.
+ */
 export function makeOptimisticComment({
   content,
   userId,
