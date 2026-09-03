@@ -1,17 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import type { FeedBook } from "@/lib/feed";
 
-/** 활동 탭이 쓰는 최소 도서 필드. 그리드는 커버와 제목만 그린다. */
-const BOOK_FIELDS = `
-  id, title, author, translator, publisher, cover_url, category, isbn,
-  page_count, pub_date_paper, pub_date_ebook, intro, toc,
-  epub_path, purchase_links
-`;
+/**
+ * 활동 탭이 쓰는 최소 도서 필드.
+ *
+ * `BookCover`가 실제로 읽는 필드(`cover_url`·`title`·`author`)만 고른다 —
+ * `ActivityTab`은 클라이언트 컴포넌트라 여기서 고른 필드가 프로필을 열
+ * 때마다(활동 탭을 안 열어도) RSC 플라이트 페이로드에 그대로 실린다.
+ * `intro`처럼 길이가 없는 `text` 컬럼을 최대 50건 얹으면 그 비용이
+ * 조용히 커진다.
+ */
+const BOOK_FIELDS = `cover_url, title, author`;
 
 /** 목록 상한. 개인 활동 목록이라 페이지네이션 없이 최근 것만 보여준다. */
 const ACTIVITY_LIMIT = 50;
 
-export type LikedPost = { postId: string; book: FeedBook };
+/** 활동 탭 좋아요 그리드가 쓰는 도서 필드 — `BOOK_FIELDS`와 짝을 이룬다. */
+type LikedPostBook = Pick<FeedBook, "cover_url" | "title" | "author">;
+
+export type LikedPost = { postId: string; book: LikedPostBook };
 
 export type MyComment = {
   id: string;
@@ -32,7 +39,9 @@ export type MyComment = {
  * 게시물 목록이고, 한 도서에 게시물이 여럿인 것은 설계된 상태다(§11-36).
  */
 export function flattenLikedPosts(rows: unknown[]): LikedPost[] {
-  return (rows as { posts?: { id: string; books?: FeedBook | null } | null }[])
+  return (
+    rows as { posts?: { id: string; books?: LikedPostBook | null } | null }[]
+  )
     .map((r) =>
       r.posts && r.posts.books
         ? { postId: r.posts.id, book: r.posts.books }
@@ -76,6 +85,12 @@ export function flattenMyComments(rows: unknown[]): MyComment[] {
  *
  * RLS(likes_select_own)가 본인 행만 주므로 user_id 조건을 쓰지 않는다 —
  * 프론트에서 다시 거르면 규칙이 두 곳에 생긴다(FRONTEND.md §5).
+ *
+ * 다만 `auth.ts`의 `getLikedPostIds`는 같은 `likes` 표를 조회하면서도
+ * `user_id`를 명시한다 — 그건 RLS가 이미 좁혀준 위에 의도를 드러내려는
+ * 군더더기 조건이지, 여기서 생략하는 것과 모순되지 않는다. 표는 같아도
+ * "생략해도 되는 조건을 굳이 쓴 경우"와 "생략하면 틀린 결과가 나오는
+ * 경우"(`getMyComments` 참고)는 다른 이야기다.
  */
 export async function getLikedPosts(): Promise<LikedPost[]> {
   const db = await createClient();

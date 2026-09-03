@@ -19,7 +19,9 @@ export function BookCover({
   className,
   overlay = false,
 }: {
-  book: FeedBook;
+  // 커버·제목·저자만 그리므로 FeedBook 전체가 아니라 이 세 필드만
+  // 요구한다 — 호출부가 활동 탭처럼 최소 필드만 가진 도서를 넘겨도 된다.
+  book: Pick<FeedBook, "cover_url" | "title" | "author">;
   className?: string;
   overlay?: boolean;
 }) {
