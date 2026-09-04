@@ -185,8 +185,53 @@ function removeBlockAt(html: string, tag: string, startIndex: number): string {
   return html.slice(0, startIndex) + html.slice(end);
 }
 
-/** 라이선스 상자 앞에 이 정도(제목 하나, 또는 아무 것도 없음)만 있으면 그 섹션은 라이선스 전용으로 본다. */
-const SECTION_PREFACE_ONLY_HEADING = /^\s*(<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>\s*)?$/i;
+/**
+ * 조각 HTML에서 태그를 걷어내고 순수 텍스트만 남긴다(공백 정규화 포함).
+ *
+ * 태그 자리를 그냥 지우지 않고 공백으로 바꾼다 — 그렇지 않으면
+ * `<h2>제목</h2><p>내용</p>`처럼 인접한 요소의 글자가 "제목내용"으로 붙어
+ * 버려서, 실제로는 서로 다른 글 뭉치인데 우연히 다른 문자열과 같아지거나
+ * 반대로 실제 산문이 섞였는데도 "글자가 없다"는 식으로 오판할 여지가
+ * 생긴다. 상자·제목처럼 서로 다른 태그가 바로 붙어 나오는 실물 ws-export
+ * 마크업에서 이 경계가 실제로 문제가 된다.
+ */
+function extractText(fragment: string): string {
+  return fragment
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** 전제부(preface)에서 제목 하나를 찾는다 — 없으면 null. */
+const HEADING = /<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/i;
+
+/**
+ * 라이선스 상자 앞(preface)이 "제목뿐"인지 글자로 판정한다.
+ *
+ * 예전에는 이걸 *태그 구조*로 봤다 — "제목 태그 하나, 또는 아무 것도
+ * 없음"이면 제목뿐이라고 판단했다. 그런데 실물 ws-export 출력은 제목 뒤에
+ * 글자가 전혀 없는 MediaWiki 트랜스클루전 마커
+ * (`<span class="mw-empty-elt" .../>`)를 붙인다 — 태그 하나가 늘었을
+ * 뿐인데 그 구조 검사는 "제목 말고 다른 내용이 있다"고 오판해 섹션째
+ * 지우기를 포기했고, 그 결과 상자만 지워지고 「라이선스」 제목이 챕터
+ * 끝에 고아로 남았다(실물 「운수 좋은 날」 EPUB에서 확인).
+ *
+ * 그래서 태그를 걷어낸 *글자*를 비교한다 — 전제부에 남는 글자가 없거나
+ * (빈 마커뿐), 제목 자신의 글자와 똑같으면 "제목뿐"으로 본다. 태그가
+ * 몇 개 붙든 글자가 없으면 통과하므로 이런 마커에 흔들리지 않는다.
+ * 반대로 실제 산문이 하나라도 섞이면 글자 비교가 달라지므로 여전히
+ * 상자만 지운다 — 예전에 본문을 지웠던 버그의 재발 방지 가드는 그대로
+ * 유지된다. 앞으로 이 판정을 다시 태그 구조로 되돌리지 말 것 — 위키문헌은
+ * 태그를 늘리기만 해도 글자 없는 마커를 아무 데나 끼워 넣을 수 있다.
+ */
+function isLicenseOnlyPreface(preface: string): boolean {
+  const prefaceText = extractText(preface);
+  if (prefaceText === "") return true;
+
+  const heading = HEADING.exec(preface);
+  const headingText = heading ? extractText(heading[0]) : "";
+  return headingText !== "" && prefaceText === headingText;
+}
 
 /**
  * 라이선스 상자를 지울 때 섹션째 지울지, 상자만 지울지 고른다.
@@ -198,9 +243,9 @@ const SECTION_PREFACE_ONLY_HEADING = /^\s*(<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>\s*)
  *   ② 상자가 본문과 같은 섹션에 들어 있는 판본 — 섹션째 지우면 본문까지
  *      함께 사라진다.
  * 그래서 후보 섹션이 상자를 실제로 감싸는지(닫는 태그가 상자 시작보다
- * 뒤인지)부터 확인하고, 감싸더라도 상자 앞에 「라이선스」류 제목 말고 다른
- * 내용이 있으면 상자만 지운다 — ws-export가 만드는 진짜 라이선스 섹션은
- * 제목 하나만 앞에 두기 때문이다.
+ * 뒤인지)부터 확인하고, 감싸더라도 상자 앞에 실제 내용(제목 말고 다른
+ * 글자)이 있으면 상자만 지운다 — 이 판정은 `isLicenseOnlyPreface`가 글자로
+ * 한다(왜 태그 구조가 아니라 글자인지는 그 함수 주석 참고).
  */
 function findLicenseTarget(
   html: string,
@@ -216,7 +261,7 @@ function findLicenseTarget(
     const sectionEnd = findBlockEnd(html, "section", candidate.index);
     const encloses = sectionEnd !== null && sectionEnd > hit.index;
     const preface = html.slice(candidate.index + candidate[0].length, hit.index);
-    if (encloses && SECTION_PREFACE_ONLY_HEADING.test(preface)) {
+    if (encloses && isLicenseOnlyPreface(preface)) {
       return { tag: "section", start: candidate.index };
     }
   }
@@ -535,6 +580,23 @@ function assertPackageIntegrity(
 }
 
 /**
+ * 본문 어딘가에 「라이선스」 텍스트만 담은 제목이 남아 있는지 본다.
+ *
+ * stripLicenseBlocks가 상자를 섹션째 못 지우고 상자만 지우면(전제부가 실제
+ * 산문을 담고 있어 가드가 걸렸거나, 판정 로직에 다른 구멍이 또 생기거나)
+ * 그 섹션의 <h2>라이선스</h2> 제목만 챕터 끝에 고아로 남는다. 이 검사는
+ * 그 잔재를 licenseContainer 문자열이 아니라 제목 텍스트로 직접 잡는다 —
+ * 상자는 이미 없어졌으니 licenseContainer 검사는 이 경우를 못 본다.
+ */
+function hasOrphanLicenseHeading(body: string): boolean {
+  const heading = /<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi;
+  for (let m; (m = heading.exec(body)) !== null; ) {
+    if (extractText(m[0]) === "라이선스") return true;
+  }
+  return false;
+}
+
+/**
  * 업로드 직전 관문 — 수급 파이프라인이 제 일을 했는지 확인한다.
  *
  * 껍데기가 남은 파일이 조용히 올라가면 뷰어를 열어 보기 전까지 아무도
@@ -559,6 +621,7 @@ export function assertClean(epub: Uint8Array): number {
   if (paths.some((p) => /Wikipedia_logo/i.test(p))) problems.push("위키백과 로고");
   if (paths.some((p) => /(^|\/)fonts\//i.test(p))) problems.push("임베드 폰트");
   if (/licenseContainer/i.test(body)) problems.push("라이선스 상자");
+  if (hasOrphanLicenseHeading(body)) problems.push("고아 라이선스 제목");
 
   const chapterPaths = paths.filter((p) => /\/c\d+_.*\.xhtml$/i.test(p));
   if (chapterPaths.length === 0) {

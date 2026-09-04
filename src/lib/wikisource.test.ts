@@ -289,6 +289,55 @@ p { text-indent: 1em; }
   });
 });
 
+/**
+ * stripLicenseBlocks — 전제부(preface) 판정을 태그 구조가 아니라 글자로
+ * 해야 하는 이유(고아 「라이선스」 제목, 실물 입력에서 발견).
+ *
+ * 실제 ws-export가 「운수 좋은 날」에 대해 만든 원본 마크업을 그대로 쓴다.
+ * 상자(licenseContainer) 앞에 <h2>라이선스</h2> 제목과, 글자가 전혀 없는
+ * MediaWiki 트랜스클루전 마커 `<span class="mw-empty-elt" .../>`가 붙는다.
+ * 예전의 "제목 태그 하나, 또는 아무 것도 없음"이라는 *구조* 검사는 이 마커
+ * 태그 하나 때문에 "제목 말고 다른 내용이 있다"고 오판해 상자만 지우고
+ * 제목을 고아로 남겼다 — 문장이 추가돼서가 아니라, 글자 없는 태그 하나
+ * 때문에.
+ */
+describe("stripLicenseBlocks — 실물 마크업의 전제부 판정", () => {
+  it("전제부가 제목 + 글자 없는 트랜스클루전 마커뿐이면 섹션째(제목 포함) 지운다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      `<html><body>
+<section data-mw-section-id="0"><p>새침하게 흐린 품이 눈이 올 듯하더니</p></section>
+<section data-mw-section-id="1"><h2 id="laiseonseu"><span id="id-.EB.9D.BC.EC.9D.B4.EC.84.A0.EC.8A.A4" typeof="mw:FallbackId"/>라이선스</h2>
+<span class="mw-empty-elt" about="#mwt6" typeof="mw:Transclusion"/><div class="licenseContainer licenseBanner dynlayout-exempt " about="#mwt6"><div class="inner">CC BY-SA 3.0</div></div></section>
+</body></html>`,
+    );
+    const body = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
+    expect(body).not.toMatch(/라이선스/);
+    expect(body).not.toMatch(/licenseContainer/);
+    expect(body).not.toMatch(/mw-empty-elt/);
+    // 앞 섹션의 본문 문단은 살아 있어야 한다 — 다른 섹션까지 지우면 안 된다.
+    expect(body).toMatch(/새침하게 흐린 품이/);
+  });
+
+  it("전제부에 실제 산문이 섞이면(제목만이 아니면) 상자만 지우고 그 산문은 남긴다(가드 회귀 방지)", () => {
+    // 태그가 아니라 글자로 판정하더라도, 진짜 산문이 있으면 여전히
+    // 섹션째 지우면 안 된다 — 예전에 본문을 지웠던 버그의 재발 방지 가드.
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      `<html><body>
+<section data-mw-section-id="1"><h2 id="laiseonseu"><span id="id-x" typeof="mw:FallbackId"/>라이선스</h2>
+<p>이 챕터는 실제로 라이선스 조건을 설명하는 산문 문단을 담고 있다.</p><div class="licenseContainer licenseBanner dynlayout-exempt " about="#mwt6"><div class="inner">CC BY-SA 3.0</div></div></section>
+</body></html>`,
+    );
+    const body = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
+    expect(body).toMatch(
+      /이 챕터는 실제로 라이선스 조건을 설명하는 산문 문단을 담고 있다/,
+    );
+    expect(body).not.toMatch(/licenseContainer/);
+    expect(body).not.toMatch(/CC BY-SA/);
+  });
+});
+
 describe("readEpubMetadata", () => {
   // 픽스처의 dc:identifier(봄봄)와 dc:source(운수 좋은 날)를 일부러 다르게
   // 둔다 — 둘이 같으면 이 테스트는 어느 태그를 읽었는지 구분하지 못한다.
@@ -391,6 +440,28 @@ describe("assertClean", () => {
     };
     const epub = zipSync(files);
     expect(assertClean(epub)).toBe(3);
+  });
+});
+
+/**
+ * assertClean — 고아 「라이선스」 제목(실물 입력에서 발견).
+ *
+ * stripLicenseBlocks가 상자만 지우고 섹션을 못 지운 채로 남기면(전제부
+ * 판정이 구조 검사였을 때 실제로 벌어졌던 일) 챕터 끝에 <h2>라이선스</h2>
+ * 제목만 고아로 남는다. assertClean은 지금까지 `licenseContainer` 문자열만
+ * 찾았으므로 상자가 없어진 이 잔재는 못 잡고 조용히 통과시켰다 — 그래서
+ * 「라이선스」 텍스트를 가진 제목을 직접 찾는 검사를 추가한다.
+ */
+describe("assertClean — 고아 「라이선스」 제목", () => {
+  it("상자는 지워졌지만 「라이선스」 제목만 남은 챕터는 실패한다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      makeChapterXhtml(
+        `<section data-mw-section-id="1"><h2 id="laiseonseu"><span id="id-x" typeof="mw:FallbackId"/>라이선스</h2>
+<span class="mw-empty-elt" about="#mwt6" typeof="mw:Transclusion"/></section>`,
+      ),
+    );
+    expect(() => assertClean(epub)).toThrow(/고아 라이선스 제목/);
   });
 });
 
