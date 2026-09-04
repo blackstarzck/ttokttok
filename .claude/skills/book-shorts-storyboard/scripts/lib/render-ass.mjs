@@ -28,7 +28,9 @@ const esc = (t) => String(t).replace(/[{}]/g, (m) => `\\${m}`).replace(/\r?\n/g,
 
 export function renderAss(sb) {
   const lines = [...HEADER];
-  const cues = [...(sb.narration ?? [])].sort((a, b) => a.start - b.start);
+  // no_subtitle 큐는 H3가 읽기만 하고 화면에는 안 띄운다 — 제목처럼 제목 카드가
+  // 이미 보여주는 문구가 하단 자막으로 한 번 더 나오는 중복을 막는다.
+  const cues = [...(sb.narration ?? [])].filter((c) => !c.no_subtitle).sort((a, b) => a.start - b.start);
   for (const c of cues) {
     const text = wrapCue(c.text_ko).map(esc).join('\\N');
     lines.push(`Dialogue: 0,${toAssTimecode(c.start)},${toAssTimecode(c.end)},Sub,,0,0,0,,${text}`);

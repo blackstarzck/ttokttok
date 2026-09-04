@@ -32,7 +32,7 @@ test('카메라·SFX·보이스오버 대사가 샷 안에 있다', () => {
   assert.ok(out.includes('The camera pushes in with small amplitude at slow speed toward his wide-open eyes.'));
   assert.ok(out.includes('The muffled ticking of an alarm clock.'));
   assert.ok(out.includes("(S1) says in an off-screen voiceover while every on-screen character's lips remain completely closed: <d>[Korean] 아침에 눈을 떴는데</d>"));
-  assert.ok(out.includes('<d>[Korean] 몸이 벌레로 변해 있었다 가족은 그를 방에 가뒀고 세상은 아무 일 없다는 듯</d>'));
+  assert.ok(out.includes('<d>[Korean] 몸이 벌레로 변해 있었다 가족은 그를 방에 가뒀고 세상은 아무렇지 않게</d>'));
   assert.ok(out.includes('<d>[Korean] 출근을 재촉했다 카프카, 변신</d>'));
 });
 

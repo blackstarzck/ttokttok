@@ -70,8 +70,9 @@ export function validateStoryboard(sb, evidence, { renderPrompt } = {}) {
   const sorted = [...cues].sort((a, b) => a.start - b.start);
   sorted.forEach((c, i) => {
     const text = c.text_ko ?? '';
+    // no_subtitle 큐는 화면에 안 뜨므로 줄 제한이 무의미하다. 나머지(길이·겹침·속도)는 H3가 읽으므로 그대로 본다.
     const lines = wrapCue(text, L.maxLineLen);
-    if (lines.length > L.maxLines) err('V3', `큐 "${text}": ${lines.length}줄 — 최대 ${L.maxLines}줄(줄당 ${L.maxLineLen}자). 큐를 나눠라`);
+    if (!c.no_subtitle && lines.length > L.maxLines) err('V3', `큐 "${text}": ${lines.length}줄 — 최대 ${L.maxLines}줄(줄당 ${L.maxLineLen}자). 큐를 나눠라`);
     const dur = c.end - c.start;
     if (!(dur >= L.minCueSec)) err('V3', `큐 "${text}": 표시 ${Number(dur).toFixed(2)}s — 최소 ${L.minCueSec}s`);
     if (c.start < 0 || c.end > d) err('V3', `큐 "${text}": [0, ${d}] 밖 (${c.start}~${c.end})`);

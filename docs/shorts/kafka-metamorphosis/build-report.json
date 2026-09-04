@@ -3,11 +3,11 @@
   "errors": [],
   "warnings": [],
   "metrics": {
-    "syllables": 50,
+    "syllables": 49,
     "cues": 6,
     "shots": 3,
     "panels": 5,
-    "promptChars": 2313
+    "promptChars": 2310
   },
   "sheetPng": {
     "ok": true,

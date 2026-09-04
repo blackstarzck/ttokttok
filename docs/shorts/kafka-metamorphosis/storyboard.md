@@ -25,7 +25,7 @@
 | 샷 | 구간 | 화면 | 카메라 | SFX | 내레이션 |
 |---|---|---|---|---|---|
 | 1 | 00:00.000–00:03.000 | a gaunt man lying in a narrow bed in a dim room, staring at the ceiling, one thin arm raised stiffly above him | The camera pushes in with small amplitude at slow speed toward his wide-open eyes | the muffled ticking of an alarm clock | 아침에 눈을 떴는데 |
-| 2 | 00:03.000–00:10.500 | a low angle from the floorboards: his silhouette now hunched and insect-like against the closed bedroom door, a plate of bread pushed under the door by an unseen hand | The camera tilts up with small amplitude at slow speed | a key turning in a lock, then footsteps receding down a hallway | 몸이 벌레로 변해 있었다 / 가족은 그를 방에 가뒀고 / 세상은 아무 일 없다는 듯 |
+| 2 | 00:03.000–00:10.500 | a low angle from the floorboards: his silhouette now hunched and insect-like against the closed bedroom door, a plate of bread pushed under the door by an unseen hand | The camera tilts up with small amplitude at slow speed | a key turning in a lock, then footsteps receding down a hallway | 몸이 벌레로 변해 있었다 / 가족은 그를 방에 가뒀고 / 세상은 아무렇지 않게 |
 | 3 | 00:10.500–00:15.000 | a wide view of a grey city street at morning rush hour, commuters streaming past a shuttered apartment window on the second floor | The camera trucks right with medium amplitude at slow speed | crowd murmur and a distant tram bell | 출근을 재촉했다 / 카프카, 변신 |
 
 앰비언스: A quiet apartment interior with a faint clock tick and wooden floor creaks, giving way to a muffled city outside — traffic hum, a tram bell, indistinct crowd murmur. No music inside the scene.
@@ -34,16 +34,16 @@ BGM: A single sustained cello note with slow, sparse pizzicato underneath, aroun
 
 ## 자막 큐
 
-총 50음절 (상한 75) · 큐 6개 · 제목 카드 12.5s "변신 · 프란츠 카프카"
+총 49음절 (상한 75) · 큐 6개 · 제목 카드 12.5s "변신 · 프란츠 카프카"
 
 | 시작 | 끝 | 자막 (줄바꿈 = /) |
 |---|---|---|
 | 0:00:00.40 | 0:00:02.80 | 아침에 눈을 떴는데 |
 | 0:00:03.20 | 0:00:05.80 | 몸이 벌레로 변해 / 있었다 |
 | 0:00:06.20 | 0:00:08.60 | 가족은 그를 방에 / 가뒀고 |
-| 0:00:09.00 | 0:00:11.20 | 세상은 아무 일 없다는 / 듯 |
+| 0:00:09.00 | 0:00:11.20 | 세상은 아무렇지 않게 |
 | 0:00:11.50 | 0:00:13.00 | 출근을 재촉했다 |
-| 0:00:13.40 | 0:00:14.80 | 카프카, 변신 |
+| 0:00:13.40 | 0:00:14.80 | 카프카, 변신 _(음성만 — 제목 카드가 표시)_ |
 
 ## 콘티
 
@@ -55,7 +55,7 @@ BGM: A single sustained cello note with slow, sparse pizzicato underneath, aroun
 | 02 | 1 | extreme close-up | 크게 뜬 눈. 눈동자에 마디 진 벌레 다리가 비친다 | S.E) 초침 소리가 멈춘다 |
 | 03 | 2 | low angle wide shot | 바닥에서 올려다본 앵글. 닫힌 문에 붙은 벌레 같은 실루엣 | NA) 몸이 벌레로 변해 있었다 / S.E) 열쇠 돌리는 소리 |
 | 04 | 2 | close-up | 문 아래로 밀려 들어오는 빵 접시. 손은 보이지 않는다 | NA) 가족은 그를 방에 가뒀고 / S.E) 멀어지는 발소리 |
-| 05 | 3 | wide shot | 출근길 도심. 인파가 흐르고, 2층 창문 하나만 닫혀 있다 | NA) 세상은 아무 일 없다는 듯 출근을 재촉했다 / NA) 카프카, 변신 / S.E) 트램 종소리 |
+| 05 | 3 | wide shot | 출근길 도심. 인파가 흐르고, 2층 창문 하나만 닫혀 있다 | NA) 세상은 아무렇지 않게 출근을 재촉했다 / NA) 카프카, 변신 / S.E) 트램 종소리 |
 
 ## 제작 절차
 

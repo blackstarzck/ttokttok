@@ -55,7 +55,10 @@ export function renderStoryboardMd(sb, report, evidence) {
   out.push('| 시작 | 끝 | 자막 (줄바꿈 = /) |');
   out.push('|---|---|---|');
   for (const c of [...sb.narration].sort((a, b) => a.start - b.start)) {
-    out.push(`| ${toAssTimecode(c.start)} | ${toAssTimecode(c.end)} | ${wrapCue(c.text_ko).join(' / ')} |`);
+    const text = c.no_subtitle
+      ? `${c.text_ko} _(음성만 — 제목 카드가 표시)_`
+      : wrapCue(c.text_ko).join(' / ');
+    out.push(`| ${toAssTimecode(c.start)} | ${toAssTimecode(c.end)} | ${text} |`);
   }
   out.push('');
 

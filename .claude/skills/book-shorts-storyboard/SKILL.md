@@ -55,6 +55,7 @@ description: Use when asked for a 15-second book-introduction short for the Ttok
 | 길이·샷 | 15초 정수 · 샷 2~3개, 0부터 빈틈 없이 연속 · 0–3s 훅 / 3–10.5s 한 장면 / 10.5–15s 전환+제목 카드 |
 | 내레이션 | 합계 **한글 75음절 이하** · 숫자·영문은 한글로 |
 | 큐(=자막) | **2줄 × 12자**(공백 포함, 공백 우선 줄바꿈) · 0.8초 이상 · 겹침 없음 · 7음절/초 넘으면 경고 |
+| 제목 큐 | 제목을 말하는 마지막 큐에는 **`"no_subtitle": true`** — 안 붙이면 제목 카드와 하단 자막에 같은 글자가 겹친다 |
 | 카메라 | 샷당 1개 · `type`은 `scripts/lib/camera.mjs`의 18키 · `static` 외 `amplitude`·`speed` 필수 |
 | 컨셉 | 3개 · 근거 ID 존재 · 주근거·훅 유형 중복 없음 |
 | 패널 | 4~6개 · `shot_type` 선두 + 동작 1개 · `style_lock` 필수 |

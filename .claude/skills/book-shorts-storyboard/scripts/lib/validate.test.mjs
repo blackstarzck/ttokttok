@@ -15,7 +15,7 @@ test('픽스처는 에러·경고 없이 통과한다', () => {
   assert.deepEqual(r.errors, []);
   assert.deepEqual(r.warnings, []);
   assert.equal(r.ok, true);
-  assert.equal(r.metrics.syllables, 50);
+  assert.equal(r.metrics.syllables, 49);
   assert.equal(r.metrics.shots, 3);
   assert.equal(r.metrics.panels, 5);
   assert.equal(r.metrics.cues, 6);
@@ -30,7 +30,7 @@ test('V1: 샷 수·연속성·duration', () => {
 });
 
 test('V2: 내레이션 75음절 초과는 에러(경계 75는 통과), 숫자·영문은 경고', () => {
-  // 픽스처 50음절. 큐 0(8음절)을 늘려 경계를 짚는다: 50 - 8 + N
+  // 픽스처 49음절. 큐 0(8음절)을 늘려 경계를 짚는다: 49 - 8 + N
   let sb = clone(); sb.narration[0].text_ko = '가'.repeat(12); // 54
   assert.equal(errorsOf(validateStoryboard(sb, evidence), 'V2').length, 0);
   // 큐 여러 개를 2줄 이내로 늘려 정확히 75까지
@@ -59,6 +59,16 @@ test('V3: 큐 줄수·최소 표시·겹침·범위', () => {
   assert.ok(rules(validateStoryboard(sb, evidence)).includes('V3'));
   sb = clone(); sb.narration[5].end = 15.5;
   assert.ok(rules(validateStoryboard(sb, evidence)).includes('V3'));
+});
+
+test('V3: no_subtitle 큐는 줄 제한을 면제받되 타이밍은 그대로 검사한다', () => {
+  // 자막이 안 되므로 12자·2줄은 무의미하다. 하지만 H3가 읽으므로 길이·겹침·속도는 본다.
+  let sb = clone();
+  sb.narration[0] = { start: 0.4, end: 2.8, text_ko: '가나다 라마바 사아자 차카타 파하가 나다라 마바사', no_subtitle: true };
+  assert.equal(errorsOf(validateStoryboard(sb, evidence), 'V3').length, 0);
+  sb = clone();
+  sb.narration[0] = { start: 0.4, end: 0.5, text_ko: '짧다', no_subtitle: true };
+  assert.ok(rules(validateStoryboard(sb, evidence)).includes('V3')); // 최소 표시는 여전히 본다
 });
 
 test('V3w: 7음절/초 초과는 경고', () => {

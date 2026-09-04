@@ -27,6 +27,16 @@ test('제목 카드: Title 스타일, at부터 끝까지', () => {
   assert.ok(ass.includes('Dialogue: 0,0:00:12.50,0:00:15.00,Title,,0,0,0,,변신 · 프란츠 카프카'));
 });
 
+test('no_subtitle 큐는 자막에서 빠진다 — 말은 하되 화면에는 안 뜬다', () => {
+  // 제목을 마지막 큐에서 말하면서 제목 카드도 띄우면 같은 글자가 두 번 겹친다
+  const sb = structuredClone(fixture);
+  sb.narration.at(-1).no_subtitle = true;
+  const out = renderAss(sb);
+  assert.ok(!out.includes(',Sub,,0,0,0,,카프카, 변신'));
+  assert.ok(out.includes(',Title,,0,0,0,,변신 · 프란츠 카프카')); // 제목 카드는 남는다
+  assert.equal(out.split('\n').filter((l) => l.includes(',Sub,')).length, fixture.narration.length - 1);
+});
+
 test('큐는 start 순으로 정렬된다', () => {
   const sb = structuredClone(fixture);
   sb.narration.reverse();

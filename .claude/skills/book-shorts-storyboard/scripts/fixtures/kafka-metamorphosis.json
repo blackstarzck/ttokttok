@@ -1,6 +1,10 @@
 {
   "version": 1,
-  "book": { "title": "변신", "author": "프란츠 카프카", "slug": "kafka-metamorphosis" },
+  "book": {
+    "title": "변신",
+    "author": "프란츠 카프카",
+    "slug": "kafka-metamorphosis"
+  },
   "duration_sec": 15,
   "concepts": [
     {
@@ -9,7 +13,10 @@
       "tone": "unsettling",
       "visual_style": "ink-line-art",
       "hook_line_ko": "아침에 눈을 떴는데, 몸이 내 것이 아니었다.",
-      "evidence": ["A-2", "B-1"],
+      "evidence": [
+        "A-2",
+        "B-1"
+      ],
       "primary_evidence": "A-2",
       "why_this_book_ko": "원작 첫 문장이 이미 구체적인 정보격차다 — 무엇으로 변했는지 3초간 보여주지 않으면 갭이 열린다. 각색 손실 없음."
     },
@@ -19,7 +26,10 @@
       "tone": "deadpan-humor",
       "visual_style": "flat-cartoon",
       "hook_line_ko": "출근 안 하면 큰일 나는 남자. 오늘은 벌레라서 못 갔다.",
-      "evidence": ["A-1", "B-3"],
+      "evidence": [
+        "A-1",
+        "B-3"
+      ],
       "primary_evidence": "A-1",
       "why_this_book_ko": "비극을 무표정 유머로 뒤집으면 고각성(놀람)이 생긴다. 애니메이션 완주율 우위(B-3)와 결합."
     },
@@ -29,7 +39,10 @@
       "tone": "awe",
       "visual_style": "cinematic-realism",
       "hook_line_ko": "백 년 넘게 읽히는 이유가 첫 문장 하나에 있다.",
-      "evidence": ["A-3", "C-1"],
+      "evidence": [
+        "A-3",
+        "C-1"
+      ],
       "primary_evidence": "A-3",
       "why_this_book_ko": "첫 문장을 실사 장면으로 재현해 서사 몰입(A-3)을 직접 일으킨다. 근거 하나가 C등급이라 표시한다."
     }
@@ -43,7 +56,12 @@
       "start": 0,
       "end": 3,
       "description": "a gaunt man lying in a narrow bed in a dim room, staring at the ceiling, one thin arm raised stiffly above him",
-      "camera": { "type": "push", "amplitude": "small", "speed": "slow", "target": "his wide-open eyes" },
+      "camera": {
+        "type": "push",
+        "amplitude": "small",
+        "speed": "slow",
+        "target": "his wide-open eyes"
+      },
       "sfx": "the muffled ticking of an alarm clock"
     },
     {
@@ -51,7 +69,11 @@
       "start": 3,
       "end": 10.5,
       "description": "a low angle from the floorboards: his silhouette now hunched and insect-like against the closed bedroom door, a plate of bread pushed under the door by an unseen hand",
-      "camera": { "type": "tilt_up", "amplitude": "small", "speed": "slow" },
+      "camera": {
+        "type": "tilt_up",
+        "amplitude": "small",
+        "speed": "slow"
+      },
       "sfx": "a key turning in a lock, then footsteps receding down a hallway"
     },
     {
@@ -59,17 +81,46 @@
       "start": 10.5,
       "end": 15,
       "description": "a wide view of a grey city street at morning rush hour, commuters streaming past a shuttered apartment window on the second floor",
-      "camera": { "type": "truck_right", "amplitude": "medium", "speed": "slow" },
+      "camera": {
+        "type": "truck_right",
+        "amplitude": "medium",
+        "speed": "slow"
+      },
       "sfx": "crowd murmur and a distant tram bell"
     }
   ],
   "narration": [
-    { "start": 0.4, "end": 2.8, "text_ko": "아침에 눈을 떴는데" },
-    { "start": 3.2, "end": 5.8, "text_ko": "몸이 벌레로 변해 있었다" },
-    { "start": 6.2, "end": 8.6, "text_ko": "가족은 그를 방에 가뒀고" },
-    { "start": 9.0, "end": 11.2, "text_ko": "세상은 아무 일 없다는 듯" },
-    { "start": 11.5, "end": 13.0, "text_ko": "출근을 재촉했다" },
-    { "start": 13.4, "end": 14.8, "text_ko": "카프카, 변신" }
+    {
+      "start": 0.4,
+      "end": 2.8,
+      "text_ko": "아침에 눈을 떴는데"
+    },
+    {
+      "start": 3.2,
+      "end": 5.8,
+      "text_ko": "몸이 벌레로 변해 있었다"
+    },
+    {
+      "start": 6.2,
+      "end": 8.6,
+      "text_ko": "가족은 그를 방에 가뒀고"
+    },
+    {
+      "start": 9,
+      "end": 11.2,
+      "text_ko": "세상은 아무렇지 않게"
+    },
+    {
+      "start": 11.5,
+      "end": 13,
+      "text_ko": "출근을 재촉했다"
+    },
+    {
+      "start": 13.4,
+      "end": 14.8,
+      "text_ko": "카프카, 변신",
+      "no_subtitle": true
+    }
   ],
   "overall_soundscape": "A quiet apartment interior with a faint clock tick and wooden floor creaks, giving way to a muffled city outside — traffic hum, a tram bell, indistinct crowd murmur. No music inside the scene.",
   "non_diegetic_music": "A single sustained cello note with slow, sparse pizzicato underneath, around 60 BPM, barely audible at first and swelling slightly in the final four seconds.",
@@ -112,8 +163,11 @@
       "shot_type": "wide shot",
       "action": "a grey city street at rush hour, commuters streaming past a shuttered second-floor window",
       "video_note_ko": "출근길 도심. 인파가 흐르고, 2층 창문 하나만 닫혀 있다",
-      "audio_note_ko": "NA) 세상은 아무 일 없다는 듯 출근을 재촉했다 / NA) 카프카, 변신 / S.E) 트램 종소리"
+      "audio_note_ko": "NA) 세상은 아무렇지 않게 출근을 재촉했다 / NA) 카프카, 변신 / S.E) 트램 종소리"
     }
   ],
-  "title_card": { "text_ko": "변신 · 프란츠 카프카", "at": 12.5 }
+  "title_card": {
+    "text_ko": "변신 · 프란츠 카프카",
+    "at": 12.5
+  }
 }
