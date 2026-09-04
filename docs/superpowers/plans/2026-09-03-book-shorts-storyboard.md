@@ -1942,7 +1942,7 @@ import { generatePanels } from './lib/codex-panels.mjs';
 import { captureSheetPng, sheetHeight } from './lib/sheet-png.mjs';
 
 const SKILL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BOM = '﻿';
+const BOM = String.fromCharCode(0xfeff); // UTF-8 BOM
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));
