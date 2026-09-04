@@ -41,15 +41,20 @@ export default async function EditBookPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold break-keep">{book.title}</h1>
+      {/*
+        saveBook은 생성·수정 모두 /admin/books?saved=1로 리다이렉트한다 —
+        이 화면(수정 상세)으로 돌아오는 흐름이 없으니 "저장했습니다"는
+        여기서 절대 뜨지 않는다. 여기 붙는 쿼리 키는 임포트발(위키문헌
+        가져오기)뿐이라 imported·exists만 다룬다. saved를 다시 넣고
+        싶다면 saveBook의 리다이렉트 대상부터 바꿔야 한다(별개 결정).
+      */}
       <AdminToast
         message={
           q(sp.imported)
             ? "본문을 받았습니다. 소개·권리 근거를 채워 주세요."
             : q(sp.exists)
               ? "이미 등록된 위키문헌 문서입니다 — 기존 도서를 엽니다."
-              : q(sp.saved)
-                ? "저장했습니다."
-                : undefined
+              : undefined
         }
       />
       <BookForm book={book as BookFormValues} />

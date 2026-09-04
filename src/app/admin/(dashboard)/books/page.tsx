@@ -34,8 +34,16 @@ export default async function AdminBooksPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start gap-4">
-        <div className="flex flex-1 flex-col gap-1">
+      {/*
+        버튼이 하나에서 둘로 늘면서 375px 폭에서 제목 열을 짓눌렀다 —
+        제목 블록은 flex-1뿐이라 min-width: auto로 내용만큼 버텨 섰고,
+        버튼은 shrink-0·whitespace-nowrap(button.tsx)이라 줄지도 줄바꿈도
+        안 됐다. sm 미만은 세로로 쌓고 min-w-0으로 제목 블록이 실제로
+        줄어들 수 있게 한다. 그리드 컬럼 전환에 이미 쓰는 sm 기준을 따른다
+        (books/import, book-form 등).
+      */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h1 className="text-xl font-bold">도서</h1>
           <p className="text-muted-foreground text-sm">
             EPUB이 있으면 전문 도서, 없으면 링크형 도서입니다.
