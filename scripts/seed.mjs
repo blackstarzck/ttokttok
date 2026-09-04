@@ -14,7 +14,10 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { fetchEpub } from "./lib/wikisource.mjs";
+// 수급 로직의 원천은 src/lib/wikisource.ts 하나다 — 어드민 임포트도 같은 모듈을
+// 쓴다. Node의 타입 스트리핑이 불러오는 쪽 확장자와 무관하게 동작하므로 .mjs가
+// .ts를 그대로 import한다. `@/` 별칭은 node가 모르니 상대경로여야 한다.
+import { fetchEpub } from "../src/lib/wikisource.ts";
 import { hasFfmpeg, makePlaceholderVideo } from "./lib/placeholder-video.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -389,6 +392,9 @@ async function run() {
         pub_date_paper: b.pubDate,
         epub_path: epubPaths.get(b.id),
         source: "wikisource",
+        // fetchEpub에 넘기는 값과 반드시 같아야 한다 — 다르면 부분 unique
+        // 인덱스가 중복 수급을 못 잡는다.
+        source_ref: b.wikisource ?? b.title,
         rights_note: b.rights,
       })),
     );
