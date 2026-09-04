@@ -1682,7 +1682,7 @@ select count(*) from public.books where source_ref = '빈처';
 
 기대: `0`.
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 8: 커밋**
 
 ```bash
 git add "src/app/admin/(dashboard)/books/page.tsx" "src/app/admin/(dashboard)/books/[bookId]/page.tsx" src/components/admin/admin-toast.tsx
@@ -1754,7 +1754,17 @@ awk '/^## 11\./,0' docs/prd-ttokttok.md | grep -oE "^\| [0-9]+ \|" | tail -1
 | 51 | 등록 금지 검사 위치 | 금지 저작자(§5.11) 검사는 **임포트 경로에만** 둔다. 위키문헌에 문서가 있다는 사실이 "공개해도 된다"로 오독되는 지점이 임포트이고, 위키문헌은 우리와 다른 기준으로 운영된다. 수동 등록은 막지 않는다 — 손으로 적어 넣는 행위에는 그 오독이 끼어들지 않는다. 이 비대칭은 의도한 것이고, 수동 경로는 검사 없이 남는다 |
 ```
 
-- [ ] **Step 5: 문서와 코드가 어긋나지 않는지 확인한다**
+- [ ] **Step 5: §5.11의 죽은 파일 참조를 고친다 (Task 3 리뷰 이관)**
+
+`docs/prd-ttokttok.md`의 §5.11에 `scripts/lib/wikisource.mjs`를 가리키는 문장이 남아 있다 — Task 3이 그 파일을 지웠다. 실제 문장을 찾아:
+
+```bash
+grep -n "scripts/lib/wikisource" docs/prd-ttokttok.md
+```
+
+해당 줄의 경로를 `src/lib/wikisource.ts`로 바꾼다. Step 2에서 추가하는 「위키문헌 EPUB의 정리와 라이선스 표시」 문단과 같은 파일을 가리키게 되므로, 두 서술이 서로 모순되지 않는지 함께 읽어 확인한다.
+
+- [ ] **Step 6: 문서와 코드가 어긋나지 않는지 확인한다**
 
 읽으면서 대조한다:
 - §5.10의 임포트 설명이 실제 폼의 3칸과 일치하는가
@@ -1768,7 +1778,7 @@ grep -rn "PAGE_OVERRIDES\|scripts/lib/wikisource" . --include="*.ts" --include="
 
 기대: `docs/superpowers/plans/`의 이 계획 문서 말고는 결과가 없다.
 
-- [ ] **Step 6: 최종 검증**
+- [ ] **Step 7: 최종 검증**
 
 ```bash
 npm test
@@ -1777,7 +1787,7 @@ npm run build
 
 기대: 테스트 전부 PASS(기존 4개 파일 + `wikisource.test.ts` 20개), 빌드 성공.
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 8: 커밋**
 
 ```bash
 git add docs/prd-ttokttok.md
