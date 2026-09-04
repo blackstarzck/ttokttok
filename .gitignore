@@ -47,3 +47,9 @@ next-env.d.ts
 # 브레인스토밍 목업 (superpowers 비주얼 컴패니언)
 .superpowers/
 .env*.local
+
+# 쇼츠 스토리보드 산출물 중 대용량·재생성 가능 파일 (docs/shorts/<slug>/)
+docs/shorts/*/panels/
+docs/shorts/*/*.png
+docs/shorts/*/*.mp4
+docs/shorts/*/panel-instruction.txt
