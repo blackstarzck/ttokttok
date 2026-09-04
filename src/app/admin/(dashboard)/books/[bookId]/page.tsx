@@ -56,6 +56,9 @@ export default async function EditBookPage({
               ? "이미 등록된 위키문헌 문서입니다 — 기존 도서를 엽니다."
               : undefined
         }
+        // exists는 임포트가 실제로 일어나지 않은 안내다 — 성공 토스트로
+        // 보이면 관리자가 방금 새로 들여온 걸로 오해한다.
+        variant={q(sp.exists) ? "info" : "success"}
       />
       <BookForm book={book as BookFormValues} />
     </div>
