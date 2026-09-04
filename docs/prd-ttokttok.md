@@ -287,7 +287,7 @@ EPUB이 아닌 원본은 변환 후 어드민 업로드 (변환 스크립트는 
 
 ws-export는 FreeSerif 4종(약 7.7MB)을 항상 임베드하고, 위키문헌 자신의 껍데기(로고가 박힌 표지 페이지, 기여자 목록 "About this digital edition", 본문 끝 「라이선스」 상자)를 함께 넣는다. 우리 판본의 첫 화면이 남의 로고일 수는 없고 폰트는 쓰이지도 않으므로(뷰어가 자체 CSS를 물린다) 받아온 뒤 걷어낸다 — `src/lib/wikisource.ts`.
 
-다만 `content.opf`의 `dc:rights`(Creative Commons BY-SA 3.0 / GNU FDL)와 `dc:contributor`는 **남긴다.** 원문 자체는 만료 저작물이고 이 표기는 위키문헌 기여자의 편집·주석에 붙는 것이다. 화면에 보이지 않는 출처 기록이므로, 지우는 것은 표시 정리가 아니라 권리 표시를 떼는 별개의 판단이 된다 (결정 기록 §11-49).
+다만 `content.opf`의 `dc:rights`와 `dc:contributor`는 **남긴다.** 파일에 들어 있는 문자열 그대로는 `Creative Commons BY-SA 3.0` · `GNU Free Documentation License` · `Wikisource`다. 원문 자체는 만료 저작물이고 이 표기는 위키문헌 기여자의 편집·주석에 붙는 것이다. 화면에 보이지 않는 출처 기록이므로, 지우는 것은 표시 정리가 아니라 권리 표시를 떼는 별개의 판단이 된다 (결정 기록 §11-49).
 
 정규식으로 XML을 다루는 처리라 위키문헌이 마크업을 바꾸면 조용히 헛돈다. 그래서 ① 업로드 직전 관문(`assertClean`)이 껍데기가 남았는지 확인하고 ② `src/lib/wikisource.test.ts`가 조립한 픽스처로 회귀를 잡는다.
 
