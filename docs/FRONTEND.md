@@ -9,7 +9,7 @@
 ```
 src/
 ├─ app/
-│  ├─ (main)/          # GNB(홈/탐색/프로필)가 붙는 화면
+│  ├─ (main)/          # GNB(홈/릴스/탐색/프로필)가 붙는 화면
 │  ├─ read/[bookId]/   # EPUB 뷰어 — GNB 없음, 풀스크린
 │  ├─ admin/           # 어드민 CMS — GNB 없음, admin role 전용
 │  └─ login/
