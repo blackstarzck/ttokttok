@@ -60,17 +60,27 @@ export function FeedScroller({
     if (error) loggedRef.current.delete(postId); // 다음 기회에 재시도
   }, []);
 
+  // 진행 중인 요청이 있는지 추적하는 가드. state(loadingMore)가 아니라
+  // ref인 이유: 이 값을 deps에 넣으면(예전처럼 loadingMore를 넣으면)
+  // setLoadingMore(true)가 곧바로 deps를 바꿔 effect를 cleanup→재실행시킨다.
+  // 재실행된 쪽은 "이미 로딩 중"이라 즉시 return하고, 원래 fetch가 나중에
+  // 끝나도 클로저 속 cancelled 플래그 때문에 결과가 버려지며 loadingMore는
+  // false로 되돌아갈 기회를 잃어 스피너가 영원히 남는다. ref는 값이 바뀌어도
+  // deps로 잡히지 않으므로 이 문제가 없다. loadingMore(state)는 스피너
+  // 렌더링 전용으로만 남긴다 — exhaustive-deps 경고를 지우려고 이 ref를
+  // 다시 state로, 혹은 loadingMore를 deps로 되돌리지 말 것.
+  const loadingRef = useRef(false);
+
   // ── 다음 페이지 프리페치 ──────────────────────────────────────
   useEffect(() => {
-    if (cursor === null || loadingMore) return;
+    if (cursor === null || loadingRef.current) return;
     if (active < postIds.length - PREFETCH_GAP) return;
 
-    let cancelled = false;
+    loadingRef.current = true;
     setLoadingMore(true);
 
     loadMoreFeed(seed, getSessionId(), cursor, type)
       .then((page) => {
-        if (cancelled) return;
         // 이미 붙어 있는 게시물은 거른다. 키가 겹치면 React가 렌더를
         // 뒤섞는다 — 커서가 정확해도 사이에 새 글이 발행되면 생길 수 있다.
         const fresh = page.postIds
@@ -84,13 +94,10 @@ export function FeedScroller({
       })
       .catch((err) => console.error("피드 추가 로드 실패:", err))
       .finally(() => {
-        if (!cancelled) setLoadingMore(false);
+        loadingRef.current = false;
+        setLoadingMore(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [active, cursor, loadingMore, postIds.length, seed, type]);
+  }, [active, cursor, postIds.length, seed, type]);
 
   // ── 활성 게시물 판정 + 조회 집계 ──────────────────────────────
   useEffect(() => {
