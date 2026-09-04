@@ -1,6 +1,16 @@
 # 도서 소개 15초 쇼츠 스토리보드 자동화 스킬 — 설계
 
-작성일 2026-09-03 · 상태: 승인됨 (구현 진행)
+작성일 2026-09-03 · 상태: 구현 완료
+
+> **2026-09-04 이관.** 스킬은 이 레포를 떠나 독립 저장소가 됐다:
+> https://github.com/blackstarzck/book-shorts-storyboard-skill
+>
+> `.claude/skills/book-shorts-storyboard/`는 더 이상 여기 없다. 쓰려면 클론해서 설치한다:
+> ```
+> git clone https://github.com/blackstarzck/book-shorts-storyboard-skill.git .claude/skills/book-shorts-storyboard
+> ```
+> 이 문서와 `plans/2026-09-03-book-shorts-storyboard.md`의 경로는 **제작 당시 기록**이라
+> 그대로 둔다. `docs/shorts/`의 산출물은 똑똑의 콘텐츠이므로 이 레포에 남는다.
 
 ## 목적
 
