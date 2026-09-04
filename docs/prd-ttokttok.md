@@ -291,9 +291,7 @@ ws-export는 FreeSerif 4종(약 7.7MB)을 항상 임베드하고, 위키문헌 �
 
 정규식으로 XML을 다루는 처리라 위키문헌이 마크업을 바꾸면 조용히 헛돈다. 그래서 ① 업로드 직전 관문(`assertClean`)이 껍데기가 남았는지 확인하고 ② `src/lib/wikisource.test.ts`가 조립한 픽스처로 회귀를 잡는다.
 
-**위키문헌 EPUB 후처리** — ws-export 산출물은 그대로 쓰지 않는다. `src/lib/wikisource.ts`가 두 가지를 걷어낸다: ① 항상 임베드되는 FreeSerif 4종(약 7.7MB — 우리는 epub.js에 자체 CSS를 물린다), ② 위키문헌 껍데기(로고 박힌 표지 페이지, 기여자 목록, 본문 끝 「라이선스」 상자). 우리 판본의 첫 화면이 남의 로고일 수는 없다. 다만 `content.opf`의 `dc:rights`·`dc:contributor`는 남긴다 — 화면에 안 보이는 출처 기록이고, 지우는 건 권리 표시를 떼는 별개의 판단이다.
-
-이 후처리가 바뀌면 **이미 올라간 파일은 옛 상태로 남는다** (`seed.mjs`는 스토리지에 파일이 있으면 재사용한다). `npm run epubs:refresh`가 `source='wikisource'`인 도서를 전부 다시 받아 교체한다 — 업로드 직전에 껍데기가 실제로 없는지 검사하고, 실패한 책은 건너뛰고 나머지를 계속한다.
+이 정리가 바뀌면 **이미 올라간 파일은 옛 상태로 남는다** (`seed.mjs`는 스토리지에 파일이 있으면 재사용한다). `npm run epubs:refresh`가 `source='wikisource'`인 도서를 전부 다시 받아 교체한다 — 위키문헌 문서 제목은 `books.source_ref`에서 읽고, 업로드 직전에 `assertClean`으로 껍데기가 실제로 없는지 검사하며, 실패한 책은 건너뛰고 나머지를 계속한다.
 
 **표지 — 자체 제작**
 
