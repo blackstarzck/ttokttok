@@ -72,7 +72,7 @@ function makeFixture(): Uint8Array {
       `<?xml version="1.0"?>
 <package version="3.0">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-<dc:identifier id="uid">https://ko.wikisource.org/wiki/%EC%9A%B4%EC%88%98_%EC%A2%8B%EC%9D%80_%EB%82%A0</dc:identifier>
+<dc:identifier id="uid">https://ko.wikisource.org/wiki/봄봄</dc:identifier>
 <dc:title id="meta-title">운수 좋은 날</dc:title>
 <dc:source>https://ko.wikisource.org/wiki/%EC%9A%B4%EC%88%98_%EC%A2%8B%EC%9D%80_%EB%82%A0</dc:source>
 <dc:rights xml:lang="en">Creative Commons BY-SA 3.0</dc:rights>
@@ -138,6 +138,18 @@ body { margin: 0; }
   return zipSync(files, { level: 6 });
 }
 
+/**
+ * `stripLicenseBlocks`가 보는 파일 하나만 담은 최소 EPUB.
+ * 라이선스 상자의 위치별 변형(섹션 유무 등)을 확인할 때 `makeFixture`의
+ * 15개 항목을 통째로 복제하지 않으려고 쓴다.
+ */
+function makeSingleFileEpub(path: string, content: string): Uint8Array {
+  return zipSync({
+    mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+    [path]: strToU8(content),
+  });
+}
+
 const read = (epub: Uint8Array) => {
   const entries = unzipSync(epub);
   return {
@@ -197,6 +209,53 @@ describe("stripEpub", () => {
     expect(body).toMatch(/새침하게 흐린 품이/);
   });
 
+  it("라이선스 상자가 섹션 없이 div만 붙어도, 이미 끝난 본문 섹션은 남긴다", () => {
+    // 상자를 감싸는 섹션이 없는 판본 — 상자 앞의 마지막 <section>은 이미
+    // 닫힌 뒤라, 그 섹션째 지우면 안 된다(Finding 1).
+    const epub = makeSingleFileEpub(
+      "OPS/c0_test.xhtml",
+      `<html><body>
+<section id="0"><p>새침하게 흐린 품이 눈이 올 듯하더니</p></section>
+<div class="licenseContainer">CC BY-SA 3.0</div>
+</body></html>`,
+    );
+    const body = read(stripEpub(epub)).text("OPS/c0_test.xhtml");
+    expect(body).toMatch(/새침하게 흐린 품이/);
+    expect(body).not.toMatch(/licenseContainer/);
+    expect(body).not.toMatch(/CC BY-SA/);
+  });
+
+  it("라이선스 상자가 본문과 같은 섹션에 있어도 본문 문단은 남긴다", () => {
+    // 상자가 진짜 본문과 한 섹션에 얹힌 판본 — 섹션째 지우면 문단까지
+    // 사라진다(Finding 1). 이때는 상자만 지워야 한다.
+    const epub = makeSingleFileEpub(
+      "OPS/c0_test.xhtml",
+      `<html><body>
+<section id="0"><p>본문 첫 문장이다.</p><div class="licenseContainer">CC BY-SA 3.0</div></section>
+</body></html>`,
+    );
+    const body = read(stripEpub(epub)).text("OPS/c0_test.xhtml");
+    expect(body).toMatch(/본문 첫 문장이다/);
+    expect(body).not.toMatch(/licenseContainer/);
+    expect(body).not.toMatch(/CC BY-SA/);
+  });
+
+  it("스타일시트는 손대지 않는다 — 주석 속 'license' 문구가 다음 규칙까지 삼키지 않게", () => {
+    // .css 브랜치는 더 이상 stripLicenseBlocks를 타지 않는다(Finding 2).
+    // 그 함수의 CSS 정리 정규식은 직전 '}'에만 걸려서, 주석에 낀 "license"
+    // 한 단어가 바로 다음 규칙(body)까지 통째로 삼켜 버린다.
+    const epub = makeSingleFileEpub(
+      "OPS/main.css",
+      `/* Wikisource export stylesheet, released under a free license (CC BY-SA 3.0) */
+body { margin: 0; font-family: serif; }
+p { text-indent: 1em; }
+.licenseContainer { border: 1px solid; }`,
+    );
+    const css = read(stripEpub(epub)).text("OPS/main.css");
+    expect(css).toMatch(/body \{ margin: 0; font-family: serif; \}/);
+    expect(css).toMatch(/p \{ text-indent: 1em; \}/);
+  });
+
   it("dc:rights와 dc:contributor 메타데이터는 남긴다", () => {
     const opf = read(stripEpub(makeFixture())).text("OPS/content.opf");
     expect(opf).toMatch(/Creative Commons BY-SA 3\.0/);
@@ -214,11 +273,43 @@ describe("stripEpub", () => {
 });
 
 describe("readEpubMetadata", () => {
-  it("dc:title과 dc:source에서 제목·문서 제목을 읽는다", () => {
+  // 픽스처의 dc:identifier(봄봄)와 dc:source(운수 좋은 날)를 일부러 다르게
+  // 둔다 — 둘이 같으면 이 테스트는 어느 태그를 읽었는지 구분하지 못한다.
+  it("dc:identifier가 아니라 dc:source를 우선해서 읽는다", () => {
     expect(readEpubMetadata(stripEpub(makeFixture()))).toEqual({
       title: "운수 좋은 날",
       pageTitle: "운수 좋은 날",
     });
+  });
+
+  it("dc:source가 빈 태그면 dc:identifier로 대체한다", () => {
+    // `??`였다면 .trim()이 준 ""를 nullish로 안 봐서 대체가 안 걸렸다.
+    const epub = makeSingleFileEpub(
+      "OPS/content.opf",
+      `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier>https://ko.wikisource.org/wiki/봄봄</dc:identifier>
+<dc:title>봄봄</dc:title>
+<dc:source></dc:source>
+</metadata>
+</package>`,
+    );
+    expect(readEpubMetadata(epub)).toEqual({ title: "봄봄", pageTitle: "봄봄" });
+  });
+
+  it("dc:source가 아예 없으면 dc:identifier로 대체한다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/content.opf",
+      `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier>https://ko.wikisource.org/wiki/봄봄</dc:identifier>
+<dc:title>봄봄</dc:title>
+</metadata>
+</package>`,
+    );
+    expect(readEpubMetadata(epub)).toEqual({ title: "봄봄", pageTitle: "봄봄" });
   });
 });
 
@@ -229,7 +320,19 @@ describe("assertClean", () => {
 
   it("정리하지 않은 EPUB은 무엇이 남았는지 알려주며 실패한다", () => {
     expect(() => assertClean(makeFixture())).toThrow(/title\.xhtml/);
+    expect(() => assertClean(makeFixture())).toThrow(/about\.xhtml/);
     expect(() => assertClean(makeFixture())).toThrow(/라이선스 상자/);
     expect(() => assertClean(makeFixture())).toThrow(/임베드 폰트/);
+    expect(() => assertClean(makeFixture())).toThrow(/위키백과 로고/);
+  });
+
+  it("챕터 파일은 있지만 본문이 태그뿐이면 실패한다", () => {
+    // path 존재 여부만 보면, 섹션을 통째로 잘못 지워 챕터가 빈 채로
+    // 올라가도(Finding 1류 버그) 이 관문을 조용히 통과한다.
+    const epub = makeSingleFileEpub(
+      "OPS/c0_empty.xhtml",
+      "<html><body><p></p></body></html>",
+    );
+    expect(() => assertClean(epub)).toThrow(/본문 챕터가 비어 있음/);
   });
 });

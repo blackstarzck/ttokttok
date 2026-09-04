@@ -148,11 +148,12 @@ const CHROME_IMAGES = [
 const LICENSE_OPEN = /<(section|div)\b[^>]*class="[^"]*licenseContainer[^"]*"[^>]*>/i;
 
 /**
- * `<tag …>`로 시작하는 지점부터 짝이 맞는 닫는 태그까지의 구간을 지운다.
- * 라이선스 상자는 div가 여러 겹 중첩돼 있어 단순 비탐욕 정규식으로는
- * 중간에서 끊긴다 — 깊이를 세야 통째로 걷어낼 수 있다.
+ * `<tag …>`로 시작하는 지점부터 짝이 맞는 닫는 태그 바로 뒤 인덱스를
+ * 돌려준다. 라이선스 상자는 div가 여러 겹 중첩돼 있어 단순 비탐욕
+ * 정규식으로는 중간에서 끊긴다 — 깊이를 세야 짝을 제대로 찾는다.
+ * 짝이 없으면 null.
  */
-function removeBlockAt(html: string, tag: string, startIndex: number): string {
+function findBlockEnd(html: string, tag: string, startIndex: number): number | null {
   const open = new RegExp(`<${tag}\\b`, "gi");
   const close = new RegExp(`</${tag}\\s*>`, "gi");
   let depth = 0;
@@ -163,7 +164,7 @@ function removeBlockAt(html: string, tag: string, startIndex: number): string {
     close.lastIndex = i;
     const nextOpen = open.exec(html);
     const nextClose = close.exec(html);
-    if (!nextClose) return html; // 짝이 없다 — 건드리지 않는다
+    if (!nextClose) return null; // 짝이 없다
 
     if (nextOpen && nextOpen.index < nextClose.index) {
       depth++;
@@ -171,14 +172,56 @@ function removeBlockAt(html: string, tag: string, startIndex: number): string {
       continue;
     }
     depth--;
-    if (depth === 0) {
-      return (
-        html.slice(0, startIndex) + html.slice(nextClose.index + nextClose[0].length)
-      );
-    }
+    if (depth === 0) return nextClose.index + nextClose[0].length;
     i = nextClose.index + 1;
   }
-  return html;
+  return null;
+}
+
+/** `<tag …>`로 시작하는 지점부터 짝이 맞는 닫는 태그까지의 구간을 지운다. */
+function removeBlockAt(html: string, tag: string, startIndex: number): string {
+  const end = findBlockEnd(html, tag, startIndex);
+  if (end === null) return html; // 짝이 없다 — 건드리지 않는다
+  return html.slice(0, startIndex) + html.slice(end);
+}
+
+/** 라이선스 상자 앞에 이 정도(제목 하나, 또는 아무 것도 없음)만 있으면 그 섹션은 라이선스 전용으로 본다. */
+const SECTION_PREFACE_ONLY_HEADING = /^\s*(<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>\s*)?$/i;
+
+/**
+ * 라이선스 상자를 지울 때 섹션째 지울지, 상자만 지울지 고른다.
+ *
+ * "상자 앞에 가장 가까운 <section>"을 무조건 섹션째 지우면 두 가지가
+ * 잘못된다.
+ *   ① 그 섹션이 이미 닫힌 뒤에 상자가 나오는 판본(섹션 없이 div만 붙는
+ *      경우) — 상자와 무관한, 이미 끝난 본문 섹션이 통째로 날아간다.
+ *   ② 상자가 본문과 같은 섹션에 들어 있는 판본 — 섹션째 지우면 본문까지
+ *      함께 사라진다.
+ * 그래서 후보 섹션이 상자를 실제로 감싸는지(닫는 태그가 상자 시작보다
+ * 뒤인지)부터 확인하고, 감싸더라도 상자 앞에 「라이선스」류 제목 말고 다른
+ * 내용이 있으면 상자만 지운다 — ws-export가 만드는 진짜 라이선스 섹션은
+ * 제목 하나만 앞에 두기 때문이다.
+ */
+function findLicenseTarget(
+  html: string,
+  hit: RegExpExecArray,
+): { tag: string; start: number } {
+  const sectionOpen = /<section\b[^>]*>/gi;
+  let candidate: RegExpExecArray | null = null;
+  for (let m; (m = sectionOpen.exec(html)) !== null && m.index < hit.index; ) {
+    candidate = m;
+  }
+
+  if (candidate) {
+    const sectionEnd = findBlockEnd(html, "section", candidate.index);
+    const encloses = sectionEnd !== null && sectionEnd > hit.index;
+    const preface = html.slice(candidate.index + candidate[0].length, hit.index);
+    if (encloses && SECTION_PREFACE_ONLY_HEADING.test(preface)) {
+      return { tag: "section", start: candidate.index };
+    }
+  }
+
+  return { tag: hit[1], start: hit.index };
 }
 
 /**
@@ -186,7 +229,9 @@ function removeBlockAt(html: string, tag: string, startIndex: number): string {
  *
  * ws-export는 상자를 `<section data-mw-section-id="…">`으로 감싸고 그 안에
  * 「라이선스」 제목까지 넣는다. 상자만 지우면 제목이 남으므로, 상자를 품은
- * 섹션을 통째로 지운다. 섹션 없이 div만 붙는 판본도 있어 그 경우도 처리한다.
+ * 섹션을 통째로 지운다. 다만 섹션 없이 div만 붙는 판본도 있고, 상자가 본문과
+ * 같은 섹션에 얹히는 판본도 있다 — 두 경우 다 섹션째 지우면 본문이 함께
+ * 날아가므로, 어느 쪽인지는 `findLicenseTarget`이 가른다.
  *
  * `<head>`의 CSS에도 `.licenseContainer{…}` 규칙이 들어 있는데, 이건 본문이
  * 아니라 스타일이라 마지막에 따로 지운다 — 먼저 문자열을 찾으면 CSS가
@@ -199,18 +244,7 @@ function stripLicenseBlocks(html: string): string {
     const hit = LICENSE_OPEN.exec(out);
     if (!hit) break;
 
-    // 상자를 품은 섹션이 있으면 섹션째, 없으면 상자만 지운다.
-    const sectionOpen = /<section\b[^>]*>/gi;
-    let sectionStart = -1;
-    for (let m; (m = sectionOpen.exec(out)) !== null && m.index < hit.index; ) {
-      sectionStart = m.index;
-    }
-
-    const target =
-      sectionStart !== -1
-        ? { tag: "section", start: sectionStart }
-        : { tag: hit[1], start: hit.index };
-
+    const target = findLicenseTarget(out, hit);
     const next = removeBlockAt(out, target.tag, target.start);
     if (next === out) break; // 못 지웠다 — 무한루프 방지
     out = next;
@@ -273,14 +307,14 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
         );
       }
       out[path] = strToU8(opf);
-    } else if (/nav\.xhtml$/i.test(path)) {
+    } else if (/(^|\/)nav\.xhtml$/i.test(path)) {
       // 목차에서 표지·정보 항목을 뺀다 (뷰어 목차 시트에 그대로 노출된다).
       const nav = strFromU8(data).replace(
         /<li\b[^>]*>\s*<a\b[^>]*href="([^"]*)"[^>]*>[\s\S]*?<\/a>\s*<\/li>\s*/gi,
         (li, href: string) => (droppedHref(href) ? "" : li),
       );
       out[path] = strToU8(nav);
-    } else if (/toc\.ncx$/i.test(path)) {
+    } else if (/(^|\/)toc\.ncx$/i.test(path)) {
       const ncx = strFromU8(data).replace(
         /<navPoint\b[\s\S]*?<\/navPoint>\s*/gi,
         (point) => {
@@ -292,8 +326,13 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
     } else if (/\.xhtml$/i.test(path)) {
       out[path] = strToU8(stripLicenseBlocks(strFromU8(data)));
     } else if (/\.css$/i.test(path)) {
+      // stripLicenseBlocks는 여기 쓰지 않는다 — 그 함수의 CSS 정리 정규식은
+      // 직전 `}`에만 걸려 있어서, "released under a free license" 같은 주석
+      // 한 줄 때문에 그 다음 규칙(body 등)까지 통째로 삼킬 수 있다. 죽은
+      // `.licenseContainer{…}` 규칙 하나 남는 건 감수하고, 본문(.xhtml)에
+      // 인라인된 <style>에만 적용한다.
       const css = strFromU8(data).replace(/@font-face\s*\{[^}]*\}\s*/gi, "");
-      out[path] = strToU8(stripLicenseBlocks(css));
+      out[path] = strToU8(css);
     }
   }
 
@@ -328,8 +367,11 @@ export function readEpubMetadata(epub: Uint8Array): {
 
   const opf = strFromU8(entries[opfPath]);
   const title = /<dc:title\b[^>]*>([\s\S]*?)<\/dc:title>/i.exec(opf)?.[1]?.trim();
+  // `??`가 아니라 falsy 체크를 쓴다 — `<dc:source></dc:source>`처럼 빈
+  // 태그가 실려 오면 .trim()이 ""를 주는데, ??는 ""를 nullish로 안 봐서
+  // 대체가 안 걸린다. 빈 문자열도 "값이 없다"로 취급해야 한다.
   const source =
-    /<dc:source\b[^>]*>([\s\S]*?)<\/dc:source>/i.exec(opf)?.[1]?.trim() ??
+    /<dc:source\b[^>]*>([\s\S]*?)<\/dc:source>/i.exec(opf)?.[1]?.trim() ||
     /<dc:identifier\b[^>]*>([\s\S]*?)<\/dc:identifier>/i.exec(opf)?.[1]?.trim();
 
   let pageTitle: string | null = null;
@@ -372,8 +414,19 @@ export function assertClean(epub: Uint8Array): number {
   if (paths.some((p) => /(^|\/)fonts\//i.test(p))) problems.push("임베드 폰트");
   if (/licenseContainer/i.test(body)) problems.push("라이선스 상자");
 
-  const chapters = paths.filter((p) => /\/c\d+_.*\.xhtml$/i.test(p)).length;
-  if (chapters === 0) problems.push("본문 챕터 없음");
+  const chapterPaths = paths.filter((p) => /\/c\d+_.*\.xhtml$/i.test(p));
+  if (chapterPaths.length === 0) {
+    problems.push("본문 챕터 없음");
+  } else if (
+    // 챕터 파일은 있지만 태그만 남고 글자가 하나도 없는 경우 — 섹션을
+    // 통째로 잘못 지웠을 때(Finding 1류 버그) 나는 증상이라, 경로 존재
+    // 여부만 보는 지금까지의 검사로는 못 잡는다.
+    chapterPaths.some(
+      (p) => strFromU8(entries[p]).replace(/<[^>]*>/g, "").trim().length === 0,
+    )
+  ) {
+    problems.push("본문 챕터가 비어 있음");
+  }
 
   if (problems.length > 0) {
     throw new Error(
@@ -381,5 +434,5 @@ export function assertClean(epub: Uint8Array): number {
         `위키문헌의 문서 구조가 바뀌었을 수 있습니다 (src/lib/wikisource.ts).`,
     );
   }
-  return chapters;
+  return chapterPaths.length;
 }
