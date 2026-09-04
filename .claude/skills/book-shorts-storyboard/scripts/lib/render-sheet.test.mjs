@@ -43,7 +43,12 @@ test('푸터에 선택 컨셉 근거가 등급과 함께', () => {
   assert.ok(html.includes('Loewenstein'));
 });
 
-test('sheetHeight / findBrowser', () => {
-  assert.equal(sheetHeight(5), 200 + 5 * 380 + 120);
+test('sheetHeight: 행 402(패널 356 + 패딩 44 + 경계 2) · 헤더 140 · 푸터 220', () => {
+  // 실측(2026-09-04): 380/행 + 푸터 120으로는 5패널 시트 푸터의 두 번째 근거 줄이 잘렸다
+  assert.equal(sheetHeight(5), 140 + 5 * 402 + 220);
+  assert.equal(sheetHeight(4), 140 + 4 * 402 + 220);
+});
+
+test('findBrowser', () => {
   assert.equal(findBrowser(['Z:/nope.exe']), null);
 });

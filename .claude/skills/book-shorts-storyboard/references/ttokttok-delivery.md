@@ -56,7 +56,9 @@ ffmpeg 없으면 `winget install Gyan.FFmpeg`.
 
 ## 콘티 시트 캡처
 
-`msedge --headless=new --screenshot=… --window-size=1600,<h>`. 높이 = 200 + 패널×380 + 120.
+`msedge --headless=new --screenshot=… --window-size=1600,<h>`. 높이 = 헤더 140 + 패널×402
+(200px 폭 9:16 패널 356 + 패딩 44 + 경계 2) + 푸터 220(근거 4줄까지). 실측(2026-09-04)에서
+380/행·푸터 120은 두 번째 근거 줄을 잘랐다. 남는 아래는 `.sheet { min-height: 100vh }`로 흰색.
 Edge(`C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`) 없으면 Chrome, 둘 다
 없으면 HTML만 남기고 경고.
 

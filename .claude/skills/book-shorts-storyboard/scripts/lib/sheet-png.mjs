@@ -14,9 +14,14 @@ export function findBrowser(candidates = BROWSER_CANDIDATES) {
   return candidates.find((p) => existsSync(p)) ?? null;
 }
 
-/** 시트 높이 = 헤더 200 + 패널 행 380씩 + 푸터 120 */
+/**
+ * 시트 높이 = 헤더 140 + 패널 행 402씩 + 푸터 220.
+ * 행 402 = 200px 폭 9:16 패널 356 + 상하 패딩 44 + 경계 2. 푸터 220은 근거 4줄까지.
+ * 실측(2026-09-04): 380/행·푸터 120은 5패널 시트의 두 번째 근거 줄을 잘랐다.
+ * 남는 아래 여백은 템플릿의 .sheet { min-height: 100vh }가 흰색으로 채운다.
+ */
 export function sheetHeight(panelCount) {
-  return 200 + panelCount * 380 + 120;
+  return 140 + panelCount * 402 + 220;
 }
 
 export function captureSheetPng(htmlPath, pngPath, height, { browser = findBrowser(), runner = spawnSync } = {}) {
