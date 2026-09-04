@@ -27,6 +27,22 @@ import {
  */
 
 /**
+ * 저작자 이름을 조회 키로 정규화한다.
+ *
+ * macOS Finder·클립보드 경로는 한글을 NFD(자모 분해)로 내놓기도 하고, 폭
+ * 없는 문자(zero-width space 등)가 붙어 들어오기도 한다 — 둘 다 이 조회를
+ * 조용히 실패시켜 금지 저작자를 그냥 통과시킨다. 이건 우회를 막는 관문이
+ * 아니라 실수로 새는 걸 막는 관문이라, 놓치는 쪽이 진짜 실패다.
+ *
+ * 아래 목록의 키를 만들 때도, 관리자 입력을 조회할 때도 **반드시 이 함수
+ * 하나만** 거친다 — 각자 따로 정규화하면 훗날 공백이 낀 이름("김 기림")이
+ * 한쪽에서만 걸러져 서로 어긋나고, 차단해야 할 저작자가 조용히 통과한다.
+ */
+function normalizeAuthorKey(name: string): string {
+  return name.normalize("NFC").replace(/[\s\u200B\u200C\u200D\u00AD]/g, "");
+}
+
+/**
  * 등록 금지 저작자 (PRD §5.11).
  *
  * 위키문헌에 문서가 있다는 사실이 "공개해도 된다"로 오독되는 지점이
@@ -35,10 +51,9 @@ import {
  * 넣는 행위에는 이런 오독이 끼어들지 않는다.
  *
  * `Map`으로 두는 이유: 객체 리터럴이면 `BLOCKED_AUTHORS["constructor"]` 같은
- * 프로토타입 키 조회가 함수를 반환해 "차단됨"으로 오판된다. 키는 `normalize
- * ("NFC")`를 한 번 더 거쳐 저장한다 — 이 파일의 한글 리터럴이 NFC라 해도,
- * 조회 쪽(아래)이 항상 NFC로 정규화한 값을 넣으므로 저장 쪽도 같은 형태여야
- * `.get()`이 맞아떨어진다.
+ * 프로토타입 키 조회가 함수를 반환해 "차단됨"으로 오판된다. 키는
+ * `normalizeAuthorKey`(위)로 저장한다 — 조회 쪽(아래)도 같은 함수를 거치므로
+ * 두 쪽이 어긋날 일이 구조적으로 없다.
  */
 const BLOCKED_AUTHORS = new Map<string, string>(
   (
@@ -51,7 +66,7 @@ const BLOCKED_AUTHORS = new Map<string, string>(
       ["백석", "1996년 사망 — 저작권이 존속합니다 (사후 70년)"],
       ["박경리", "2008년 사망 — 저작권이 존속합니다 (사후 70년)"],
     ] as const
-  ).map(([name, reason]) => [name.normalize("NFC"), reason] as const),
+  ).map(([name, reason]) => [normalizeAuthorKey(name), reason] as const),
 );
 
 const str = (fd: FormData, key: string) =>
@@ -81,13 +96,8 @@ export async function importFromWikisource(formData: FormData) {
     back("문서 주소·저자·카테고리는 모두 필요합니다.");
   }
 
-  // macOS Finder·클립보드 경로는 한글을 NFD(자모 분해)로 내놓기도 하고,
-  // 폭 없는 문자(zero-width space 등)가 붙어 들어오기도 한다 — 둘 다 이
-  // 조회를 조용히 실패시켜 금지 저작자를 그냥 통과시킨다. 이건 우회를 막는
-  // 관문이 아니라 실수로 새는 걸 막는 관문이라, 놓치는 쪽이 진짜 실패다.
-  const authorKey = author
-    .normalize("NFC")
-    .replace(/[\s\u200B\u200C\u200D\u00AD]/g, "");
+  // 목록 쪽 키와 같은 함수로 정규화해야 어긋나지 않는다 (normalizeAuthorKey 참고).
+  const authorKey = normalizeAuthorKey(author);
   const blocked = BLOCKED_AUTHORS.get(authorKey);
   if (blocked) {
     back(
@@ -176,24 +186,31 @@ export async function importFromWikisource(formData: FormData) {
       // 화면으로 보낸다. 조회 자체가 안 되면(row가 사라졌거나 등) 배너로
       // 물러난다.
       const insertedRef = meta.pageTitle ?? pageTitle;
-      const { data: dup } = await db
+      const { data: dup, error: dupErr } = await db
         .from("books")
         .select("id")
         .eq("source_ref", insertedRef)
         .maybeSingle();
+
+      if (dupErr) {
+        // 이 조회가 실패해도 배너로 물러나는 결과는 같다 — 사용자에게 새
+        // 분기를 보여줄 필요는 없지만, "왜 리다이렉트 대신 배너가 떴는지"는
+        // 로그로 남겨야 나중에 답할 수 있다.
+        console.error(`중복 도서 재조회 실패 (source_ref=${insertedRef}): ${dupErr.message}`);
+      }
 
       if (dup) {
         redirect(`/admin/books/${dup.id}?exists=1`);
       }
 
       back("이미 등록된 위키문헌 문서입니다.");
+    } else {
+      // 그 밖의 실패(제약 조건 등)는 PostgREST 원문을 그대로 보여줘 봐야
+      // 관리자가 고칠 수 있는 정보가 아니다 — saveBook의 humanize()와 같은
+      // 이유로 로그에만 원문을 남기고 화면에는 일반 문구를 띄운다.
+      console.error(`도서 저장 실패 (bookId=${bookId}): ${insertErr.message}`);
+      back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
-
-    // 그 밖의 실패(제약 조건 등)는 PostgREST 원문을 그대로 보여줘 봐야
-    // 관리자가 고칠 수 있는 정보가 아니다 — saveBook의 humanize()와 같은
-    // 이유로 로그에만 원문을 남기고 화면에는 일반 문구를 띄운다.
-    console.error(`도서 저장 실패 (bookId=${bookId}): ${insertErr.message}`);
-    back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
   }
 
   revalidatePath("/admin/books");
