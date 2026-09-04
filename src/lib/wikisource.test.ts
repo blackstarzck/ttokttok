@@ -167,6 +167,26 @@ function makeChapterXhtml(bodyInner: string): string {
 </head><body>${bodyInner}</body></html>`;
 }
 
+/**
+ * 실물 「운수 좋은 날」 챕터 문서의 `<head>`를 그대로 재현한다 — `<style>`
+ * 블록이 **두 개**다. 하나는 `.mw-parser-output .licenseContainer{…}`
+ * 규칙으로 시작해 무관한 규칙이 뒤따르고, 다른 하나는 처음부터 무관한
+ * 규칙만 담는다(실측한 그대로의 모양). `makeChapterXhtml`은 `<style>`이
+ * 하나뿐이고 licenseContainer도 없어서, 정리 정규식이 여는 태그와 CDATA
+ * 시작 마커까지 삼키는 이 결함을 재현하지 못한다 — 그래서 이 결함
+ * 전용으로 따로 둔다.
+ */
+function makeChapterXhtmlWithLicenseCss(bodyInner: string): string {
+  return `<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ko" dir="ltr"><head><meta charset="UTF-8"/>
+<link type="text/css" rel="stylesheet" href="main.css"/><title>운수 좋은 날</title>
+<style typeof="mw:Extension/templatestyles" about="#mwt7"><![CDATA[.mw-parser-output .licenseContainer{box-sizing:border-box;margin-top:1em;padding:.5em 1em;}
+.mw-parser-output .wst-pd-icon{width:1.5em;height:1.5em;}
+]]></style>
+<style typeof="mw:Extension/templatestyles" about="#mwt8"><![CDATA[.mw-parser-output .wst-header-mainblock{margin:4px auto 4px auto;padding:0 3px;display:flex;}
+]]></style>
+</head><body>${bodyInner}</body></html>`;
+}
+
 const read = (epub: Uint8Array) => {
   const entries = unzipSync(epub);
   return {
@@ -335,6 +355,69 @@ describe("stripLicenseBlocks — 실물 마크업의 전제부 판정", () => {
     );
     expect(body).not.toMatch(/licenseContainer/);
     expect(body).not.toMatch(/CC BY-SA/);
+  });
+});
+
+/**
+ * stripLicenseBlocks — CSS 정리가 `<style>` 태그·CDATA 마커를 먹는 결함
+ * (실물 「운수 좋은 날」 EPUB에서 발견).
+ *
+ * 예전 정규식(`[^{}]*license[^{}]*\{[^}]*\}`)을 챕터 전체가 아니라
+ * `<style>…</style>` 매치 문자열에만 걸었어도, 그 매치 문자열 자체가 여는
+ * 태그·CDATA 시작 마커를 포함하고 있어서 `[^{}]*`가 그 마커까지 "중괄호
+ * 아닌 글자"로 삼켰다. 실측: 한 챕터에서 `<style>` 2개·`</style>` 2개·
+ * `<![CDATA[` 2개·`]]>` 2개였던 입력이, 정리 뒤 `<style>` 1개·`<![CDATA[`
+ * 1개로 줄고 `</style>`·`]]>`는 그대로 2개씩 남아 `]]></style>` 하나가
+ * 짝 없는 고아가 됐다. EPUB 챕터는 XML로 파싱되므로 엄격한 리더는 이걸
+ * 못 열고, 관대한 리더는 `]]>`를 화면에 그대로 찍는다.
+ */
+describe("stripLicenseBlocks — style 태그·CDATA 마커를 먹지 않는다", () => {
+  it("stripEpub 뒤에도 style 태그·CDATA 마커 개수가 그대로 짝이 맞고, style 밖에 고아 ]]>가 없다", () => {
+    const chapter = makeChapterXhtmlWithLicenseCss(
+      "<p>새침하게 흐린 품이 눈이 올 듯하더니</p>",
+    );
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", chapter);
+    const out = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
+
+    const count = (re: RegExp, s: string) => (s.match(re) ?? []).length;
+    expect(count(/<style\b/gi, out)).toBe(2);
+    expect(count(/<\/style>/gi, out)).toBe(2);
+    expect(count(/<!\[CDATA\[/g, out)).toBe(2);
+    expect(count(/\]\]>/g, out)).toBe(2);
+
+    // <style>…</style> 블록을 전부 도려낸 나머지에 `]]>`가 하나라도 남으면
+    // 그건 style 밖으로 새어 나온 고아 CDATA 종료 마커라는 뜻이다.
+    const outsideStyle = out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+    expect(outsideStyle).not.toMatch(/\]\]>/);
+  });
+
+  it("licenseContainer 규칙만 지우고, 같은 블록·다른 블록의 무관한 규칙은 그대로 남긴다", () => {
+    const chapter = makeChapterXhtmlWithLicenseCss("<p>본문</p>");
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", chapter);
+    const out = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
+
+    expect(out).not.toMatch(/licenseContainer/);
+    // 라이선스 규칙과 같은 블록에 있던 무관한 규칙 — 글자 그대로 남아야 한다.
+    expect(out).toMatch(
+      /\.mw-parser-output \.wst-pd-icon\{width:1\.5em;height:1\.5em;\}/,
+    );
+    // 두 번째 <style> 블록(라이선스 규칙이 아예 없던 블록)도 그대로.
+    expect(out).toMatch(
+      /\.mw-parser-output \.wst-header-mainblock\{margin:4px auto 4px auto;padding:0 3px;display:flex;\}/,
+    );
+    // <style> 여는 태그와 CDATA 시작 마커도 살아 있어야 한다.
+    expect(out).toMatch(/<style typeof="mw:Extension\/templatestyles" about="#mwt7">/);
+    expect(out).toMatch(/<!\[CDATA\[/);
+  });
+});
+
+describe("assertClean — style 태그 짝 검사", () => {
+  it("<style> 닫는 태그가 여는 태그보다 하나 더 많은 챕터는 실패한다", () => {
+    // stripLicenseBlocks를 거치지 않고, 결함이 실제로 남기는 산출물의
+    // 모양(여는 태그 없이 닫는 태그만 하나 더 남은 상태)을 직접 조립한다.
+    const broken = makeChapterXhtml("<p>본문</p>") + "</style>";
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", broken);
+    expect(() => assertClean(epub)).toThrow(/style 태그 개수가 안 맞음/);
   });
 });
 

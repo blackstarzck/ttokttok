@@ -270,6 +270,48 @@ function findLicenseTarget(
 }
 
 /**
+ * `<style>` 원소를 여는 태그·CDATA 시작 마커·본문(CSS 텍스트)·CDATA 끝
+ * 마커·닫는 태그, 다섯 조각으로 따로 붙잡는다.
+ *
+ * 예전에는 `<style\b[^>]*>[\s\S]*?<\/style>`로 통째로 하나의 매치를 얻은
+ * 뒤, 그 매치 문자열 *전체*(태그·CDATA 마커 포함)에 대고 "license가 낀
+ * 규칙"을 정규식으로 다시 찾았다. 그러면 여는 태그와 CDATA 시작 마커까지도
+ * "중괄호 아닌 글자"로 보여서 그 두 번째 정규식의 탐색 범위 안에 들어간다
+ * — 실물 「운수 좋은 날」 EPUB에서 정확히 이 일이 벌어졌다:
+ * `<style typeof="…"><![CDATA[.mw-parser-output .licenseContainer{…}`에서
+ * "license"를 찾은 두 번째 정규식이 그 앞의 여는 태그·CDATA 시작 마커까지
+ * 통째로 삼켜서, 결과물엔 `]]></style>`만 짝 없이 남았다(EPUB은 XML로
+ * 파싱되므로 이건 파싱 실패거나, 관대한 리더에서는 `]]>`가 화면에 그대로
+ * 찍히는 사고다). 그래서 본문(CSS 텍스트)만 따로 뽑아 거기에만 정리
+ * 정규식을 적용하고, 태그·마커는 조립할 때 손대지 않고 그대로 되돌려
+ * 붙인다 — 정리 정규식이 아무리 욕심을 부려도 이 델리미터들 바깥으로는
+ * 나갈 수 없다.
+ */
+const STYLE_ELEMENT =
+  /(<style\b[^>]*>)(<!\[CDATA\[)?([\s\S]*?)(\]\]>)?(<\/style>)/gi;
+
+/**
+ * CSS 본문 안에서 "선택자 토큰에 license가 들어간 규칙" 하나를 지운다.
+ *
+ * 두 가지를 예전 정규식(`[^{}]*license[^{}]*\{[^}]*\}`)에서 좁혔다.
+ *
+ * ① 문자 집합에서 `<`, `>`, `[`, `!`을 뺐다. `STYLE_ELEMENT`가 이미 본문만
+ *    넘겨주므로 지금은 이 안에 태그·CDATA 마커가 나타날 일이 없지만,
+ *    혹시라도 넘어온다면 이 문자들이 "중괄호 아닌 글자"로 다시 매치돼
+ *    델리미터를 거슬러 넘을 수 있다 — 그 경로를 원천적으로 막아 둔다.
+ * ② "license라는 글자가 어디 있든" 매치하던 방식 대신, `.`나 `#`로 시작하는
+ *    선택자 토큰 *안에* license가 있어야만 매치하게 했다. 실제로 지우려는
+ *    건 `.licenseContainer{…}` 같은 규칙이지, 그 위에 우연히 "released
+ *    under a free license" 같은 문구가 낀 주석이 아니다. 이 조건은 이
+ *    패턴이 예전에 이웃 `body{…}` 규칙까지 삼켰던 사고(리뷰에서 지적된
+ *    과침습, `.css` 브랜치가 지금 이 함수를 아예 안 타는 이유이기도 하다)의
+ *    재발도 함께 막는다 — 다음에 이 선택자 조건을 다시 넓히고 싶어지면
+ *    그 사고부터 떠올릴 것.
+ */
+const LICENSE_CSS_RULE =
+  /[^{}<>\[\]!]*[.#][\w-]*license[\w-]*[^{}<>\[\]!]*\{[^}]*\}\s*/gi;
+
+/**
  * 본문에서 「라이선스」 상자를 걷어낸다.
  *
  * ws-export는 상자를 `<section data-mw-section-id="…">`으로 감싸고 그 안에
@@ -296,13 +338,20 @@ function stripLicenseBlocks(html: string): string {
   }
 
   // 남은 CSS 규칙(선택자에 license가 들어간 것)도 함께 정리한다. 단
-  // `<style>…</style>` 내용 안에서만 돈다 — 파일 전체에 걸면 중괄호 없는
-  // 산문 구간에서 `[^{}]*`가 시작 지점마다 문서 끝까지 재스캔해 글자 수의
-  // 제곱에 비례해 느려지고(.css 브랜치에서 이미 한 번 과침습으로 문제가
-  // 됐던 것과 같은 이유), 어차피 스타일 밖에서는 "license"라는 글자가 있어도
-  // CSS 규칙이 아니므로 지울 대상이 아니다.
-  return out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, (block) =>
-    block.replace(/[^{}]*license[^{}]*\{[^}]*\}/gi, ""),
+  // `<style>…</style>`의 본문(CSS 텍스트)에만 적용하고 여는/닫는 태그와
+  // CDATA 마커는 그대로 둔다 — 왜 다섯 조각으로 나눠 잡는지는
+  // `STYLE_ELEMENT` 주석 참고.
+  return out.replace(
+    STYLE_ELEMENT,
+    (
+      _match: string,
+      openTag: string,
+      cdataOpen: string | undefined,
+      content: string,
+      cdataClose: string | undefined,
+      closeTag: string,
+    ) =>
+      `${openTag}${cdataOpen ?? ""}${content.replace(LICENSE_CSS_RULE, "")}${cdataClose ?? ""}${closeTag}`,
   );
 }
 
@@ -597,6 +646,47 @@ function hasOrphanLicenseHeading(body: string): boolean {
 }
 
 /**
+ * 챕터 XHTML마다 `<style>`/`</style>`, `<![CDATA[`/`]]>` 개수가 서로
+ * 맞는지 본다.
+ *
+ * stripLicenseBlocks의 CSS 정리 정규식이 델리미터를 넘어 태그나 CDATA
+ * 마커까지 삼키면(실물 「운수 좋은 날」 EPUB에서 겪은 사고) 결과는 "지워야
+ * 할 라이선스 상자가 남는" 실패가 아니라 "짝이 어긋난 `<style>`·CDATA
+ * 마커가 낀 챕터"다. `licenseContainer` 문자열 검사는 상자가 이미 지워진
+ * 뒤라 이 사고를 못 본다. EPUB 챕터는 XML로 파싱되므로 짝이 안 맞으면
+ * 엄격한 리더는 파일을 못 열고, 관대한 리더는 `]]>`를 화면에 그대로
+ * 찍는다 — 어느 쪽도 조용히 넘어가면 안 되는 결함이라 챕터마다 개수를
+ * 센다(챕터 전체를 이어 붙여 한 번에 세면, 한 챕터가 여는 태그를 하나
+ * 빠뜨리고 다른 챕터가 닫는 태그를 하나 더 갖는 식으로 우연히 합이 맞아
+ * 떨어져 이 검사를 조용히 통과할 수 있다).
+ */
+function assertStyleBalance(
+  chapterPaths: string[],
+  entries: Record<string, Uint8Array>,
+  problems: string[],
+): void {
+  for (const path of chapterPaths) {
+    const text = strFromU8(entries[path]);
+
+    const openStyle = (text.match(/<style\b/gi) ?? []).length;
+    const closeStyle = (text.match(/<\/style>/gi) ?? []).length;
+    if (openStyle !== closeStyle) {
+      problems.push(
+        `style 태그 개수가 안 맞음: ${path} (여는 ${openStyle}개, 닫는 ${closeStyle}개)`,
+      );
+    }
+
+    const openCdata = (text.match(/<!\[CDATA\[/g) ?? []).length;
+    const closeCdata = (text.match(/\]\]>/g) ?? []).length;
+    if (openCdata !== closeCdata) {
+      problems.push(
+        `CDATA 마커 개수가 안 맞음: ${path} (여는 ${openCdata}개, 닫는 ${closeCdata}개)`,
+      );
+    }
+  }
+}
+
+/**
  * 업로드 직전 관문 — 수급 파이프라인이 제 일을 했는지 확인한다.
  *
  * 껍데기가 남은 파일이 조용히 올라가면 뷰어를 열어 보기 전까지 아무도
@@ -643,6 +733,7 @@ export function assertClean(epub: Uint8Array): number {
     problems.push("본문 챕터가 전부 비어 있음");
   }
 
+  assertStyleBalance(chapterPaths, entries, problems);
   assertPackageIntegrity(paths, entries, chapterPaths, problems);
 
   if (problems.length > 0) {
