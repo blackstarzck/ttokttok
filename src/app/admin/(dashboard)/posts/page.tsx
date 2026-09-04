@@ -32,8 +32,16 @@ export default async function AdminPostsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start gap-4">
-        <div className="flex flex-1 flex-col gap-1">
+      {/*
+        375px 폭에서 버튼 둘이 제목 열을 짓누른다 — 제목 블록은 flex-1뿐이라
+        min-width: auto로 내용만큼 버텨 서고, 버튼은 shrink-0·whitespace-nowrap
+        (button.tsx)이라 줄지도 줄바꿈도 하지 않는다. 어드민 본문 폭은 375px에서
+        패딩을 빼면 343px쯤이고 버튼군만 250px 남짓이라 제목에 90px가 남는다.
+        sm 미만은 세로로 쌓고, min-w-0으로 제목 블록이 실제로 줄어들 수 있게 한다.
+        sm 기준은 이 저장소가 그리드 컬럼 전환에 이미 쓰는 값을 따른다.
+      */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h1 className="text-xl font-bold">게시물</h1>
           <p className="text-muted-foreground text-sm">
             카드를 조합해 피드에 내보냅니다.
