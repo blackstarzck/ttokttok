@@ -328,6 +328,24 @@ describe("readEpubMetadata", () => {
     );
     expect(readEpubMetadata(epub)).toEqual({ title: "봄봄", pageTitle: "봄봄" });
   });
+
+  it("dc:identifier가 urn 같은 위키문헌 주소가 아니면 pageTitle을 null로 둔다(Finding 8)", () => {
+    // urn:uuid는 http(s)로 시작하지 않아 toPageTitle에 그대로 넘기면
+    // "URL이 아니니 제목"으로 받아 urn 문자열 자체가 source_ref가 될 뻔
+    // 했다 — 재수급도, 중복 방지도 안 되는 죽은 값. null이어야 호출자가
+    // 관리자 입력값으로 대체한다.
+    const epub = makeSingleFileEpub(
+      "OPS/content.opf",
+      `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier>urn:uuid:8f2c-4a11-b9d0</dc:identifier>
+<dc:title>봄봄</dc:title>
+</metadata>
+</package>`,
+    );
+    expect(readEpubMetadata(epub)).toEqual({ title: "봄봄", pageTitle: null });
+  });
 });
 
 describe("assertClean", () => {
@@ -373,5 +391,103 @@ describe("assertClean", () => {
     };
     const epub = zipSync(files);
     expect(assertClean(epub)).toBe(3);
+  });
+});
+
+/**
+ * assertClean — 패키지 무결성(Finding 3).
+ *
+ * 지금까지의 검사는 전부 "뭔가 없어졌는가"만 봤다. 여기 세 픽스처는 "파일은
+ * 있는데 manifest/spine이 더는 그 파일을 가리키지 않는" 세 가지 실제
+ * 모양을 직접 조립한다 — stripEpub을 거치지 않고 assertClean에 바로
+ * 먹인다. 이유는 픽스처 1(디렉터리 항목)이 정확히 그 대상이기 때문이다:
+ * stripEpub의 가드가 고쳐지면 그 버그는 더는 재현되지 않으므로, "고장 난
+ * 산출물이 실수로 다시 나타나면 잡아야 한다"는 이 검사 자체를 시험하려면
+ * 그 고장 난 산출물의 모양을 직접 만들어야 한다.
+ *
+ * 세 픽스처 다 고치기 전 코드(이 describe 블록을 추가하기 전의
+ * assertClean — package-integrity 검사가 없는 버전)에서는 통과했다는 걸
+ * `git stash`로 wikisource.ts만 원본으로 되돌리고 확인했다 — 아래 최종
+ * 리포트에 그 증거를 남긴다.
+ */
+describe("assertClean — 패키지 무결성", () => {
+  it("디렉터리 항목이 manifest·spine·목차를 통째로 비워도 잡는다(Finding 2)", () => {
+    // Finding 2가 실제로 만드는 산출물의 모양 — zip에 "OPS/fonts/" 같은
+    // 디렉터리 항목이 섞이면 droppedHref가 모든 href에 걸려 manifest·spine·
+    // nav·toc가 전부 빈 채로 남는다. 챕터 파일 자체는 본문 글자를 갖고
+    // 살아남으므로, "파일 존재"·"본문 공백" 검사는 전부 통과한다.
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest></manifest>
+<spine></spine>
+</package>`,
+      ),
+      "OPS/nav.xhtml": strToU8(`<html><body><nav><ol></ol></nav></body></html>`),
+      "OPS/toc.ncx": strToU8(`<ncx><navMap></navMap></ncx>`),
+      "OPS/c0_test.xhtml": strToU8(
+        makeChapterXhtml("<p>새침하게 흐린 품이 눈이 올 듯하더니</p>"),
+      ),
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).toThrow(/manifest 항목이 없음/);
+  });
+
+  it("챕터 파일명이 걷어낼 파일과 접미사가 겹쳐 manifest·spine에서만 빠져도 잡는다", () => {
+    // "OPS/c2_subtitle.xhtml"의 basename은 "title.xhtml"로 끝난다 —
+    // droppedHref가 이걸 표지 파일로 오인해 manifest 항목과 spine
+    // itemref만 지운다(파일 자체는 안 지워진다). 결과: 파일은 있는데 아무
+    // 진입점도 그 파일을 가리키지 않는, 뷰어가 닿을 수 없는 챕터.
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest>
+<item id="c1" href="c1_ch1.xhtml" media-type="application/xhtml+xml" />
+</manifest>
+<spine>
+<itemref idref="c1" />
+</spine>
+</package>`,
+      ),
+      "OPS/c1_ch1.xhtml": strToU8(makeChapterXhtml("<p>첫 번째 챕터.</p>")),
+      // 이 챕터를 가리키는 manifest 항목·spine itemref가 없다 — 접미사
+      // 충돌로 걷어내는 쪽 규칙에 걸려 지워진 것처럼.
+      "OPS/c2_subtitle.xhtml": strToU8(makeChapterXhtml("<p>두 번째 챕터.</p>")),
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).toThrow(/manifest 항목이 없음/);
+  });
+
+  it("non-self-closing <item>이 지운 파일을 계속 가리켜도 잡는다", () => {
+    // stripEpub의 item 제거 정규식은 self-closing(`<item … />`)만 잡는다.
+    // `<item id="f1" href="fonts/…"></item>`처럼 닫는 태그가 따로 있으면
+    // 그 항목은 살아남는데, href가 가리키던 파일(fonts/…)은 이미 지워지고
+    // 없다 — manifest이 없는 파일을 가리키는 상태.
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest>
+<item id="c1" href="c1_ch1.xhtml" media-type="application/xhtml+xml" />
+<item id="f1" href="fonts/FreeSerif.ttf" media-type="application/font-sfnt"></item>
+</manifest>
+<spine>
+<itemref idref="c1" />
+</spine>
+</package>`,
+      ),
+      "OPS/c1_ch1.xhtml": strToU8(makeChapterXhtml("<p>첫 번째 챕터.</p>")),
+      // fonts/FreeSerif.ttf 파일 자체는 이미 없다 — item만 살아남았다.
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).toThrow(/존재하지 않는 파일을 가리킴/);
   });
 });

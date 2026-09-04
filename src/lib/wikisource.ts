@@ -250,8 +250,15 @@ function stripLicenseBlocks(html: string): string {
     out = next;
   }
 
-  // 남은 CSS 규칙(선택자에 license가 들어간 것)도 함께 정리한다.
-  return out.replace(/[^{}]*license[^{}]*\{[^}]*\}/gi, "");
+  // 남은 CSS 규칙(선택자에 license가 들어간 것)도 함께 정리한다. 단
+  // `<style>…</style>` 내용 안에서만 돈다 — 파일 전체에 걸면 중괄호 없는
+  // 산문 구간에서 `[^{}]*`가 시작 지점마다 문서 끝까지 재스캔해 글자 수의
+  // 제곱에 비례해 느려지고(.css 브랜치에서 이미 한 번 과침습으로 문제가
+  // 됐던 것과 같은 이유), 어차피 스타일 밖에서는 "license"라는 글자가 있어도
+  // CSS 규칙이 아니므로 지울 대상이 아니다.
+  return out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, (block) =>
+    block.replace(/[^{}]*license[^{}]*\{[^}]*\}/gi, ""),
+  );
 }
 
 /**
@@ -277,14 +284,26 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
       /(^|\/)images\//i.test(path) && CHROME_IMAGES.some((re) => re.test(path));
 
     if (isFont || isChromeFile || isChromeImage) {
-      dropped.push(path.replace(/^.*\//, ""));
+      // 디렉터리 항목(zip에 "OPS/fonts/"처럼 슬래시로 끝나는 이름이 들어올
+      // 수 있다)은 여기서 basename이 ""가 된다. 그걸 그대로 dropped에
+      // 넣으면 droppedHref가 `href.endsWith("")`를 매번 true로 돌려줘서
+      // *모든* href가 "지운 파일"로 오판되고, manifest·spine·양쪽 목차가
+      // 통째로 비어 버린다 — 파일은 살아 있는데 참조만 전부 끊긴, 조용히
+      // 망가진 EPUB이 된다. 그러니 이런 항목은 dropped에 아예 넣지 않는다.
+      const basename = path.replace(/^.*\//, "");
+      if (basename) dropped.push(basename);
       continue;
     }
     out[path] = data;
   }
 
   const droppedHref = (href: string) =>
-    dropped.some((name) => href.endsWith(name) || href.endsWith(encodeURI(name)));
+    // 빈 이름은 dropped에 안 들어오지만, 방어적으로 한 번 더 막는다 — 위
+    // 필터가 무너지더라도 "" 하나 때문에 모든 href가 걸리는 사고는 여기서
+    // 끊는다.
+    dropped.some(
+      (name) => name !== "" && (href.endsWith(name) || href.endsWith(encodeURI(name))),
+    );
 
   for (const [path, data] of Object.entries(out)) {
     if (/\.opf$/i.test(path)) {
@@ -370,17 +389,31 @@ export function readEpubMetadata(epub: Uint8Array): {
   // `??`가 아니라 falsy 체크를 쓴다 — `<dc:source></dc:source>`처럼 빈
   // 태그가 실려 오면 .trim()이 ""를 주는데, ??는 ""를 nullish로 안 봐서
   // 대체가 안 걸린다. 빈 문자열도 "값이 없다"로 취급해야 한다.
-  const source =
-    /<dc:source\b[^>]*>([\s\S]*?)<\/dc:source>/i.exec(opf)?.[1]?.trim() ||
+  const dcSource =
+    /<dc:source\b[^>]*>([\s\S]*?)<\/dc:source>/i.exec(opf)?.[1]?.trim();
+  const dcIdentifier =
     /<dc:identifier\b[^>]*>([\s\S]*?)<\/dc:identifier>/i.exec(opf)?.[1]?.trim();
 
   let pageTitle: string | null = null;
-  if (source) {
+  if (dcSource) {
     try {
-      pageTitle = toPageTitle(source);
+      pageTitle = toPageTitle(dcSource);
     } catch {
       // dc:source가 위키문헌 주소가 아니면 무시한다 — 호출자가 관리자
       // 입력값으로 대체한다.
+      pageTitle = null;
+    }
+  } else if (dcIdentifier) {
+    // dc:identifier는 dc:source와 달리 URN 같은 임의 식별자일 수 있다
+    // (실측: `urn:uuid:8f2c-4a11-b9d0`). 그런 값은 `http(s)://`로 시작하지
+    // 않으니 toPageTitle이 "URL이 아니면 그대로 제목"으로 받아 버려서
+    // urn 문자열 자체가 source_ref가 될 뻔했다 — ws-export가 다시 찾을 수도
+    // 없고 내보낼 때마다 값이 달라 중복도 못 잡는 죽은 값이다. 그래서
+    // dc:identifier 쪽은 실제 http(s) 위키문헌 주소로 파싱될 때만 받고,
+    // 아니면 null로 둬 호출자가 관리자 입력값으로 대체하게 한다.
+    try {
+      pageTitle = /^https?:\/\//i.test(dcIdentifier) ? toPageTitle(dcIdentifier) : null;
+    } catch {
       pageTitle = null;
     }
   }
@@ -407,6 +440,98 @@ function chapterBodyText(xhtml: string): string {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]*>/g, "")
     .trim();
+}
+
+/**
+ * href가 가리키는 파일 이름이 path의 끝과 일치하는지 본다.
+ *
+ * `droppedHref`(stripEpub)와 같은 접미사 비교 방식을 그대로 쓴다 — href는
+ * OPF 자신의 디렉터리를 기준으로 한 상대 경로라 실제 zip 경로("OPS/…")보다
+ * 짧고, 퍼센트 인코딩 여부도 파일마다 다를 수 있어 완전한 경로 조립보다
+ * 끝부분 비교 + `encodeURI` 양쪽 다 보는 쪽이 더 안전하다. 여기서 새 규약을
+ * 만들지 않고 그 판단을 그대로 재사용한다.
+ */
+function hrefMatchesPath(path: string, href: string): boolean {
+  return path.endsWith(href) || path.endsWith(encodeURI(href));
+}
+
+/**
+ * OPF manifest의 `<item>` 여는 태그에서 id·href를 뽑는다.
+ *
+ * self-closing(`<item … />`)이든 아니든 속성은 여는 태그 하나에 다 있으므로
+ * `<item …>`까지만 매치하면 충분하다 — 닫는 태그 유무를 신경 쓸 필요가
+ * 없다. (Finding 2에서 본, self-closing만 잡는 제거 정규식과 달리 이 읽기
+ * 전용 파서는 두 형태를 똑같이 본다.)
+ */
+function parseManifestItems(opf: string): { id: string; href: string }[] {
+  const items: { id: string; href: string }[] = [];
+  const openTag = /<item\b[^>]*>/gi;
+  for (let m; (m = openTag.exec(opf)) !== null; ) {
+    const id = /\bid="([^"]*)"/i.exec(m[0])?.[1];
+    const href = /\bhref="([^"]*)"/i.exec(m[0])?.[1];
+    if (id && href) items.push({ id, href });
+  }
+  return items;
+}
+
+/** OPF spine의 `<itemref idref="…">`가 가리키는 id 집합. */
+function parseSpineIdrefs(opf: string): Set<string> {
+  const idrefs = new Set<string>();
+  const openTag = /<itemref\b[^>]*>/gi;
+  for (let m; (m = openTag.exec(opf)) !== null; ) {
+    const idref = /\bidref="([^"]*)"/i.exec(m[0])?.[1];
+    if (idref) idrefs.add(idref);
+  }
+  return idrefs;
+}
+
+/**
+ * 패키지 무결성 — manifest·spine·실제 파일 세 군데가 서로 앞뒤가 맞는지
+ * 본다.
+ *
+ * 지금까지의 검사는 전부 "뭔가 없어졌는가"만 봤다. "남은 게 서로 가리키고
+ * 있는가"는 아무도 안 봤다 — 그래서 zip에 디렉터리 항목 하나만 섞여도
+ * manifest·spine·양쪽 목차가 통째로 비는데 이 함수는 그걸 몰랐다(Finding
+ * 2). 같은 구멍이 두 가지를 더 조용히 통과시킨다.
+ *   ① 챕터 파일 이름이 우연히 걷어낼 파일의 접미사와 겹치면(예:
+ *      "c2_subtitle.xhtml"이 "title.xhtml"로 끝남) `droppedHref`가 잘못
+ *      걸려 그 챕터의 manifest 항목·spine 항목·목차 항목만 지워진다. 파일은
+ *      그대로 남지만 뷰어는 목차로도 spine으로도 그 챕터에 닿을 수 없다.
+ *   ② non-self-closing `<item>…</item>`은 stripEpub의 제거 정규식(self-
+ *      closing 전용)을 피해 간다. 가리키던 파일(예: 폰트)이 지워졌어도
+ *      item·itemref는 살아남아 없는 파일을 가리킨다.
+ * 두 경우 다 "파일 존재 여부"만 보는 검사로는 못 잡고, manifest·spine을
+ * 실제 파일과 맞대봐야 잡힌다.
+ */
+function assertPackageIntegrity(
+  paths: string[],
+  entries: Record<string, Uint8Array>,
+  chapterPaths: string[],
+  problems: string[],
+): void {
+  const opfPath = paths.find((p) => /\.opf$/i.test(p));
+  if (!opfPath) return; // opf가 없으면 이 검사는 못 한다 — 다른 검사가 이미 문제를 잡는다.
+
+  const opf = strFromU8(entries[opfPath]);
+  const items = parseManifestItems(opf);
+  const spineIdrefs = parseSpineIdrefs(opf);
+
+  for (const chapterPath of chapterPaths) {
+    const item = items.find((it) => hrefMatchesPath(chapterPath, it.href));
+    if (!item) {
+      problems.push(`챕터 파일은 남았지만 manifest 항목이 없음: ${chapterPath}`);
+      continue;
+    }
+    if (!spineIdrefs.has(item.id)) {
+      problems.push(`챕터의 spine 항목(itemref) 없음: ${chapterPath}`);
+    }
+  }
+
+  for (const item of items) {
+    if (!paths.some((p) => hrefMatchesPath(p, item.href))) {
+      problems.push(`manifest이 존재하지 않는 파일을 가리킴: ${item.href}`);
+    }
+  }
 }
 
 /**
@@ -454,6 +579,8 @@ export function assertClean(epub: Uint8Array): number {
   ) {
     problems.push("본문 챕터가 전부 비어 있음");
   }
+
+  assertPackageIntegrity(paths, entries, chapterPaths, problems);
 
   if (problems.length > 0) {
     throw new Error(
