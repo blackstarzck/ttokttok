@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSessionId } from "@/lib/session-id";
 import { loadMoreFeed } from "@/app/(main)/feed-actions";
-import type { FeedCursor } from "@/lib/feed";
+import type { FeedCursor, PostType } from "@/lib/feed";
 
 /** 활성 게시물 기준 앞뒤로 마운트할 개수 (FRONTEND.md §6 가상화). */
 const WINDOW = 2;
@@ -21,11 +21,15 @@ export function FeedScroller({
   postIds: initialIds,
   seed,
   initialCursor,
+  type = null,
   children,
 }: {
   postIds: string[];
   seed: string;
   initialCursor: FeedCursor | null;
+  /** 이 스크롤러가 보여주는 게시물 유형. 다음 페이지도 같은 유형이어야
+   * 하므로 요청마다 함께 보낸다. 널이면 전 유형(현재 홈). */
+  type?: PostType | null;
   children: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +68,7 @@ export function FeedScroller({
     let cancelled = false;
     setLoadingMore(true);
 
-    loadMoreFeed(seed, getSessionId(), cursor)
+    loadMoreFeed(seed, getSessionId(), cursor, type)
       .then((page) => {
         if (cancelled) return;
         // 이미 붙어 있는 게시물은 거른다. 키가 겹치면 React가 렌더를
@@ -86,7 +90,7 @@ export function FeedScroller({
     return () => {
       cancelled = true;
     };
-  }, [active, cursor, loadingMore, postIds.length, seed]);
+  }, [active, cursor, loadingMore, postIds.length, seed, type]);
 
   // ── 활성 게시물 판정 + 조회 집계 ──────────────────────────────
   useEffect(() => {

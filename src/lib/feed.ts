@@ -115,6 +115,9 @@ function spreadByBook(posts: FeedPost[]): FeedPost[] {
   return out;
 }
 
+/** 게시물 유형. posts.type의 체크 제약과 같은 값이다. */
+export type PostType = "cards" | "video";
+
 /**
  * 홈 피드 한 페이지 (PRD §5.1).
  *
@@ -127,18 +130,20 @@ export async function getFeed(
   sessionId: string | null,
   limit = 10,
   cursor: FeedCursor | null = null,
+  // 널이면 전 유형을 섞는다 — 개편이 끝나기 전까지 홈이 기존 동작을
+  // 유지해야 하기 때문이다 (IA 개편 결정 12).
+  type: PostType | null = null,
 ): Promise<FeedPage> {
   const db = await createClient();
 
   // 1) 순서와 커서를 정한다.
-  // p_type: null — 유형 필터 없이 전체를 섞는다 (지금까지의 홈 동작 그대로).
   const { data: ranked, error: rankError } = await db.rpc("get_feed_v4", {
     p_seed: seed,
     p_session_id: sessionId,
     p_limit: limit,
     p_cursor: cursor?.token ?? null,
     p_cursor_id: cursor?.id ?? null,
-    p_type: null,
+    p_type: type,
   });
 
   if (rankError) {
