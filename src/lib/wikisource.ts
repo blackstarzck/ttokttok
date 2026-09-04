@@ -270,48 +270,6 @@ function findLicenseTarget(
 }
 
 /**
- * `<style>` 원소를 여는 태그·CDATA 시작 마커·본문(CSS 텍스트)·CDATA 끝
- * 마커·닫는 태그, 다섯 조각으로 따로 붙잡는다.
- *
- * 예전에는 `<style\b[^>]*>[\s\S]*?<\/style>`로 통째로 하나의 매치를 얻은
- * 뒤, 그 매치 문자열 *전체*(태그·CDATA 마커 포함)에 대고 "license가 낀
- * 규칙"을 정규식으로 다시 찾았다. 그러면 여는 태그와 CDATA 시작 마커까지도
- * "중괄호 아닌 글자"로 보여서 그 두 번째 정규식의 탐색 범위 안에 들어간다
- * — 실물 「운수 좋은 날」 EPUB에서 정확히 이 일이 벌어졌다:
- * `<style typeof="…"><![CDATA[.mw-parser-output .licenseContainer{…}`에서
- * "license"를 찾은 두 번째 정규식이 그 앞의 여는 태그·CDATA 시작 마커까지
- * 통째로 삼켜서, 결과물엔 `]]></style>`만 짝 없이 남았다(EPUB은 XML로
- * 파싱되므로 이건 파싱 실패거나, 관대한 리더에서는 `]]>`가 화면에 그대로
- * 찍히는 사고다). 그래서 본문(CSS 텍스트)만 따로 뽑아 거기에만 정리
- * 정규식을 적용하고, 태그·마커는 조립할 때 손대지 않고 그대로 되돌려
- * 붙인다 — 정리 정규식이 아무리 욕심을 부려도 이 델리미터들 바깥으로는
- * 나갈 수 없다.
- */
-const STYLE_ELEMENT =
-  /(<style\b[^>]*>)(<!\[CDATA\[)?([\s\S]*?)(\]\]>)?(<\/style>)/gi;
-
-/**
- * CSS 본문 안에서 "선택자 토큰에 license가 들어간 규칙" 하나를 지운다.
- *
- * 두 가지를 예전 정규식(`[^{}]*license[^{}]*\{[^}]*\}`)에서 좁혔다.
- *
- * ① 문자 집합에서 `<`, `>`, `[`, `!`을 뺐다. `STYLE_ELEMENT`가 이미 본문만
- *    넘겨주므로 지금은 이 안에 태그·CDATA 마커가 나타날 일이 없지만,
- *    혹시라도 넘어온다면 이 문자들이 "중괄호 아닌 글자"로 다시 매치돼
- *    델리미터를 거슬러 넘을 수 있다 — 그 경로를 원천적으로 막아 둔다.
- * ② "license라는 글자가 어디 있든" 매치하던 방식 대신, `.`나 `#`로 시작하는
- *    선택자 토큰 *안에* license가 있어야만 매치하게 했다. 실제로 지우려는
- *    건 `.licenseContainer{…}` 같은 규칙이지, 그 위에 우연히 "released
- *    under a free license" 같은 문구가 낀 주석이 아니다. 이 조건은 이
- *    패턴이 예전에 이웃 `body{…}` 규칙까지 삼켰던 사고(리뷰에서 지적된
- *    과침습, `.css` 브랜치가 지금 이 함수를 아예 안 타는 이유이기도 하다)의
- *    재발도 함께 막는다 — 다음에 이 선택자 조건을 다시 넓히고 싶어지면
- *    그 사고부터 떠올릴 것.
- */
-const LICENSE_CSS_RULE =
-  /[^{}<>\[\]!]*[.#][\w-]*license[\w-]*[^{}<>\[\]!]*\{[^}]*\}\s*/gi;
-
-/**
  * 본문에서 「라이선스」 상자를 걷어낸다.
  *
  * ws-export는 상자를 `<section data-mw-section-id="…">`으로 감싸고 그 안에
@@ -320,9 +278,27 @@ const LICENSE_CSS_RULE =
  * 같은 섹션에 얹히는 판본도 있다 — 두 경우 다 섹션째 지우면 본문이 함께
  * 날아가므로, 어느 쪽인지는 `findLicenseTarget`이 가른다.
  *
- * `<head>`의 CSS에도 `.licenseContainer{…}` 규칙이 들어 있는데, 이건 본문이
- * 아니라 스타일이라 마지막에 따로 지운다 — 먼저 문자열을 찾으면 CSS가
- * 걸려서 정작 본문 상자를 못 찾는다.
+ * `<head>`의 인라인 `<style>` CDATA에도 `.licenseContainer{…}` 선택자가 든
+ * CSS 규칙이 남아 있을 수 있는데, 이건 **일부러 그대로 둔다** — 예전에는
+ * 여기서 그 규칙도 정규식으로 지우려 했지만 두 번 연달아 과침습으로
+ * 사고를 냈다. 한 번은 이웃 `body{…}` 규칙까지 삼켰고(리뷰에서 발견,
+ * `.css` 브랜치가 애초에 이 함수를 안 타는 이유), 그다음엔 선택자
+ * 문자 집합에서 `<`·`>`를 뺀 좁힌 버전이 오히려 `<style>` 여는 태그와
+ * `<![CDATA[` 시작 마커까지 통째로 삼켜 `]]></style>`만 짝 없이 남기는
+ * 결함을 냈다(실물 「운수 좋은 날」 EPUB에서 발견 — XML로 파싱하는 EPUB
+ * 리더 입장에선 파일이 깨진 것과 같다). 그 좁힌 버전을 실물 파일에 다시
+ * 돌려 보니, `>` 자식 결합자가 들어간 실제 선택자
+ * (`.licenseContainer>div:first-of-type{…}` 같은 모양, 실측 15개)를
+ * `<`·`>`를 뺀 문자 집합으로는 아예 못 잡는다는 것도 드러났다 — 마크업
+ * 밖으로 안 새게 좁히면 진짜 선택자를 놓치고, 선택자를 잡게 넓히면
+ * 마크업을 삼킨다. 이 정규식으로는 둘 다 만족시킬 수 없다.
+ *
+ * 그래서 CSS 규칙 제거는 접는다. 아무 요소도 `licenseContainer` 클래스를
+ * 달고 있지 않은 채로 남는 죽은 규칙은 화면에 아무것도 그리지 않는다 —
+ * 파일 4.17MB가 16KB로 줄어드는 마당에 그 안의 수백 바이트짜리 죽은
+ * 규칙은 감수할 가치조차 없다. 앞으로 이 CSS 제거를 되살리고 싶어지면 이
+ * 주석부터 읽을 것 — 셀렉터를 안전하게 표현하는 정규식은 이 방식으로는
+ * 못 만든다는 게 두 번의 사고로 이미 증명됐다.
  */
 function stripLicenseBlocks(html: string): string {
   let out = html;
@@ -337,22 +313,7 @@ function stripLicenseBlocks(html: string): string {
     out = next;
   }
 
-  // 남은 CSS 규칙(선택자에 license가 들어간 것)도 함께 정리한다. 단
-  // `<style>…</style>`의 본문(CSS 텍스트)에만 적용하고 여는/닫는 태그와
-  // CDATA 마커는 그대로 둔다 — 왜 다섯 조각으로 나눠 잡는지는
-  // `STYLE_ELEMENT` 주석 참고.
-  return out.replace(
-    STYLE_ELEMENT,
-    (
-      _match: string,
-      openTag: string,
-      cdataOpen: string | undefined,
-      content: string,
-      cdataClose: string | undefined,
-      closeTag: string,
-    ) =>
-      `${openTag}${cdataOpen ?? ""}${content.replace(LICENSE_CSS_RULE, "")}${cdataClose ?? ""}${closeTag}`,
-  );
+  return out;
 }
 
 /**
@@ -710,7 +671,16 @@ export function assertClean(epub: Uint8Array): number {
   if (paths.some((p) => /Wikisource-logo/i.test(p))) problems.push("위키문헌 로고");
   if (paths.some((p) => /Wikipedia_logo/i.test(p))) problems.push("위키백과 로고");
   if (paths.some((p) => /(^|\/)fonts\//i.test(p))) problems.push("임베드 폰트");
-  if (/licenseContainer/i.test(body)) problems.push("라이선스 상자");
+  // "상자"라고 말하면서 문자열 `licenseContainer`를 통째로 찾으면, 이제
+  // stripLicenseBlocks가 CSS 규칙 제거를 접었으므로(위 주석 참고)
+  // `<style>` CDATA 안에 죽은 채로 남는 `.licenseContainer{…}` 선택자에도
+  // 걸린다 — 실물 「운수 좋은 날」 EPUB에서 15개가 그렇게 남았다. 그건
+  // 아무 요소도 못 걸치는 CSS 텍스트일 뿐 화면에 그려지는 상자가 아니므로
+  // 이 검사가 막아야 할 대상이 아니다. 그래서 문자열이 아니라 실제로
+  // "그 클래스를 단 태그"가 있는지를 본다 — stripLicenseBlocks가 상자를
+  // 찾을 때 쓰는 판정(`LICENSE_OPEN`)을 그대로 재사용해서, 게이트와
+  // 제거 로직이 "상자"를 서로 다르게 정의하는 일이 없게 한다.
+  if (LICENSE_OPEN.test(body)) problems.push("라이선스 상자");
   if (hasOrphanLicenseHeading(body)) problems.push("고아 라이선스 제목");
 
   const chapterPaths = paths.filter((p) => /\/c\d+_.*\.xhtml$/i.test(p));

@@ -187,6 +187,23 @@ function makeChapterXhtmlWithLicenseCss(bodyInner: string): string {
 </head><body>${bodyInner}</body></html>`;
 }
 
+/**
+ * 실물 「운수 좋은 날」 EPUB에서 실측한 라이선스 CSS 선택자 모양 — 자식
+ * 결합자(`>`)가 낀다(`.licenseContainer>div:first-of-type{…}`, 실측
+ * 15개). `<`·`>`를 뺀 문자 집합으로 좁힌 예전 정규식은 이 모양의 선택자를
+ * 애초에 매치할 수 없어 CSS 텍스트 안에 그대로 남았는데, `assertClean`의
+ * 예전 검사(`licenseContainer` 문자열 검색)는 본문 전체를 보므로 이 죽은
+ * 선택자에도 걸려 실제 책 반입이 막혔다 — 이 모듈이 고치는 바로 그 문제.
+ */
+function makeChapterXhtmlWithLicenseCssSelector(bodyInner: string): string {
+  return `<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ko" dir="ltr"><head><meta charset="UTF-8"/>
+<link type="text/css" rel="stylesheet" href="main.css"/><title>운수 좋은 날</title>
+<style typeof="mw:Extension/templatestyles" about="#mwt7"><![CDATA[.mw-parser-output .licenseContainer>div:first-of-type{display:table;margin:0 auto;}
+.mw-parser-output .wst-pd-icon{width:1.5em;height:1.5em;}
+]]></style>
+</head><body>${bodyInner}</body></html>`;
+}
+
 const read = (epub: Uint8Array) => {
   const entries = unzipSync(epub);
   return {
@@ -359,17 +376,23 @@ describe("stripLicenseBlocks — 실물 마크업의 전제부 판정", () => {
 });
 
 /**
- * stripLicenseBlocks — CSS 정리가 `<style>` 태그·CDATA 마커를 먹는 결함
- * (실물 「운수 좋은 날」 EPUB에서 발견).
+ * stripLicenseBlocks — `<style>` 태그·CDATA 마커를 먹지 않는다
+ * (실물 「운수 좋은 날」 EPUB에서 발견된 결함의 회귀 방지).
  *
- * 예전 정규식(`[^{}]*license[^{}]*\{[^}]*\}`)을 챕터 전체가 아니라
- * `<style>…</style>` 매치 문자열에만 걸었어도, 그 매치 문자열 자체가 여는
- * 태그·CDATA 시작 마커를 포함하고 있어서 `[^{}]*`가 그 마커까지 "중괄호
- * 아닌 글자"로 삼켰다. 실측: 한 챕터에서 `<style>` 2개·`</style>` 2개·
- * `<![CDATA[` 2개·`]]>` 2개였던 입력이, 정리 뒤 `<style>` 1개·`<![CDATA[`
- * 1개로 줄고 `</style>`·`]]>`는 그대로 2개씩 남아 `]]></style>` 하나가
- * 짝 없는 고아가 됐다. EPUB 챕터는 XML로 파싱되므로 엄격한 리더는 이걸
- * 못 열고, 관대한 리더는 `]]>`를 화면에 그대로 찍는다.
+ * 예전엔 여기서 CSS 규칙(`.licenseContainer{…}`)도 정규식으로 지우려 했다.
+ * 그 정규식을 챕터 전체가 아니라 `<style>…</style>` 매치 문자열에만
+ * 걸었어도, 그 매치 문자열 자체가 여는 태그·CDATA 시작 마커를 포함하고
+ * 있어서 "중괄호 아닌 글자"로 그 마커까지 삼켰다. 실측: 한 챕터에서
+ * `<style>` 2개·`</style>` 2개·`<![CDATA[` 2개·`]]>` 2개였던 입력이, 정리
+ * 뒤 `<style>` 1개·`<![CDATA[` 1개로 줄고 `</style>`·`]]>`는 그대로
+ * 2개씩 남아 `]]></style>` 하나가 짝 없는 고아가 됐다. EPUB 챕터는 XML로
+ * 파싱되므로 엄격한 리더는 이걸 못 열고, 관대한 리더는 `]]>`를 화면에
+ * 그대로 찍는다.
+ *
+ * 지금은 CSS 규칙 제거 자체를 접었으므로(위 `stripLicenseBlocks` 주석
+ * 참고) `<style>` 안쪽은 아예 건드리지 않는다 — 그래서 태그·마커가 안
+ * 먹히는 건 당연하지만, 다음에 누가 CSS 정리를 되살리고 싶어질 때를 대비해
+ * 이 회귀 방지 테스트는 남겨 둔다.
  */
 describe("stripLicenseBlocks — style 태그·CDATA 마커를 먹지 않는다", () => {
   it("stripEpub 뒤에도 style 태그·CDATA 마커 개수가 그대로 짝이 맞고, style 밖에 고아 ]]>가 없다", () => {
@@ -391,13 +414,20 @@ describe("stripLicenseBlocks — style 태그·CDATA 마커를 먹지 않는다"
     expect(outsideStyle).not.toMatch(/\]\]>/);
   });
 
-  it("licenseContainer 규칙만 지우고, 같은 블록·다른 블록의 무관한 규칙은 그대로 남긴다", () => {
+  it("CSS 규칙은 이제 지우지 않는다 — licenseContainer 선택자를 포함해 모든 규칙이 글자 그대로 남는다", () => {
+    // 예전 계약: "licenseContainer가 든 규칙만 지우고 나머지는 남긴다".
+    // 새 계약(Problem B): CSS 규칙 제거 자체를 접었으므로 licenseContainer
+    // 규칙도 더는 지우지 않는다 — 상자(태그)만 지우면 되고, 죽은 CSS
+    // 규칙은 화면에 아무것도 그리지 않으므로 감수한다.
     const chapter = makeChapterXhtmlWithLicenseCss("<p>본문</p>");
     const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", chapter);
     const out = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
 
-    expect(out).not.toMatch(/licenseContainer/);
-    // 라이선스 규칙과 같은 블록에 있던 무관한 규칙 — 글자 그대로 남아야 한다.
+    // licenseContainer 선택자 자체가 이제 그대로 남는다.
+    expect(out).toMatch(
+      /\.mw-parser-output \.licenseContainer\{box-sizing:border-box;margin-top:1em;padding:\.5em 1em;\}/,
+    );
+    // 같은 블록의 무관한 규칙도 여전히 그대로.
     expect(out).toMatch(
       /\.mw-parser-output \.wst-pd-icon\{width:1\.5em;height:1\.5em;\}/,
     );
@@ -418,6 +448,78 @@ describe("assertClean — style 태그 짝 검사", () => {
     const broken = makeChapterXhtml("<p>본문</p>") + "</style>";
     const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", broken);
     expect(() => assertClean(epub)).toThrow(/style 태그 개수가 안 맞음/);
+  });
+});
+
+/**
+ * assertClean — 라이선스 상자 판정을 문자열이 아니라 태그로 한다
+ * (실물 「운수 좋은 날」 EPUB에서 발견 — 이번 수정의 핵심 결함).
+ *
+ * `assertClean`은 예전에 챕터 본문 전체에서 `licenseContainer`라는
+ * *문자열*을 찾았다. 상자(`<div class="…licenseContainer…">`)는
+ * stripLicenseBlocks가 정상적으로 지우지만, `<head>`의 인라인 `<style>`
+ * CDATA 안에는 `.mw-parser-output .licenseContainer>div:first-of-type{…}`
+ * 같은 죽은 CSS 선택자가 그대로 남는다(Problem B — CSS 규칙 제거는 두 번
+ * 사고를 내고 접었다, `stripLicenseBlocks` 주석 참고). 문자열 검사는 이
+ * 죽은 선택자에도 그대로 걸려서, 상자가 이미 없어졌고 화면에 아무것도
+ * 그려지지 않는데도 "라이선스 상자"라며 실패했다 — 실물 「운수 좋은 날」을
+ * 반입할 수 없게 만든 바로 그 증상이다.
+ *
+ * 그래서 게이트가 실제로 "상자"라고 부르는 걸 stripLicenseBlocks가 상자를
+ * 찾을 때 쓰는 판정(`LICENSE_OPEN` — 태그 종류와 무관하게 `class` 속성에
+ * licenseContainer를 담은 태그)으로 맞춘다. 게이트와 제거 로직이 "상자"를
+ * 서로 다르게 정의하면 이런 드리프트가 또 생긴다.
+ */
+describe("assertClean — 라이선스 상자 판정을 태그로(CSS 선택자 생존을 오판하지 않는다)", () => {
+  it("본문 상자는 지워지고, style CDATA에 남은 .licenseContainer>… 선택자는 손대지 않으며, assertClean이 통과한다", () => {
+    // 실물 그대로: <style> CDATA에 자식 결합자(>)가 낀 라이선스 선택자가
+    // 있고, 본문에는 실제 라이선스 상자(제목 + div)가 따로 있다.
+    const chapter = makeChapterXhtmlWithLicenseCssSelector(
+      `<section data-mw-section-id="0"><p>새침하게 흐린 품이 눈이 올 듯하더니</p></section>
+<section data-mw-section-id="1"><h2>라이선스</h2>
+<div class="licenseContainer licenseBanner"><div class="inner"><div class="deep">CC BY-SA 3.0</div></div></div>
+</section>`,
+    );
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", chapter);
+    const stripped = stripEpub(epub);
+    const out = read(stripped).text("OPS/c0_unsu.xhtml");
+
+    // 본문 상자와 「라이선스」 제목은 사라진다 — stripLicenseBlocks의 기존
+    // 동작(태그 제거)은 이번 변경으로 건드리지 않았다.
+    expect(out).not.toMatch(/<(section|div)\b[^>]*class="[^"]*licenseContainer[^"]*"/);
+    expect(out).not.toMatch(/라이선스/);
+    expect(out).toMatch(/새침하게 흐린 품이/);
+
+    // style CDATA의 CSS 선택자는 손대지 않고 글자 그대로 남는다 — > 자식
+    // 결합자 포함(Problem B: CSS 규칙 제거를 아예 접었다).
+    expect(out).toMatch(
+      /\.mw-parser-output \.licenseContainer>div:first-of-type\{display:table;margin:0 auto;\}/,
+    );
+
+    // style 태그·CDATA 마커 짝도 그대로 맞는다.
+    const count = (re: RegExp, s: string) => (s.match(re) ?? []).length;
+    expect(count(/<style\b/gi, out)).toBe(1);
+    expect(count(/<\/style>/gi, out)).toBe(1);
+    expect(count(/<!\[CDATA\[/g, out)).toBe(1);
+    expect(count(/\]\]>/g, out)).toBe(1);
+
+    // 이게 실물 「운수 좋은 날」에서 막혔던 지점이다 — 죽은 CSS 선택자
+    // 때문에 상자가 없는데도 게이트가 던졌다. 고친 뒤에는 통과해야 한다.
+    // (고치기 전 코드에서 이 assertion이 실패하는지는 리포트에 기록했다.)
+    expect(() => assertClean(stripped)).not.toThrow();
+  });
+
+  it("실제 라이선스 상자(<div class=\"licenseContainer …\">)가 남아 있으면 여전히 실패한다", () => {
+    // 게이트를 문자열에서 태그 판정으로 바꿨다고 해서 진짜 상자를 놓치면
+    // 안 된다 — stripLicenseBlocks를 거치지 않은, 상자가 그대로 있는
+    // 챕터를 assertClean에 바로 먹인다.
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      makeChapterXhtml(
+        `<div class="licenseContainer licenseBanner"><div class="inner">CC BY-SA 3.0</div></div>`,
+      ),
+    );
+    expect(() => assertClean(epub)).toThrow(/라이선스 상자/);
   });
 });
 
