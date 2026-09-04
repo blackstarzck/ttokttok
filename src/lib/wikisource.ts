@@ -148,6 +148,32 @@ const CHROME_IMAGES = [
 const LICENSE_OPEN = /<(section|div)\b[^>]*class="[^"]*licenseContainer[^"]*"[^>]*>/i;
 
 /**
+ * `assertClean`(게이트) 전용 — 상자가 남아 있는지 판정할 때 쓴다.
+ *
+ * **`LICENSE_OPEN`을 재사용하지 않는다.** 한 번 그렇게 했다가 최종
+ * 리뷰(Finding 1)에서 걸렸다: `LICENSE_OPEN`은 strip이 상자를 *찾을 때*
+ * 쓰는 어휘라 `(section|div)` 태그 + 큰따옴표 `class="…"`만 본다. 게이트가
+ * 그 어휘를 그대로 물려받으면, strip이 못 지우는 모양(작은따옴표 class,
+ * table 같은 다른 태그 — 실제로 `{{PD-old-50}}`·`{{PD-anon}}`·CC 계열
+ * 템플릿마다 렌더링이 달라서 나올 수 있는 모양이다. 지금까지 이 코드를
+ * 실제로 거친 위키문헌 문서는 단 하나뿐이고, 나머지 시드 도서 7권은 각기
+ * 다른 템플릿을 쓴다)은 게이트도 놓친다. **게이트는 strip보다 항상 더
+ * 엄격해야 한다** — strip의 어휘가 좁아서 상자를 못 지웠을 때 게이트가
+ * 대신 잡아내는 게 게이트의 존재 이유이므로, 게이트를 strip 자신의
+ * 판정으로 만들면 그 이유가 성립하지 않는다. 그래서 태그 종류·따옴표
+ * 종류를 아예 안 보고 "licenseContainer를 담은 class 속성이 있는가"만
+ * 넓게 본다.
+ *
+ * 그런데도 `<style>` CDATA에 죽은 채로 남는 CSS 선택자 텍스트
+ * (`.licenseContainer{…}`, `.licenseContainer>div:first-of-type{…}`)에는
+ * 안 걸린다 — 그건 `class="…"` 속성이 아니라 CSS 텍스트이므로 `class\s*=`
+ * 앞에 오지 않는다. 실물 「운수 좋은 날」 EPUB에서 이 죽은 선택자 15개가
+ * 실제로 존재하지만 화면에는 아무것도 그리지 않는다(Problem B —
+ * `stripLicenseBlocks` 주석 참고).
+ */
+const LICENSE_BOX_CLASS = /class\s*=\s*["'][^"']*licenseContainer/i;
+
+/**
  * `<tag …>`로 시작하는 지점부터 짝이 맞는 닫는 태그 바로 뒤 인덱스를
  * 돌려준다. 라이선스 상자는 div가 여러 겹 중첩돼 있어 단순 비탐욕
  * 정규식으로는 중간에서 끊긴다 — 깊이를 세야 짝을 제대로 찾는다.
@@ -400,11 +426,15 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
     } else if (/\.xhtml$/i.test(path)) {
       out[path] = strToU8(stripLicenseBlocks(strFromU8(data)));
     } else if (/\.css$/i.test(path)) {
-      // stripLicenseBlocks는 여기 쓰지 않는다 — 그 함수의 CSS 정리 정규식은
-      // 직전 `}`에만 걸려 있어서, "released under a free license" 같은 주석
-      // 한 줄 때문에 그 다음 규칙(body 등)까지 통째로 삼킬 수 있다. 죽은
-      // `.licenseContainer{…}` 규칙 하나 남는 건 감수하고, 본문(.xhtml)에
-      // 인라인된 <style>에만 적용한다.
+      // stripLicenseBlocks는 여기 쓰지 않는다. 예전엔 여기서 "CSS 규칙
+      // 정리는 .xhtml에 인라인된 <style>에만 적용한다"고 했지만, 그
+      // CSS 규칙 정리 자체를 이제 완전히 접었다 — .xhtml 쪽도 더는
+      // 적용하지 않는다(두 번의 사고 끝에, 셀렉터를 안전하게 잡는
+      // 정규식은 이 방식으로는 못 만든다는 게 증명됐다. 자세한 경위는
+      // `stripLicenseBlocks` 주석 참고). 그러니 이 두 브랜치(.xhtml,
+      // .css)는 이제 같은 처지다 — 상자(태그)는 지우지만 CSS 규칙은
+      // 어느 쪽도 안 지우고, 죽은 `.licenseContainer{…}` 규칙은 양쪽 다
+      // 그대로 남는다. .css 쪽에서 유일하게 하는 정리는 @font-face뿐이다.
       const css = strFromU8(data).replace(/@font-face\s*\{[^}]*\}\s*/gi, "");
       out[path] = strToU8(css);
     }
@@ -498,16 +528,37 @@ function chapterBodyText(xhtml: string): string {
 }
 
 /**
- * href가 가리키는 파일 이름이 path의 끝과 일치하는지 본다.
+ * href가 가리키는 파일이 path와 같은 파일인지 본다.
  *
- * `droppedHref`(stripEpub)와 같은 접미사 비교 방식을 그대로 쓴다 — href는
- * OPF 자신의 디렉터리를 기준으로 한 상대 경로라 실제 zip 경로("OPS/…")보다
- * 짧고, 퍼센트 인코딩 여부도 파일마다 다를 수 있어 완전한 경로 조립보다
- * 끝부분 비교 + `encodeURI` 양쪽 다 보는 쪽이 더 안전하다. 여기서 새 규약을
- * 만들지 않고 그 판단을 그대로 재사용한다.
+ * href는 OPF 자신의 디렉터리를 기준으로 한 상대 경로라 실제 zip
+ * 경로("OPS/…")보다 짧다. 예전엔 이 함수가 href 쪽을 `encodeURI`해서
+ * path와 비교했는데, 방향이 거꾸로였다 — href는 ws-export가 이미
+ * 퍼센트 인코딩해서 내보내는 쪽이라(위키문헌 문서 제목 대부분이 한글이라
+ * 실물에서 흔하다), `encodeURI("c0_%EC%9A%B4…")`를 돌리면 `%`가 다시
+ * `%25`로 인코딩돼 아무 파일과도 안 맞는다. 반대 방향인
+ * `droppedHref`(stripEpub)는 raw basename을 인코딩해서 이미 인코딩된
+ * href와 비교하므로 맞는 방향이었다 — 최종 리뷰(Finding 2)가 지적한
+ * 대로, 이 함수는 그 판단을 "그대로 재사용"한다고 주석에 써 놓고 실제로는
+ * 반대 방향을 구현하고 있었다. 그래서 href 쪽을 디코드하는 것으로 고친다
+ * (잘못된 `%` 시퀀스는 `decodeURIComponent`가 던지므로 try/catch로 원문을
+ * 그대로 쓴다). `./`로 시작하는 상대 경로 표기도 비교 전에 지운다.
+ *
+ * 접미사(`endsWith`) 비교 자체도 느슨했다 — "title.xhtml"이 우연히 같은
+ * 접미사로 끝나는 무관한 파일("c2_subtitle.xhtml", "subtitle"이 "title"로
+ * 끝난다)까지 매치해 버렸다(Finding 3). 그래서 경로 구분자 기준으로
+ * 앵커링한다 — path가 href와 완전히 같거나, "/" + href로 끝날 때만
+ * 매치로 본다.
  */
 function hrefMatchesPath(path: string, href: string): boolean {
-  return path.endsWith(href) || path.endsWith(encodeURI(href));
+  const normalized = href.replace(/^\.\//, "");
+  let decoded = normalized;
+  try {
+    decoded = decodeURIComponent(normalized);
+  } catch {
+    // 잘못된 %-시퀀스면 디코드하지 않은 원문으로 비교한다 — 이미 디코드된
+    // 값에 `%`가 섞여 있을 수 있다(normalizeTitle과 같은 방어).
+  }
+  return path === decoded || path.endsWith("/" + decoded);
 }
 
 /**
@@ -590,18 +641,61 @@ function assertPackageIntegrity(
 }
 
 /**
- * 본문 어딘가에 「라이선스」 텍스트만 담은 제목이 남아 있는지 본다.
+ * 제목 하나가 실제로 "고아"인지 본다 — 그 제목을 감싸는 섹션 안(섹션이
+ * 없으면 문서 끝까지)에 제목 뒤로 남은 글자가 있는지로 판정한다.
+ *
+ * `findLicenseTarget`이 상자 "앞"(전제부)에 제목 말고 다른 글자가 있는지
+ * `isLicenseOnlyPreface`로 보는 것과 대칭이다 — 여기서는 제목 "뒤"에 글자가
+ * 있는지를 본다. 글자 추출은 그 함수와 같은 `extractText`를 그대로
+ * 재사용한다(같은 판정을 두 번 다른 방식으로 만들지 않는다).
+ */
+function isHeadingOrphaned(body: string, heading: RegExpExecArray): boolean {
+  const headingEnd = heading.index + heading[0].length;
+
+  // 제목을 감싸는 가장 가까운 <section>을 찾는다 — findLicenseTarget이
+  // 상자를 감싸는 섹션을 찾을 때 쓰는 것과 같은 방식(직전 열린 태그를
+  // 훑어 마지막 후보를 취한다).
+  const sectionOpen = /<section\b[^>]*>/gi;
+  let candidate: RegExpExecArray | null = null;
+  for (let m; (m = sectionOpen.exec(body)) !== null && m.index < heading.index; ) {
+    candidate = m;
+  }
+
+  let scopeEnd = body.length;
+  if (candidate) {
+    const sectionEnd = findBlockEnd(body, "section", candidate.index);
+    // 그 섹션이 실제로 제목을 감싸는 경우에만(닫는 태그가 제목보다 뒤)
+    // 범위를 섹션 끝으로 좁힌다 — 안 그러면 이미 끝난 무관한 섹션에
+    // 걸릴 수 있다.
+    if (sectionEnd !== null && sectionEnd > headingEnd) {
+      scopeEnd = sectionEnd;
+    }
+  }
+
+  return extractText(body.slice(headingEnd, scopeEnd)) === "";
+}
+
+/**
+ * 본문 어딘가에 「라이선스」라는 제목이 고아로(제목 뒤에 아무 내용도 없이)
+ * 남아 있는지 본다.
  *
  * stripLicenseBlocks가 상자를 섹션째 못 지우고 상자만 지우면(전제부가 실제
  * 산문을 담고 있어 가드가 걸렸거나, 판정 로직에 다른 구멍이 또 생기거나)
  * 그 섹션의 <h2>라이선스</h2> 제목만 챕터 끝에 고아로 남는다. 이 검사는
  * 그 잔재를 licenseContainer 문자열이 아니라 제목 텍스트로 직접 잡는다 —
  * 상자는 이미 없어졌으니 licenseContainer 검사는 이 경우를 못 본다.
+ *
+ * 예전엔 텍스트가 정확히 "라이선스"인 제목이 *어디에 있든* 무조건 고아로
+ * 봤다 — 제목이 실제로 비어 있는지(뒤에 글자가 없는지)는 안 봤다. 그래서
+ * 라이선스 조문을 번역해 놓은 문서처럼, 「라이선스」라는 진짜 제목과 진짜
+ * 본문 산문을 가진 정당한 문서까지 전부 반입이 막혔다(최종 리뷰
+ * Finding 4). `isHeadingOrphaned`로 실제 고아 여부를 확인해야만 문제로
+ * 본다.
  */
 function hasOrphanLicenseHeading(body: string): boolean {
   const heading = /<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi;
   for (let m; (m = heading.exec(body)) !== null; ) {
-    if (extractText(m[0]) === "라이선스") return true;
+    if (extractText(m[0]) === "라이선스" && isHeadingOrphaned(body, m)) return true;
   }
   return false;
 }
@@ -659,6 +753,16 @@ function assertStyleBalance(
 export function assertClean(epub: Uint8Array): number {
   const entries = unzipSync(epub);
   const paths = Object.keys(entries);
+  // `*.xhtml` 전부를 모은다 — `nav.xhtml`도 포함된다. 그런데 stripEpub의
+  // 디스패치(위 stripEpub 본문 참고)는 `nav.xhtml`을 목차 정리 브랜치로
+  // 보내지 `.xhtml$` 브랜치(stripLicenseBlocks 호출)로 보내지 않는다.
+  // 그러니 `nav.xhtml` 안에 라이선스 상자 모양의 마크업이 있어도 strip이
+  // 애초에 손대지 않고, 이 게이트는 그걸 여기서 문제로 잡는다 — fail
+  // closed고, 재시도로도 못 고치는 막다른 실패다. 위키문헌 nav.xhtml에
+  // 상자가 실제로 들어갈 일은 없어 보이는(목차만 담는 파일이다) 드문
+  // 모양이지만, 나중에 이 실패를 보고 "strip이 nav.xhtml을 안 지운다"는
+  // 결함으로 오진하지 않도록 여기 적어 둔다 — nav.xhtml은 애초에 상자를
+  // 지우는 대상이 아니었다.
   const body = paths
     .filter((p) => /\.xhtml$/i.test(p))
     .map((p) => strFromU8(entries[p]))
@@ -677,10 +781,14 @@ export function assertClean(epub: Uint8Array): number {
   // 걸린다 — 실물 「운수 좋은 날」 EPUB에서 15개가 그렇게 남았다. 그건
   // 아무 요소도 못 걸치는 CSS 텍스트일 뿐 화면에 그려지는 상자가 아니므로
   // 이 검사가 막아야 할 대상이 아니다. 그래서 문자열이 아니라 실제로
-  // "그 클래스를 단 태그"가 있는지를 본다 — stripLicenseBlocks가 상자를
-  // 찾을 때 쓰는 판정(`LICENSE_OPEN`)을 그대로 재사용해서, 게이트와
-  // 제거 로직이 "상자"를 서로 다르게 정의하는 일이 없게 한다.
-  if (LICENSE_OPEN.test(body)) problems.push("라이선스 상자");
+  // "그 클래스를 단 태그"가 있는지를 `LICENSE_BOX_CLASS`로 본다 —
+  // `LICENSE_OPEN`(strip이 상자를 찾을 때 쓰는 어휘)은 **일부러** 재사용
+  // 하지 않는다. 게이트를 strip 자신의 판정으로 만들면, strip이 못 지우는
+  // 상자 모양을 게이트도 그대로 못 잡는다 — 게이트가 strip의 사각지대를
+  // 대신 잡아내야 하는데 그 반대가 된다(최종 리뷰 Finding 1, 자세한 이유는
+  // `LICENSE_BOX_CLASS` 주석 참고). 게이트는 항상 strip보다 엄격해야 하고,
+  // 그 엄격함을 strip의 어휘에서 끌어올 수는 없다.
+  if (LICENSE_BOX_CLASS.test(body)) problems.push("라이선스 상자");
   if (hasOrphanLicenseHeading(body)) problems.push("고아 라이선스 제목");
 
   const chapterPaths = paths.filter((p) => /\/c\d+_.*\.xhtml$/i.test(p));

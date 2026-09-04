@@ -465,10 +465,17 @@ describe("assertClean — style 태그 짝 검사", () => {
  * 그려지지 않는데도 "라이선스 상자"라며 실패했다 — 실물 「운수 좋은 날」을
  * 반입할 수 없게 만든 바로 그 증상이다.
  *
- * 그래서 게이트가 실제로 "상자"라고 부르는 걸 stripLicenseBlocks가 상자를
- * 찾을 때 쓰는 판정(`LICENSE_OPEN` — 태그 종류와 무관하게 `class` 속성에
- * licenseContainer를 담은 태그)으로 맞춘다. 게이트와 제거 로직이 "상자"를
- * 서로 다르게 정의하면 이런 드리프트가 또 생긴다.
+ * 그래서 문자열 검사를 태그 판정으로 바꾼다 — 다만 여기서 한 번 더
+ * 잘못짚었다. 처음엔 stripLicenseBlocks가 상자를 *찾을 때* 쓰는 정규식
+ * (`LICENSE_OPEN`)을 게이트에 그대로 재사용했는데, 최종 리뷰(Finding 1)가
+ * 지적한 대로 그건 strip의 사각지대를 게이트가 그대로 물려받는 셈이다 —
+ * `LICENSE_OPEN`이 놓치는 모양(작은따옴표 class, section·div가 아닌 태그
+ * 등)은 strip도 못 지우고 게이트도 못 잡는다. 그래서 지금은 게이트를
+ * `LICENSE_OPEN`과 무관한, 더 넓은(더 엄격한) 판정으로 다시 바꿨다 —
+ * 태그 종류·따옴표 종류를 아예 안 보고 "licenseContainer를 담은 class
+ * 속성이 있는가"만 본다(`assertClean` 안의 주석 참고). 게이트는 항상
+ * strip보다 엄격해야 한다는 원칙은 그대로다 — 다만 "엄격함"을 strip의
+ * 어휘를 재사용해서 만들 수는 없다는 게 이번에 새로 확인된 부분이다.
  */
 describe("assertClean — 라이선스 상자 판정을 태그로(CSS 선택자 생존을 오판하지 않는다)", () => {
   it("본문 상자는 지워지고, style CDATA에 남은 .licenseContainer>… 선택자는 손대지 않으며, assertClean이 통과한다", () => {
@@ -520,6 +527,151 @@ describe("assertClean — 라이선스 상자 판정을 태그로(CSS 선택자 
       ),
     );
     expect(() => assertClean(epub)).toThrow(/라이선스 상자/);
+  });
+});
+
+/**
+ * assertClean — 상자 게이트는 strip의 사각지대를 그대로 물려받으면 안 된다
+ * (최종 리뷰 Finding 1).
+ *
+ * 위 describe 블록에서 태그 판정으로 바꾸며 `LICENSE_OPEN`(strip이 상자를
+ * *찾을 때* 쓰는 정규식)을 게이트에도 그대로 재사용했다. 그런데
+ * `LICENSE_OPEN`은 `(section|div)` 태그 + 큰따옴표 `class="…"`만 본다 —
+ * strip이 못 지우는 모양(작은따옴표 class, table 같은 다른 태그)은
+ * `LICENSE_OPEN`도 못 잡으므로 게이트도 그대로 놓친다. "strip이 못 지우면
+ * 게이트가 잡는다"는 게이트의 존재 이유 자체가 strip과 어휘를 공유하는
+ * 순간 무너진다.
+ *
+ * 두 테스트 다 「라이선스」 제목 없이 상자만 둔다 — 제목이 있으면 고아 제목
+ * 검사(Finding 4 위쪽)가 우연히 대신 잡아 버려서, 상자 검사 자체가
+ * 독립적으로 작동하는지 시험할 수 없다(실물에서도 템플릿마다 제목 유무가
+ * 다르다).
+ */
+describe("assertClean — 상자 게이트가 strip의 사각지대를 물려받지 않는다(Finding 1)", () => {
+  it("작은따옴표 class(<div class='licenseContainer'>)도 상자로 잡는다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      makeChapterXhtml(`<div class='licenseContainer'>CC BY-SA 3.0</div>`),
+    );
+    expect(() => assertClean(epub)).toThrow(/라이선스 상자/);
+  });
+
+  it("div가 아닌 태그(<table class=\"licenseContainer\">)도 상자로 잡는다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      makeChapterXhtml(
+        `<table class="licenseContainer"><tr><td>CC BY-SA 3.0</td></tr></table>`,
+      ),
+    );
+    expect(() => assertClean(epub)).toThrow(/라이선스 상자/);
+  });
+});
+
+/**
+ * assertClean — `hrefMatchesPath`의 인코딩 방향(최종 리뷰 Finding 2).
+ *
+ * `droppedHref`(stripEpub)는 raw basename을 인코딩해서 인코딩된 href와
+ * 비교한다 — 맞는 방향이다. `hrefMatchesPath`는 반대로 href 쪽을
+ * `encodeURI`했는데, href가 이미 퍼센트 인코딩돼 있으면(위키문헌 문서
+ * 제목 대부분이 한글이라 실제로 이렇다) `encodeURI("c0_%EC%9A%B4…")`가
+ * `%`를 `%25`로 다시 인코딩해 아무것도 매치하지 못한다. 대상 문서 9개 중
+ * 8개가 한글 제목이라 이건 구석 사례가 아니다.
+ */
+describe("assertClean — hrefMatchesPath 인코딩 방향(Finding 2)", () => {
+  it("퍼센트 인코딩된 한글 href가 실제 챕터 파일과 매치한다", () => {
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest>
+<item id="c0" href="c0_%EC%9A%B4%EC%88%98.xhtml" media-type="application/xhtml+xml" />
+</manifest>
+<spine>
+<itemref idref="c0" />
+</spine>
+</package>`,
+      ),
+      "OPS/c0_운수.xhtml": strToU8(
+        makeChapterXhtml("<p>새침하게 흐린 품이 눈이 올 듯하더니</p>"),
+      ),
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).not.toThrow();
+  });
+
+  it("href의 './' 상대 경로 표기를 정규화해서 매치한다", () => {
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest>
+<item id="c0" href="./c0_a.xhtml" media-type="application/xhtml+xml" />
+</manifest>
+<spine>
+<itemref idref="c0" />
+</spine>
+</package>`,
+      ),
+      "OPS/c0_a.xhtml": strToU8(makeChapterXhtml("<p>본문.</p>")),
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).not.toThrow();
+  });
+});
+
+/**
+ * assertClean — `hrefMatchesPath`의 접미사 오매칭(최종 리뷰 Finding 3).
+ *
+ * 접미사(`endsWith`) 비교만으로는 "title.xhtml"이 우연히 같은 접미사로
+ * 끝나는 무관한 파일("c2_subtitle.xhtml" — "subtitle"이 "title"로
+ * 끝난다)까지 매치해 버린다. 댕글링 href가 엉뚱한 챕터로 "해소"되면서
+ * 무결성 검사가 스스로 만든 접미사 충돌을 스스로는 못 잡는다.
+ */
+describe("assertClean — hrefMatchesPath 접미사 오매칭(Finding 3)", () => {
+  it("댕글링 href(title.xhtml)가 접미사만 같은 챕터(c2_subtitle.xhtml)로 해소되면 안 된다", () => {
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/content.opf": strToU8(
+        `<?xml version="1.0"?>
+<package version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>테스트</dc:title></metadata>
+<manifest>
+<item id="t" href="title.xhtml" media-type="application/xhtml+xml" />
+</manifest>
+<spine>
+<itemref idref="t" />
+</spine>
+</package>`,
+      ),
+      // title.xhtml 자신은 없다 — 댕글링 href. 남은 챕터는 접미사만 같다.
+      "OPS/c2_subtitle.xhtml": strToU8(makeChapterXhtml("<p>본문.</p>")),
+    };
+    const epub = zipSync(files);
+    expect(() => assertClean(epub)).toThrow(/manifest 항목이 없음/);
+  });
+});
+
+/**
+ * assertClean — 고아 아닌 「라이선스」 제목은 통과시킨다(최종 리뷰 Finding 4).
+ *
+ * `hasOrphanLicenseHeading`은 예전에 텍스트가 정확히 "라이선스"인 제목이
+ * *어디에 있든* 무조건 고아로 봤다 — 제목 뒤에 진짜 산문이 있어도 보지
+ * 않았다. 그래서 라이선스 조문을 번역해 놓은 문서처럼, 「라이선스」라는
+ * 진짜 제목과 진짜 본문을 가진 정당한 문서를 영영 반입할 수 없었다.
+ */
+describe("assertClean — 고아 아닌 「라이선스」 제목은 통과시킨다(Finding 4)", () => {
+  it("제목 뒤에 실제 산문이 있으면 고아로 보지 않는다", () => {
+    const epub = makeSingleFileEpub(
+      "OPS/c0_license.xhtml",
+      makeChapterXhtml(
+        `<h2>라이선스</h2><p>이 문서의 배포 조건은 다음과 같다. 제1조 …</p>`,
+      ),
+    );
+    expect(() => assertClean(epub)).not.toThrow();
   });
 });
 
