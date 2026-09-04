@@ -186,15 +186,25 @@ create unique index books_source_ref_key
   where source_ref is not null;
 ```
 
-- [ ] **Step 6: 마이그레이션 적용**
+- [ ] **Step 6: 마이그레이션 적용 — `db push`를 쓰지 않는다**
 
-```bash
-npx supabase db push
+**`npx supabase db push`를 실행하면 안 된다.** 2026-09-04 실측(`--dry-run`) 결과 원격 DB에 **미적용 마이그레이션이 5개** 있다:
+
+```
+20260902000001_comment_threads.sql
+20260903000001_comment_likes.sql
+20260903000002_notifications.sql
+20260903000003_reply_addressee.sql
+20260903000004_book_source_ref.sql   ← 우리 것
 ```
 
-기대: `20260903000004_book_source_ref.sql` 적용 성공.
+앞의 네 개는 master의 댓글·알림 작업이고 원격에 실제로 적용돼 있지 않다(REST로 확인: `comments.parent_id` 400, `notifications` 404, `comment_likes` 404). `db push`는 파일 단위 선택을 지원하지 않으므로 **남의 작업 네 개를 함께 운영 DB에 밀어 넣는다** — 이 작업의 범위가 아니고 승인받은 범위도 아니다.
 
-원격에 붙지 않는 환경이면 Supabase 대시보드의 SQL 편집기에 위 파일 내용을 붙여 실행한다. 어느 쪽이든 **파일은 반드시 커밋한다** — `supabase/migrations/`가 스키마의 진실이다 (AGENTS.md).
+그래서 이 한 파일만 **Supabase 대시보드 SQL 편집기**에 붙여 실행한다. 컨트롤러가 사용자에게 요청하고, 적용 확인을 받은 뒤 Step 7로 넘어간다.
+
+`supabase/.temp/`(링크 캐시)는 원래 체크아웃에서 복사해 두었다 — gitignore 대상이고, CLI가 worktree에서 원격을 인식하는 데만 쓴다.
+
+어느 쪽이든 **파일은 반드시 커밋한다** — `supabase/migrations/`가 스키마의 진실이다 (AGENTS.md).
 
 - [ ] **Step 7: 적용 결과 확인**
 
