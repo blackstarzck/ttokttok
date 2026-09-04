@@ -17,7 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 // 수급 로직의 원천은 src/lib/wikisource.ts 하나다 — 어드민 임포트도 같은 모듈을
 // 쓴다. Node의 타입 스트리핑이 불러오는 쪽 확장자와 무관하게 동작하므로 .mjs가
 // .ts를 그대로 import한다. `@/` 별칭은 node가 모르니 상대경로여야 한다.
-import { fetchEpub } from "../src/lib/wikisource.ts";
+import { assertClean, fetchEpub, toPageTitle } from "../src/lib/wikisource.ts";
 import { hasFfmpeg, makePlaceholderVideo } from "./lib/placeholder-video.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -332,6 +332,21 @@ async function run() {
     console.log(`✓ 채널 ${channels.length}개`);
   }
 
+  // 위키문헌 문서 제목 정규화 — 임포트 경로(actions.ts)는 toPageTitle을
+  // 거치는데 이 스크립트는 원래 `b.wikisource ?? b.title` 원문 그대로
+  // fetchEpub과 source_ref에 각각 따로 넘겼다. 오늘 등록된 8권은 우연히
+  // 값이 같아 문제가 안 됐지만, 언젠가 `wikisource: "운수_좋은_날"`처럼
+  // URL에서 그대로 복사한 값(밑줄 포함)이 들어오면 fetchEpub은 정상 동작해도
+  // (MediaWiki가 밑줄을 접어 준다) 여기 적히는 source_ref는 임포트 경로가
+  // 절대 만들지 않을 문자열이 되어 같은 책이 두 번 임포트돼도 unique
+  // 인덱스가 못 잡는다 — PRD §11-50, 마이그레이션 20260903000004의 전제가
+  // 실제로는 이 스크립트에서 깨져 있었다. 한 번만 정규화해 Map에 담아
+  // 두고 fetchEpub 호출과 source_ref 양쪽에서 **같은 값**을 쓴다 — 따로
+  // 계산하면 둘이 갈라질 여지가 다시 생긴다.
+  const pageTitles = new Map(
+    books.map((b) => [b.id, toPageTitle(b.wikisource ?? b.title)]),
+  );
+
   // 2) 본문 수급 — 위키문헌 EPUB을 받아 epubs 버킷에 올린다.
   //
   //    도서 모델 v2에서 전문 도서는 epub_path가 있어야 성립한다
@@ -355,7 +370,16 @@ async function run() {
         continue;
       }
 
-      const epub = await fetchEpub(b.wikisource ?? b.title);
+      const epub = await fetchEpub(pageTitles.get(b.id));
+      // 업로드 직전 관문 — refresh-epubs.mjs와 같은 자리에서 같은 함수를
+      // 부른다. fetchEpub이 하는 정규식 XML 수술이 잘못되면 스토리지에는
+      // 표지·라이선스 상자가 안 지워진, 혹은 본문이 통째로 빈 EPUB이
+      // 올라갈 수 있다 — PRD §5.11이 "업로드 직전 관문이 껍데기를 확인한다"고
+      // 적어 둔 게 바로 이거다. 실패하면 던지는 그대로 둔다: 이 스크립트는
+      // 실패를 넘기고 계속하는 refresh-epubs.mjs와 달리 한 번 실패하면
+      // 전체를 멈춘다(맨 아래 run().catch) — 뒤 단계(도서 upsert 등)가 이
+      // epub_path의 존재를 전제하므로 부분 실패로 이어가면 더 나쁘다.
+      assertClean(epub);
       const { error } = await db.storage
         .from("epubs")
         .upload(path, epub, {
@@ -392,9 +416,9 @@ async function run() {
         pub_date_paper: b.pubDate,
         epub_path: epubPaths.get(b.id),
         source: "wikisource",
-        // fetchEpub에 넘기는 값과 반드시 같아야 한다 — 다르면 부분 unique
-        // 인덱스가 중복 수급을 못 잡는다.
-        source_ref: b.wikisource ?? b.title,
+        // fetchEpub에 넘긴 값과 같은 Map(pageTitles)에서 읽는다 — 반드시
+        // 같아야 부분 unique 인덱스가 중복 수급을 잡는다.
+        source_ref: pageTitles.get(b.id),
         rights_note: b.rights,
       })),
     );
