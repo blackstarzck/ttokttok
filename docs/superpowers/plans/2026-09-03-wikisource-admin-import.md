@@ -1195,6 +1195,14 @@ git commit -m "refactor(admin): 실패한 저장의 업로드 되돌리기를 �
 - Consumes: `toPageTitle`, `fetchEpub`, `assertClean`, `readEpubMetadata` (Task 2) · `removeUploaded`, `UploadedFile` (Task 4) · `books.source_ref` (Task 1) · `requireAdmin` from `@/lib/admin-guard` · `createClient` from `@/lib/supabase/server` · `createAdminClient` from `@/lib/supabase/admin`
 - Produces: `importFromWikisource(formData: FormData): Promise<void>` 서버 액션. 성공 시 `/admin/books/{id}?imported=1`로, 이미 등록된 문서면 `/admin/books/{기존id}?exists=1`로, 실패면 `/admin/books/import?error=…`로 리다이렉트한다.
 
+> **아래 코드는 착수 시점의 출발선이고, 구현된 판본은 리뷰를 거쳐 달라졌다 (2026-09-04).** 진실은 `src/app/admin/(dashboard)/books/import/actions.ts`이며, 이 블록을 그대로 되돌리면 리뷰가 잡은 결함이 다시 들어온다. 달라진 곳과 이유:
+>
+> - **금지 저작자 목록이 객체 리터럴 → `Map`**. 리터럴이면 `BLOCKED_AUTHORS["toString"]`이 함수를 돌려줘 truthy가 된다.
+> - **저자 이름을 NFC 정규화하고 zero-width 문자까지 걷어낸 뒤 조회**. 원래 코드는 코드포인트를 그대로 비교해 **NFD 한글이 게이트를 통과했다** — macOS 클립보드 경로에서 실제로 나오는 형태다. 법적 게이트의 조용한 미스라 방치할 수 없다.
+> - **중복 사전확인 `select`의 `error`를 잡아 페치 전에 중단**. 원래 코드는 `data`만 꺼내 실패한 쿼리를 "중복 아님"으로 읽었고, 그 결과 4MB 페치·업로드를 다 쓴 뒤 실패했다.
+> - **unique 충돌 시 실제로 넣은 값으로 기존 행을 찾아 `?exists=1`로 보낸다**. 사전확인은 관리자가 타이핑한 제목을, INSERT는 EPUB의 `dc:source`(위키문헌이 리다이렉트를 해소한 값)를 쓰므로 둘이 갈릴 수 있다.
+> - `revalidatePath("/")` 추가, DB 오류 원문을 배너에서 로그로 이동, 조사 불일치 해소(`「박경리」은` → 조사 없는 문장), JSDoc이 엉뚱한 선언에 붙던 것 교정.
+
 - [ ] **Step 1: 서버 액션을 만든다**
 
 `src/app/admin/(dashboard)/books/import/actions.ts`:
@@ -1275,7 +1283,7 @@ export async function importFromWikisource(formData: FormData) {
 
   const blocked = BLOCKED_AUTHORS[author.replace(/\s+/g, "")];
   if (blocked) {
-    back(`「${author}」은 등록할 수 없습니다 — ${blocked} (PRD §5.11 등록 금지 목록).`);
+    back(`등록할 수 없는 저작자입니다: 「${author}」 — ${blocked} (PRD §5.11 등록 금지 목록).`);
   }
 
   // redirect()는 예외를 던져 동작한다. try 안에서 부르면 그 catch가
@@ -1498,7 +1506,7 @@ from public.books where source_ref = '빈처';
 | 문서 주소 `https://ko.wikisource.org/wiki/없는문서제목입니다` · 저자 `아무개` · 카테고리 `소설` | "위키문헌에서 「없는문서제목입니다」 문서를 찾지 못했습니다. 주소를 확인해 주세요." |
 | 문서 주소 `https://en.wikisource.org/wiki/Ulysses` | "한국 위키문헌(ko.wikisource.org) 주소만 가져올 수 있습니다 — 받은 주소: en.wikisource.org" |
 | 문서 주소 `운수 좋은 날` · 저자 `현진건` · 카테고리 `소설` | 리다이렉트되어 **기존** 「운수 좋은 날」 수정 화면이 열린다 (중복 사전 확인) |
-| 저자 `정지용` | "「정지용」은 등록할 수 없습니다 — 월북·납북 작가 — 사망 연도가 불확실합니다 (PRD §5.11 등록 금지 목록)." |
+| 저자 `정지용` | "등록할 수 없는 저작자입니다: 「정지용」 — 월북·납북 작가 — 사망 연도가 불확실합니다 (PRD §5.11 등록 금지 목록)." |
 
 중복 케이스에서 **토스트가 아직 안 뜨는 게 정상이다** — Task 6에서 붙인다.
 
