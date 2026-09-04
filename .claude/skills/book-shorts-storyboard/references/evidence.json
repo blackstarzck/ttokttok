@@ -1,0 +1,56 @@
+{
+  "A-1": {
+    "grade": "A",
+    "claim_ko": "고각성 감정(경외·분노·불안)이 저각성(슬픔)보다 확산 우위. NYT 3개월 전수 데이터 + 인과 실험으로 검증",
+    "source": "Berger & Milkman 2012, Journal of Marketing Research 49(2)",
+    "url": "https://journals.sagepub.com/doi/10.1509/jmr.10.0353"
+  },
+  "A-2": {
+    "grade": "A",
+    "claim_ko": "호기심은 정보격차에서 발생. 최대 조건 3: 빠진 걸 알아챌 만큼 알아야 / 빠진 정보가 구체적이어야 / 메울 수 있다고 느껴야",
+    "source": "Loewenstein 1994, Psychological Bulletin 116(1), 75–98",
+    "url": "https://doi.org/10.1037/0033-2909.116.1.75"
+  },
+  "A-3": {
+    "grade": "A",
+    "claim_ko": "서사 몰입(transportation)이 반론을 억제하고 태도를 바꿈 (실험 N=97, N=69)",
+    "source": "Green & Brock 2000, Journal of Personality and Social Psychology 79(5), 701–721",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/11079236/"
+  },
+  "A-4": {
+    "grade": "A",
+    "claim_ko": "미완결 과제가 완결 과제보다 기억에 남는다 — 클리프행어·미해결 질문의 근거",
+    "source": "Zeigarnik 1927, Psychologische Forschung 9",
+    "url": "https://en.wikipedia.org/wiki/Zeigarnik_effect"
+  },
+  "B-1": {
+    "grade": "B",
+    "claim_ko": "시청자 71%가 첫 3초 안에 계속 볼지 결정한다",
+    "source": "TTS Vibes 2025 (업계 리포트 재인용, 1차 출처 미확인)",
+    "url": "https://insights.ttsvibes.com/tiktok-first-3-seconds-hook-retention-rate/"
+  },
+  "B-2": {
+    "grade": "B",
+    "claim_ko": "3초 유지율 85%↑ → 총 조회수 2.8배, 70~85% → 2.2배. 알고리즘 추천 최소 임계 65~70%",
+    "source": "TTS Vibes 2025 (업계 리포트 재인용, 1차 출처 미확인)",
+    "url": "https://insights.ttsvibes.com/tiktok-first-3-seconds-hook-retention-rate/"
+  },
+  "B-3": {
+    "grade": "B",
+    "claim_ko": "애니메이션 완주율 70~85% vs 실사 50~65%; 3D 애니메이션 몰입 +30% (Millward Brown)",
+    "source": "Educational Voice · Kablak Studios (Millward Brown 재인용)",
+    "url": "https://educationalvoice.co.uk/effective-animated-video-statistics/"
+  },
+  "C-1": {
+    "grade": "C",
+    "claim_ko": "북톡에서 트로프를 명시한 훅이 일반 설명 대비 인게이지먼트 3배",
+    "source": "Yaaka (업계 주장, 수치 검증 불가)",
+    "url": "https://www.yaaka.cc/the-anatomy-of-a-viral-booktok-video-deconstructing-the-formula/"
+  },
+  "C-2": {
+    "grade": "C",
+    "claim_ko": "쇼츠 최적 길이 20~30초, 15초 미만은 훅 깊이 부족",
+    "source": "Toptal Creator (업계 주장)",
+    "url": "https://www.toptal.com/creator/post/youtube-shorts-length"
+  }
+}
