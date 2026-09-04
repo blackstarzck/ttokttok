@@ -27,7 +27,21 @@ const USER_AGENT = "ttokttok/0.1 (https://github.com/ttokttok; dev seeding)";
 const MIMETYPE = "mimetype";
 
 /**
- * 위키문헌 페이지를 EPUB으로 받아 폰트를 제거한 Buffer를 돌려준다.
+ * 본문으로 인정할 최소 글자수.
+ *
+ * ws-export는 **문서에 본문이 멀쩡히 있어도 제목만 든 빈 껍데기를 내주는 때가
+ * 있다.** 「감자」(원문 6,516자)가 본문 2자짜리 EPUB으로 나왔고, 「백치 아다다」·
+ * 「자유종」도 같았다. HTTP 200에 EPUB 형식도 맞고 챕터 파일도 하나 있어서,
+ * 글자수를 세지 않으면 빈 책이 그대로 등록된다.
+ *
+ * 실측 간격이 넓어 경계는 넉넉하다 — 껍데기는 2~50자, 가장 짧은 실제 작품이
+ * 7,000자였다. 시 한 편짜리 문서(약 1,000자)도 통과한다.
+ */
+const MIN_BODY_CHARS = 500;
+
+/**
+ * 위키문헌 페이지를 EPUB으로 받아 폰트와 위키문헌 껍데기를 제거한 Buffer를 돌려준다.
+ * 본문이 비어 있으면 던진다 — 빈 책은 어떤 호출자에게도 쓸모가 없다.
  * @param {string} pageTitle 위키문헌 문서 제목 (예: "운수 좋은 날")
  */
 export async function fetchEpub(pageTitle) {
@@ -44,7 +58,28 @@ export async function fetchEpub(pageTitle) {
   }
 
   const raw = Buffer.from(await res.arrayBuffer());
-  return stripWikisourceChrome(stripFonts(raw));
+  const epub = stripWikisourceChrome(stripFonts(raw));
+
+  const chars = countBodyChars(epub);
+  if (chars < MIN_BODY_CHARS) {
+    throw new Error(
+      `본문이 비었다 (${pageTitle}): ${chars}자 — ws-export가 껍데기만 내줬다. ` +
+        `위키문헌 문서에는 본문이 있을 수 있으니 브라우저로 확인할 것.`,
+    );
+  }
+  return epub;
+}
+
+/** 본문 챕터(c0, c1…)의 태그를 걷어낸 순수 글자수. */
+export function countBodyChars(epubBuffer) {
+  const entries = unzipSync(new Uint8Array(epubBuffer));
+  return Object.entries(entries)
+    .filter(([path]) => /\/c\d+_.*\.xhtml$/i.test(path))
+    .map(([, data]) => strFromU8(data))
+    .join("")
+    .replace(/<style[\s\S]*?<\/style>/gi, "") // CSS는 본문이 아니다
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, "").length;
 }
 
 /** 위키문헌 껍데기 파일 — 우리 판본에 실리면 안 되는 것들. */
@@ -128,6 +163,28 @@ function stripLicenseBlocks(html) {
 }
 
 /**
+ * 안내문(hatnote)을 걷어낸다.
+ *
+ * 위키문헌은 동음이의 안내를 본문 맨 앞에 붙인다 — 「탈출기」는
+ * "성경의 책에 대해서는 출애굽기 문서를 참조하십시오."로 시작한다.
+ * 독자가 펼친 첫 문장이 남의 사이트 내비게이션일 수는 없다.
+ */
+function stripHatnotes(html) {
+  let out = html;
+
+  for (;;) {
+    const hit = /<div\b[^>]*class="[^"]*\bhatnote\b[^"]*"[^>]*>/i.exec(out);
+    if (!hit) break;
+
+    const next = removeBlockAt(out, "div", hit.index);
+    if (next === out) break; // 못 지웠다 — 무한루프 방지
+    out = next;
+  }
+
+  return out;
+}
+
+/**
  * 위키문헌 표지·정보 페이지와 라이선스 상자를 제거한다.
  *
  * 파일만 지우면 안 된다 — content.opf의 manifest·spine, nav.xhtml, toc.ncx에
@@ -191,7 +248,7 @@ export function stripWikisourceChrome(epubBuffer) {
       );
       out[path] = strToU8(ncx);
     } else if (/\.xhtml$/i.test(path)) {
-      out[path] = strToU8(stripLicenseBlocks(strFromU8(data)));
+      out[path] = strToU8(stripHatnotes(stripLicenseBlocks(strFromU8(data))));
     }
   }
 
