@@ -96,7 +96,9 @@ function loadApi(): Promise<YTNamespace> {
 }
 
 /**
- * 유튜브 임베드를 우리 컨트롤로 조작하기 위한 훅.
+ * 유튜브 임베드의 재생 수명주기를 다루는 훅 — 뷰포트 연동 재생·정지, 끝나기
+ * 전 되감기(루프), 음소거 토글. 재생/일시정지 버튼은 플레이어 몫이므로 여기
+ * 없다: 상태 이벤트로 결과만 읽는다.
  * mountRef가 가리키는 div 안에 API가 iframe을 만든다.
  */
 export function useYoutubePlayer({
@@ -114,7 +116,15 @@ export function useYoutubePlayer({
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   // 사용자가 직접 멈춘 영상은 화면을 벗어났다 돌아와도 스스로 재생하지 않는다.
+  // 재생/일시정지 버튼은 플레이어 것이므로 우리는 상태 이벤트로 그 의사를
+  // 읽는다 — 화면에 있는데 PAUSED가 오면 사용자가 누른 것이다(우리가 부르는
+  // pauseVideo는 화면을 벗어날 때만 일어난다).
   const pausedByUser = useRef(false);
+  const activeRef = useRef(active);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -140,7 +150,8 @@ export function useYoutubePlayer({
             controls: 0,
             playsinline: 1,
             rel: 0,
-            disablekb: 1,
+            // disablekb는 두지 않는다 — 재생/일시정지가 플레이어 몫이 됐으니
+            // 키보드(스페이스/k)도 플레이어가 받아야 조작 경로가 남는다.
             fs: 0,
             iv_load_policy: 3,
           },
@@ -150,11 +161,15 @@ export function useYoutubePlayer({
             },
             onStateChange: (event) => {
               if (cancelled) return;
-              // BUFFERING·UNSTARTED는 표시를 흔들지 않는다 — 재생 중 버퍼링이
-              // 걸릴 때마다 ▶ 가 튀어나오면 안 된다. 재생 의도는 그대로다.
-              if (event.data === YT.PlayerState.PLAYING) setPlaying(true);
-              else if (event.data === YT.PlayerState.PAUSED) setPlaying(false);
-              else if (event.data === YT.PlayerState.ENDED) {
+              // BUFFERING·UNSTARTED는 상태를 흔들지 않는다 — 재생 중 버퍼링이
+              // 걸려도 재생 의도는 그대로다(루프 폴링이 끊기면 안 된다).
+              if (event.data === YT.PlayerState.PLAYING) {
+                setPlaying(true);
+                pausedByUser.current = false;
+              } else if (event.data === YT.PlayerState.PAUSED) {
+                setPlaying(false);
+                if (activeRef.current) pausedByUser.current = true;
+              } else if (event.data === YT.PlayerState.ENDED) {
                 // 폴링이 늦어 끝에 닿은 경우의 안전망.
                 playerRef.current?.seekTo(0, true);
                 playerRef.current?.playVideo();
@@ -195,23 +210,6 @@ export function useYoutubePlayer({
     return () => window.clearInterval(id);
   }, [playing]);
 
-  const togglePlay = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (playing) {
-      pausedByUser.current = true;
-      player.pauseVideo();
-      setPlaying(false);
-    } else {
-      pausedByUser.current = false;
-      player.playVideo();
-      // 표시를 먼저 바꾼다. 유튜브 상태 이벤트는 BUFFERING을 거쳐 오므로
-      // 기다리면 탭 반응이 0.5~1.5초 늦다. 실제로 재생되지 않으면 뒤이어
-      // 오는 PAUSED 이벤트가 정정한다.
-      setPlaying(true);
-    }
-  }, [playing]);
-
   const toggleMute = useCallback(() => {
     const player = playerRef.current;
     if (!player) return;
@@ -224,5 +222,5 @@ export function useYoutubePlayer({
     }
   }, []);
 
-  return { ready, failed, playing, muted, togglePlay, toggleMute };
+  return { ready, failed, playing, muted, toggleMute };
 }

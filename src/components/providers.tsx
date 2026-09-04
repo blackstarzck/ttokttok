@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { OverlayPresenceProvider } from "@/components/overlay-presence";
 
 /**
  * 앱 전역 프로바이더.
@@ -14,6 +15,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  * - 서버 상태: TanStack Query (FRONTEND.md §4).
  *   QueryClient를 모듈 최상단이 아니라 상태로 만든다. 서버에서 모듈이
  *   공유되면 요청끼리 캐시가 섞인다.
+ * - 오버레이 존재: 바텀시트가 열려 있는지 (`overlay-presence.tsx`).
+ *   영상 게시물이 시트에 덮일 때 재생을 멈추기 위한 것이라 피드에만
+ *   필요하지만, 시트는 어느 화면에서든 열리므로 루트에 둔다.
  */
 
 /**
@@ -54,7 +58,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
       forcedTheme={isAdminPath(pathname) ? "light" : undefined}
     >
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <OverlayPresenceProvider>{children}</OverlayPresenceProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

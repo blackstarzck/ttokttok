@@ -16,6 +16,7 @@ import {
 } from "@/components/reader/reader-settings";
 import {
   loadProgress,
+  forgetProgress,
   mergeGuestProgress,
   saveProgress,
   syncProgressToServer,
@@ -32,6 +33,42 @@ const TAP_EDGE = 0.3;
  * 그대로 두면 "책을 여는 중…"에 영원히 갇힌다.
  */
 const OPEN_TIMEOUT_MS = 30_000;
+
+/**
+ * 저장된 위치가 살아 있으면 거기서, 아니면 처음부터 펼친다.
+ *
+ * 본문 파일을 교체하면(수급 파이프라인이 바뀌면) 예전 CFI가 사라진 구간을
+ * 가리킬 수 있다. 그때 epub.js는 내부에서 비동기로 예외를 던지고 display()가
+ * **끝내 완료되지 않는다** — 거부가 아니라 영영 대기라서 try/catch로는 못
+ * 잡는다. 그래서 시간을 재고, 넘기면 그 위치를 버리고 첫 페이지로 간다.
+ */
+const RESTORE_TIMEOUT_MS = 5_000;
+
+async function displaySaved(
+  rendition: Rendition,
+  cfi: string | undefined,
+  onStale: () => void,
+): Promise<void> {
+  if (!cfi) {
+    await rendition.display();
+    return;
+  }
+
+  const restored = await Promise.race([
+    rendition.display(cfi).then(
+      () => true,
+      () => false,
+    ),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), RESTORE_TIMEOUT_MS),
+    ),
+  ]);
+
+  if (restored) return;
+
+  onStale();
+  await rendition.display();
+}
 
 export function Reader({
   book,
@@ -102,7 +139,7 @@ export function Reader({
       if (isLoggedIn) await mergeGuestProgress(book.id);
 
       const saved = loadProgress(book.id);
-      await rendition.display(saved?.cfi ?? undefined);
+      await displaySaved(rendition, saved?.cfi, () => forgetProgress(book.id));
 
       if (cancelled) return;
 
