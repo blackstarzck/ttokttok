@@ -62,6 +62,15 @@ C만으로 선 안은 사용자에게 `[C]`를 표시한다.
 | `cinematic-realism` | `photorealistic cinematic still, shallow depth of field, natural light, 35mm film grain, muted color grade` | awe·클래식. 인물 일관성 어려움 → character_sheet 필수 |
 | `neon-scifi` | `neon-lit science fiction concept art, high contrast, cyan and magenta rim light, volumetric haze` | sci-fi-wonder |
 | `paper-cutout` | `layered paper cutout diorama, visible paper edges, soft drop shadows, pastel palette` | playful |
+| `charcoal-noir` | `monochrome ink line art, thin clean strokes, heavy rain drawn as fine diagonal hatching, deep black shadows, no color` | 비·야경·비극. 실측 예: `docs/shorts/hyeonjingeon-lucky-day/` |
+
+**`charcoal-noir` 주의**: 문구는 "ink line art, thin clean strokes"라고 말하지만 실제 출력은
+선화가 아니라 **짙은 목탄 톤**이다 (2026-09-04 실측). `deep black shadows`가 지배한다.
+문구가 아니라 결과를 기준으로 고르라 — 얇은 선화가 필요하면 `ink-line-art`를 쓴다.
+
+**프리셋 문구를 고치면 룩이 바뀐다.** 위 `charcoal-noir`는 `ink-line-art`에서 배경 한 구절을
+바꿨을 뿐인데 완전히 다른 그림이 나왔다. 프리셋을 손보려면 `conti-panel-spec.md`의
+"1프레임 선테스트"를 반드시 거친다.
 
 ## 컨셉 제시 포맷 (SKILL.md 3단계)
 

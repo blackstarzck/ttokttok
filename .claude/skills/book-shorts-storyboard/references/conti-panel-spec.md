@@ -21,6 +21,16 @@ No text, no lettering, no captions, no watermark, no panel border.
 기법 출처: MyUP(스타일 락) · Daring Creatives(캐릭터 시트) · Aiarty(샷 타입 선두, `--no text`) ·
 DrawStory(패널당 동작 1개).
 
+## 1프레임 선테스트 — 프리셋을 고쳤다면 필수
+
+`style_lock`을 플레이북 프리셋 그대로 쓰지 않고 한 구절이라도 바꿨다면, **전량 생성 전에
+한 장만 뽑아 확인한다.** 실측(2026-09-04): `ink-line-art`에서 `flat white background`를
+빼고 `deep black shadows`를 넣었더니 얇은 선화가 아니라 짙은 목탄화가 나왔다. 문구는
+여전히 "ink line art, thin clean strokes"라고 말하고 있었다. 5장을 다 뽑은 뒤에야 알았다.
+
+한 장만 뽑는 법: `panels`를 1개만 둔 임시 JSON으로 빌드하거나, `panel-prompts.txt`의 첫
+프롬프트를 아무 이미지 도구에 붙여넣어 본다. 룩이 확정되면 나머지를 생성한다.
+
 ## 패널 수와 단위
 
 - **4~6장** (검증 V7). 샷(2~3)마다 키프레임 1장 + 훅 구간은 시작/변화 2장
