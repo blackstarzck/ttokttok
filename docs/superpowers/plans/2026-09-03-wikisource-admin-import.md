@@ -38,20 +38,18 @@
 | `src/app/admin/(dashboard)/books/import/page.tsx` | 임포트 폼 화면 (서버 컴포넌트). |
 | `src/app/admin/(dashboard)/books/import/actions.ts` | `importFromWikisource` 서버 액션. |
 | `supabase/migrations/20260903000004_book_source_ref.sql` | `books.source_ref` 컬럼 + 백필 + 부분 unique 인덱스. |
-| `scripts/seed.ts` | `scripts/seed.mjs`를 대체. `../src/lib/wikisource.ts`를 import하고 `source_ref`를 쓴다. |
-| `scripts/refresh-epubs.ts` | `scripts/refresh-epubs.mjs`를 대체. `PAGE_OVERRIDES` 삭제, `books.source_ref` 사용, `assertClean`을 공유 모듈에서 가져온다. |
 
 **삭제**
 
-- `scripts/lib/wikisource.mjs` → `src/lib/wikisource.ts`로 이전
-- `scripts/seed.mjs` → `scripts/seed.ts`
-- `scripts/refresh-epubs.mjs` → `scripts/refresh-epubs.ts`
+- `scripts/lib/wikisource.mjs` → `src/lib/wikisource.ts`로 이전 (Task 2가 새 모듈을 만들고, Task 3이 참조를 끊고 지운다)
 
 **수정**
 
 | 파일 | 변경 |
 |---|---|
-| `package.json` | `fflate`를 `devDependencies` → `dependencies`로 이동(필수). `seed`·`epubs:refresh` 스크립트 경로를 `.ts`로. |
+| `package.json` | `fflate`를 `devDependencies` → `dependencies`로 이동(필수). **스크립트 경로는 건드리지 않는다** — Task 3 개정으로 시드·재수급은 `.mjs`로 남는다. |
+| `scripts/seed.mjs` | import를 `../src/lib/wikisource.ts`로 교체 + `source_ref` 추가. |
+| `scripts/refresh-epubs.mjs` | import 교체, `PAGE_OVERRIDES`와 로컬 `assertClean` 삭제, `books.source_ref` 사용. |
 | `src/app/admin/(dashboard)/books/page.tsx` | "위키문헌에서 가져오기" 버튼 추가. select에 `intro, rights_note` 추가. `미완성` 배지. |
 | `src/app/admin/(dashboard)/books/[bookId]/page.tsx` | `searchParams` 수용 + `AdminToast` 추가 (지금 이 화면엔 알림이 없다). |
 | `src/app/admin/(dashboard)/books/actions.ts` | 인라인 롤백 루프를 `removeUploaded`로 교체. |
@@ -947,61 +945,78 @@ git commit -m "feat(lib): 위키문헌 수급 로직을 앱·스크립트 공용
 
 ---
 
-## Task 3: 스크립트를 공용 모듈에 붙인다
 
-`scripts/lib/wikisource.mjs`를 지우고 두 스크립트를 `.ts`로 옮겨 `src/lib/wikisource.ts`를 쓰게 한다. Node v24는 타입 스트리핑이 기본 동작하므로 `.ts`를 그대로 실행한다 — 단 **`@/` 경로 별칭은 동작하지 않으므로 상대경로로 import한다.**
+## Task 3: 스크립트를 공용 모듈에 붙인다 (개정 2026-09-04)
 
-동시에 `refresh-epubs`의 `PAGE_OVERRIDES` 하드코딩 표를 지운다. 그 표의 주석이 *"DB에는 문서 제목을 담을 칸이 없어서 여기 적는다"* 라고 적어 둔 그 칸이 Task 1의 `source_ref`다.
+`scripts/lib/wikisource.mjs`를 지우고 두 스크립트가 `src/lib/wikisource.ts`를 쓰게 한다. 동시에 `refresh-epubs`의 `PAGE_OVERRIDES` 하드코딩 표를 지운다 — 그 표의 주석이 *"DB에는 문서 제목을 담을 칸이 없어서 여기 적는다"* 라고 적어 둔 그 칸이 Task 1의 `source_ref`다.
+
+> **개정 이유 — 스크립트를 `.ts`로 바꾸지 않는다.** 원래 계획은 `seed.mjs`·`refresh-epubs.mjs`를 `.ts`로 옮기려 했다. 그런데 `tsconfig.json`의 `include`가 `["**/*.ts", …]`이고 `exclude`는 `node_modules`뿐이라, `.ts`로 바꾸는 순간 **500줄짜리 무타입 시드 스크립트가 `strict` 타입체크 아래로 끌려 들어온다** — 이 기능과 무관한 비용이다.
+>
+> 그리고 그럴 필요가 없다. Node v24의 타입 스트리핑은 **불러오는 쪽의 확장자와 무관하게** 적용된다 — `.mjs`가 `.ts`를 그대로 import할 수 있다(실측 확인). `include`에 `**/*.mjs`가 없고 `.mts`만 있으므로 `.mjs`는 타입체크되지 않는다.
+>
+> 그래서 확장자는 `.mjs`로 두고 **import 경로만 갈아탄다.** 목표(수급 로직의 원천을 하나로)는 그대로 달성되고, `package.json`의 스크립트 경로도 건드릴 필요가 없다.
 
 **Files:**
-- Create: `scripts/seed.ts` (from `scripts/seed.mjs`)
-- Create: `scripts/refresh-epubs.ts` (from `scripts/refresh-epubs.mjs`)
-- Delete: `scripts/seed.mjs`, `scripts/refresh-epubs.mjs`, `scripts/lib/wikisource.mjs`
-- Modify: `package.json`
+- Modify: `scripts/seed.mjs` — import 경로 교체 + `source_ref` 추가
+- Modify: `scripts/refresh-epubs.mjs` — import 경로 교체, `PAGE_OVERRIDES`와 로컬 `assertClean` 삭제, `source_ref` 사용
+- Delete: `scripts/lib/wikisource.mjs`
+- `package.json`은 **건드리지 않는다** (스크립트 경로가 그대로다)
 
 **Interfaces:**
-- Consumes: `toPageTitle`, `fetchEpub`, `assertClean` from `../src/lib/wikisource.ts`; `books.source_ref` (Task 1)
+- Consumes: `fetchEpub`, `assertClean` from `../src/lib/wikisource.ts` (Task 2에서 만들어졌다); `books.source_ref` (Task 1)
 - Produces: `npm run seed`가 `source_ref`를 채운다. `npm run epubs:refresh`가 `source_ref`로 문서를 찾는다.
 
-- [ ] **Step 1: 파일 이름을 바꾼다**
+- [ ] **Step 1: `scripts/seed.mjs`의 import를 갈아탄다**
 
-```bash
-git mv scripts/seed.mjs scripts/seed.ts
-git mv scripts/refresh-epubs.mjs scripts/refresh-epubs.ts
-git rm scripts/lib/wikisource.mjs
-```
+`import { fetchEpub } from "./lib/wikisource.mjs";` 를 아래로 바꾼다:
 
-- [ ] **Step 2: `scripts/seed.ts`의 import와 `source_ref`를 손본다**
-
-import 줄을 바꾼다 (`@/` 별칭은 node 타입 스트리핑에서 동작하지 않는다):
-
-```ts
+```js
+// 수급 로직의 원천은 src/lib/wikisource.ts 하나다 — 어드민 임포트도 같은 모듈을
+// 쓴다. Node의 타입 스트리핑이 불러오는 쪽 확장자와 무관하게 동작하므로 .mjs가
+// .ts를 그대로 import한다. `@/` 별칭은 node가 모르니 상대경로여야 한다.
 import { fetchEpub } from "../src/lib/wikisource.ts";
 ```
 
-`books` upsert의 매핑에 `source_ref`를 추가한다. `b.wikisource`가 있으면 그게 위키문헌 문서 제목이고, 없으면 도서 제목이 곧 문서 제목이다 — `fetchEpub`에 넘기는 값과 **반드시 같아야** unique 인덱스가 중복을 잡는다:
+- [ ] **Step 2: `scripts/seed.mjs`의 books upsert에 `source_ref`를 넣는다**
 
-```ts
+`epub_path: epubPaths.get(b.id),` 로 시작하는 블록을 찾아 한 줄을 더한다:
+
+```js
         epub_path: epubPaths.get(b.id),
         source: "wikisource",
+        // fetchEpub에 넘기는 값과 반드시 같아야 한다 — 다르면 부분 unique
+        // 인덱스가 중복 수급을 못 잡는다.
         source_ref: b.wikisource ?? b.title,
         rights_note: b.rights,
 ```
 
-- [ ] **Step 3: `scripts/refresh-epubs.ts`에서 `PAGE_OVERRIDES`를 없앤다**
+- [ ] **Step 3: `scripts/refresh-epubs.mjs`에서 중복을 걷어낸다**
 
-import를 바꾸고 `assertClean`을 공용 모듈에서 가져온다 (로컬 정의를 삭제):
+세 가지를 지우고 하나를 바꾼다.
 
-```ts
+지울 것 ①: fflate import — 로컬 `assertClean`이 쓰던 것으로, 이제 필요 없다.
+
+```js
+import { unzipSync, strFromU8 } from "fflate";
+```
+
+지울 것 ②: `PAGE_OVERRIDES` 상수 선언과 그 위의 JSDoc 주석 블록 전체.
+
+지울 것 ③: 로컬 `assertClean` 함수 정의와 그 위의 JSDoc 주석 블록 전체.
+
+바꿀 것: 남은 import를 공용 모듈로 돌린다.
+
+```js
 import { createClient } from "@supabase/supabase-js";
+// 수급·정리·검사의 원천은 src/lib/wikisource.ts 하나다 (Task 3 개정 참고).
 import { assertClean, fetchEpub } from "../src/lib/wikisource.ts";
 ```
 
-`PAGE_OVERRIDES` 상수 선언과 로컬 `assertClean` 함수 정의를 **통째로 삭제**하고, `fflate` import(`unzipSync`, `strFromU8`)도 지운다 — 이제 쓰지 않는다.
+- [ ] **Step 4: `refresh-epubs.mjs`가 문서 제목을 DB에서 읽게 한다**
 
-select에 `source_ref`를 추가한다:
+select에 `source_ref`를 더한다:
 
-```ts
+```js
   const { data: books, error } = await db
     .from("books")
     .select("id, title, source, source_ref, epub_path")
@@ -1010,47 +1025,56 @@ select에 `source_ref`를 추가한다:
     .order("title");
 ```
 
-문서 제목을 고르는 줄을 바꾼다:
+그리고 문서 제목을 고르는 줄을 바꾼다:
 
-```ts
+```js
     // 문서 제목은 DB가 안다 (books.source_ref) — 하드코딩 대응표가 있던 자리다.
     const page = book.source_ref ?? book.title;
 ```
 
-- [ ] **Step 4: `package.json`의 스크립트 경로를 바꾼다**
-
-```json
-    "seed": "node --env-file=.env scripts/seed.ts",
-    "covers": "node --env-file=.env scripts/generate-covers.mjs",
-    "epubs:refresh": "node --env-file=.env scripts/refresh-epubs.ts",
-```
-
-`generate-covers.mjs`는 그대로 둔다 — 이 작업과 무관하고 `sharp`를 쓰는 별개 경로다.
-
-- [ ] **Step 5: 재수급 스크립트를 실제로 돌려 확인한다**
+- [ ] **Step 5: 옛 모듈을 지운다**
 
 ```bash
-npm run epubs:refresh -- --dry-run
+git rm scripts/lib/wikisource.mjs
 ```
 
-기대: 8권 전부 `· 제목 — NNN KB, 챕터 N개 (검사 통과)` 그리고 마지막에 `검사 8권`. 업로드는 하지 않는다.
+`scripts/lib/`에 `placeholder-video.mjs`가 남아 있으므로 디렉터리는 지우지 않는다.
 
-이 한 번의 실행이 세 가지를 동시에 증명한다 — Node가 `.ts`를 실행한다, `src/lib/wikisource.ts`의 `stripEpub`·`assertClean`이 실물 EPUB에서 동작한다, `source_ref` 백필이 맞다(「진달래꽃」·「하늘과 바람과 별과 시」가 실패하지 않는다).
+참조가 끊겼는지 확인한다:
 
-**「진달래꽃」이나 「하늘과 바람과 별과 시」가 "문서를 찾지 못했습니다"로 실패하면** Task 1 Step 6의 백필이 안 된 것이다. 스크립트에 표를 되살리지 말고 DB를 고친다.
+```bash
+grep -rn "lib/wikisource.mjs\|PAGE_OVERRIDES" scripts/ src/ package.json
+```
+
+기대: 결과 없음.
 
 - [ ] **Step 6: 타입체크**
 
 ```bash
 npm run build
+npm test
 ```
 
-기대: 성공. `scripts/`는 `tsconfig.json`의 include에 없을 수 있어 타입체크 대상이 아닐 수 있다 — 그 경우에도 Step 5의 실제 실행이 검증을 맡는다.
+기대: 둘 다 성공. `.mjs`는 타입체크 대상이 아니므로 스크립트 변경이 빌드에 영향을 주지 않아야 한다 — **영향이 있다면 `include`에 대한 위 전제가 틀린 것이니 멈추고 보고한다.**
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 7: 재수급 스크립트를 실제로 돌려 확인한다 — 컨트롤러 승인 필요**
+
+⚠️ **이 스텝은 혼자 실행하지 않는다.** `--dry-run`이라 업로드도 DB 쓰기도 없지만, 위키문헌에 실제로 8번 요청하고 `books`를 읽는다. 그리고 `source_ref` 마이그레이션이 적용된 뒤에만 동작한다(적용 전에는 select가 400으로 실패한다). **컨트롤러에게 "Step 7 실행 준비됨"을 보고하고 승인을 받은 뒤 실행한다.**
 
 ```bash
-git add -A scripts package.json
+npm run epubs:refresh -- --dry-run
+```
+
+기대: 8권 전부 `· 제목 — NNN KB, 챕터 N개 (검사 통과)`, 마지막에 `검사 8권`.
+
+이 한 번의 실행이 세 가지를 동시에 증명한다 — `.mjs`가 `.ts`를 import한다, `src/lib/wikisource.ts`의 `stripEpub`·`assertClean`이 **실물 EPUB**에서 동작한다(픽스처가 아니라), `source_ref` 백필이 맞다(「진달래꽃」·「하늘과 바람과 별과 시」가 실패하지 않는다).
+
+**「진달래꽃」이나 「하늘과 바람과 별과 시」가 "문서를 찾지 못했습니다"로 실패하면** Task 1의 백필이 안 된 것이다. 스크립트에 표를 되살리지 말고 DB를 고친다.
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add -A scripts
 git commit -m "refactor(scripts): 시드·재수급이 공용 수급 모듈을 쓴다
 
 문서 제목 하드코딩 대응표(PAGE_OVERRIDES)를 지우고 books.source_ref로
@@ -1146,9 +1170,11 @@ npm run build
 
 기대: 성공.
 
-그리고 실제로 확인한다 — `npm run dev` 후 `/admin/books/new`에서 **EPUB도 ISBN도 구매 링크도 없는** 도서를 저장 시도한다.
+**브라우저 확인은 하지 않는다 (개정 2026-09-04).** 원래 이 자리에는 "EPUB도 ISBN도 구매 링크도 없는 도서를 저장해 배너를 확인한다"가 있었는데, **그 시나리오는 추출한 코드를 전혀 타지 않는다** — 파일을 올리지 않으므로 `uploaded`가 빈 배열이고 `removeUploaded`는 즉시 반환한다. 확인되는 건 `humanize`·리다이렉트·배너뿐이고 그건 이 태스크가 건드리지 않은 부분이다.
 
-기대: `/admin/books`로 돌아오며 배너에 "EPUB 파일이 없으면 ISBN이나 구매 링크 중 하나는 있어야 합니다 (링크형 도서)." 리팩터링이 기존 동작을 바꾸지 않았다는 뜻이다.
+대신 **코드 등가성으로 검증한다**: 리팩터 전(`git show <BASE>:"src/app/admin/(dashboard)/books/actions.ts"`)과 후의 `saveBook`을 나란히 놓고, 네 경로(신규+성공 / 신규+실패 / 수정+성공 / 수정+실패)의 동작이 같음을 양쪽 코드를 인용해 보고서에 적는다. 특히 `if (!id)` 조건이 그대로인지 — 수정 시에는 기존 파일을 교체한 것이라 지우면 멀쩡했던 도서의 본문이 사라진다.
+
+실제 삭제가 운영 버킷에서 일어나는지는 정적 검토로 대체할 수 없다. 그 경로(신규 도서 + EPUB 업로드 성공 후 INSERT 실패)는 트리거 자체가 어렵고 — `epub_path`가 있으면 CHECK를 통과하고 `saveBook`은 `source_ref`를 쓰지 않는다 — 이 리팩터 이전에도 미검증이었다. **사용자 확인 항목으로 넘기고 회귀 위험으로 취급하지 않는다.**
 
 - [ ] **Step 4: 커밋**
 
