@@ -150,6 +150,23 @@ function makeSingleFileEpub(path: string, content: string): Uint8Array {
   });
 }
 
+/**
+ * 실물 ws-export 챕터 문서의 최소 재현 — 「운수 좋은 날」 EPUB에서 확인한
+ * 대로 `<head>`에 `<meta>`·`<link rel="stylesheet">`·`<title>`과, CSS
+ * 텍스트가 그대로 들어간 인라인 `<style>`(mw:Extension/templatestyles)을
+ * 갖췄다. `assertClean`의 챕터-공백 검사가 파일 전체가 아니라 `<body>`
+ * 안쪽만 봐야 하는 이유가 이 모양이다 — `<head>`가 빠진 픽스처로는 그
+ * 버그가 재현되지 않는다.
+ */
+function makeChapterXhtml(bodyInner: string): string {
+  return `<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ko" dir="ltr"><head><meta charset="UTF-8"/>
+<link type="text/css" rel="stylesheet" href="main.css"/><title>운수 좋은 날</title>
+<style typeof="mw:Extension/templatestyles" about="#mwt3"><![CDATA[.mw-parser-output
+.wst-header-mainblock{margin:4px auto 4px auto;padding:0 3px;display:flex;}
+]]></style>
+</head><body>${bodyInner}</body></html>`;
+}
+
 const read = (epub: Uint8Array) => {
   const entries = unzipSync(epub);
   return {
@@ -326,13 +343,35 @@ describe("assertClean", () => {
     expect(() => assertClean(makeFixture())).toThrow(/위키백과 로고/);
   });
 
-  it("챕터 파일은 있지만 본문이 태그뿐이면 실패한다", () => {
+  it("챕터 body가 비면 실패한다 — head의 title·style 텍스트에 속지 않는다", () => {
     // path 존재 여부만 보면, 섹션을 통째로 잘못 지워 챕터가 빈 채로
     // 올라가도(Finding 1류 버그) 이 관문을 조용히 통과한다.
-    const epub = makeSingleFileEpub(
-      "OPS/c0_empty.xhtml",
-      "<html><body><p></p></body></html>",
-    );
-    expect(() => assertClean(epub)).toThrow(/본문 챕터가 비어 있음/);
+    //
+    // 픽스처는 실물 ws-export 챕터처럼 <head>에 <title>과 인라인 <style>
+    // (CSS 텍스트 포함)을 갖췄다 — <head> 없는 픽스처로는 "파일 전체에서
+    // 태그만 걷어내면 title·style 글자가 살아남아 통과해 버리는" 버그가
+    // 재현되지 않는다. (이 테스트가 고치기 전 코드에서 실패하는지는 이
+    // 파일 밖에서 git stash로 확인했다 — 아래 리포트 참고.)
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", makeChapterXhtml("<p></p>"));
+    expect(() => assertClean(epub)).toThrow(/본문 챕터가 전부 비어 있음/);
+  });
+
+  it("한 챕터가 삽화뿐인 도판이어도, 다른 챕터에 본문이 있으면 통과한다", () => {
+    // 위키문헌 책에는 삽화 한 장만 있는 도판 페이지가 실제로 있다 —
+    // 원래부터 본문 텍스트가 없다. 그 한 페이지 때문에 나머지 멀쩡한
+    // 챕터까지 게이트에 걸리면 안 된다("하나라도 비면 실패"가 아니라
+    // "전부 비어야 실패"인 이유).
+    const files: Zippable = {
+      mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+      "OPS/c0_ch1.xhtml": strToU8(
+        makeChapterXhtml("<p>새침하게 흐린 품이 눈이 올 듯하더니</p>"),
+      ),
+      "OPS/c1_plate.xhtml": strToU8(makeChapterXhtml('<img src="images/plate1.png"/>')),
+      "OPS/c2_ch2.xhtml": strToU8(
+        makeChapterXhtml("<p>이 날이야말로 동소문 안에서 얼음 지치는 아이들</p>"),
+      ),
+    };
+    const epub = zipSync(files);
+    expect(assertClean(epub)).toBe(3);
   });
 });

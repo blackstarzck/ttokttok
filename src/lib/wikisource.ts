@@ -389,6 +389,27 @@ export function readEpubMetadata(epub: Uint8Array): {
 }
 
 /**
+ * 챕터 XHTML에서 `<body>` 안쪽만 뽑아 태그를 걷어낸 글자만 남긴다.
+ *
+ * 실제 ws-export 챕터 문서는 `<head>` 안에 `<title>`과 인라인 `<style>`
+ * (CSS 텍스트가 그대로 들어간)까지 갖추고 있다. 파일 전체에서 태그만
+ * 걷어내면 `<body>`가 통째로 비어도 그 `<title>` 글자와 `<style>` CSS
+ * 본문이 살아남아 "글자가 있다"고 오판한다 — 이 검사가 잡으려던 바로 그
+ * 파괴를 못 잡는 셈이다. 그래서 `<body>` 바깥은 애초에 보지 않는다.
+ * `<body>`가 아예 없으면 글자 없음으로 취급한다.
+ */
+function chapterBodyText(xhtml: string): string {
+  const bodyMatch = /<body\b[^>]*>([\s\S]*?)<\/body>/i.exec(xhtml);
+  if (!bodyMatch) return "";
+
+  return bodyMatch[1]
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+}
+
+/**
  * 업로드 직전 관문 — 수급 파이프라인이 제 일을 했는지 확인한다.
  *
  * 껍데기가 남은 파일이 조용히 올라가면 뷰어를 열어 보기 전까지 아무도
@@ -418,14 +439,20 @@ export function assertClean(epub: Uint8Array): number {
   if (chapterPaths.length === 0) {
     problems.push("본문 챕터 없음");
   } else if (
-    // 챕터 파일은 있지만 태그만 남고 글자가 하나도 없는 경우 — 섹션을
+    // 챕터 파일은 있지만 어느 챕터에도 글자가 하나도 없는 경우 — 섹션을
     // 통째로 잘못 지웠을 때(Finding 1류 버그) 나는 증상이라, 경로 존재
     // 여부만 보는 지금까지의 검사로는 못 잡는다.
-    chapterPaths.some(
-      (p) => strFromU8(entries[p]).replace(/<[^>]*>/g, "").trim().length === 0,
-    )
+    //
+    // "하나라도 비면 실패"가 아니라 "전부 비어야 실패"인 이유: 위키문헌
+    // 챕터 중에는 삽화 한 장만 있는 도판 페이지가 실제로 존재하고, 그런
+    // 페이지는 원래부터 본문 텍스트가 없다. 다장 도서에서 도판 한 장 때문에
+    // 멀쩡한 나머지 챕터까지 통째로 게이트에 걸리는 걸 막으려는 것이다.
+    // 대신 "일부만 파괴됐지만 나머지는 살아 있는" 경우는 이 검사로 못
+    // 잡는다는 걸 감수한 절충이다 — 다음에 조건을 좁히고 싶어지면 이 주석을
+    // 먼저 읽을 것.
+    chapterPaths.every((p) => chapterBodyText(strFromU8(entries[p])).length === 0)
   ) {
-    problems.push("본문 챕터가 비어 있음");
+    problems.push("본문 챕터가 전부 비어 있음");
   }
 
   if (problems.length > 0) {
