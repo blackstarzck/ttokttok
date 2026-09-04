@@ -8,14 +8,12 @@ import { importFromWikisource } from "./actions";
 
 export const metadata: Metadata = { title: "위키문헌에서 가져오기" };
 
-/**
- * ws-export는 EPUB을 요청 시점에 생성한다. 단편은 3초쯤이지만 하위 페이지가
- * 많은 장편은 수십 초가 걸린다. `maxDuration`을 여기 선언하지 않는 이유:
- * 플랜 상한보다 큰 값을 쓰면 Vercel 배포 자체가 실패하고, 60을 못박으면
- * Pro의 더 높은 기본값을 스스로 깎는다. 장편이 타임아웃하면 Pro에서
- * `export const maxDuration = 300`을 여기 추가하고, Hobby면 상한이 60초라
- * 올릴 수 없다 — 그 경우 `npm run seed` 경로로 처리한다.
- */
+// ws-export는 EPUB을 요청 시점에 생성한다. 단편은 3초쯤이지만 하위 페이지가
+// 많은 장편은 수십 초가 걸린다. `maxDuration`을 여기 선언하지 않는 이유:
+// 플랜 상한보다 큰 값을 쓰면 Vercel 배포 자체가 실패하고, 60을 못박으면
+// Pro의 더 높은 기본값을 스스로 깎는다. 장편이 타임아웃하면 Pro에서
+// `export const maxDuration = 300`을 여기 추가하고, Hobby면 상한이 60초라
+// 올릴 수 없다 — 그 경우 `npm run seed` 경로로 처리한다.
 
 const q = (v: string | string[] | undefined) =>
   typeof v === "string" ? v : undefined;

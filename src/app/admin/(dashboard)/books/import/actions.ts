@@ -14,7 +14,7 @@ import {
 } from "@/lib/wikisource";
 
 /**
- * 위키문헌 EPUB 임포트 (PRD §5.10, §5.11).
+ * @file 위키문헌 EPUB 임포트 (PRD §5.10, §5.11).
  *
  * 관리자가 문서 주소·저자·카테고리를 넣으면 본문을 받아 정리해 올리고
  * `books` 행을 **바로 만든다**. 그리고 수정 화면으로 보낸다 —
@@ -33,16 +33,26 @@ import {
  * 여기다 — 위키문헌은 우리와 다른 기준으로 운영된다. 그래서 임포트
  * 경로에만 관문을 둔다. 수동 등록(saveBook)은 막지 않는다: 손으로 적어
  * 넣는 행위에는 이런 오독이 끼어들지 않는다.
+ *
+ * `Map`으로 두는 이유: 객체 리터럴이면 `BLOCKED_AUTHORS["constructor"]` 같은
+ * 프로토타입 키 조회가 함수를 반환해 "차단됨"으로 오판된다. 키는 `normalize
+ * ("NFC")`를 한 번 더 거쳐 저장한다 — 이 파일의 한글 리터럴이 NFC라 해도,
+ * 조회 쪽(아래)이 항상 NFC로 정규화한 값을 넣으므로 저장 쪽도 같은 형태여야
+ * `.get()`이 맞아떨어진다.
  */
-const BLOCKED_AUTHORS: Record<string, string> = {
-  정지용: "월북·납북 작가 — 사망 연도가 불확실합니다",
-  이태준: "월북·납북 작가 — 사망 연도가 불확실합니다",
-  박태원: "월북·납북 작가 — 사망 연도가 불확실합니다",
-  홍명희: "월북·납북 작가 — 사망 연도가 불확실합니다",
-  김기림: "월북·납북 작가 — 사망 연도가 불확실합니다",
-  백석: "1996년 사망 — 저작권이 존속합니다 (사후 70년)",
-  박경리: "2008년 사망 — 저작권이 존속합니다 (사후 70년)",
-};
+const BLOCKED_AUTHORS = new Map<string, string>(
+  (
+    [
+      ["정지용", "월북·납북 작가 — 사망 연도가 불확실합니다"],
+      ["이태준", "월북·납북 작가 — 사망 연도가 불확실합니다"],
+      ["박태원", "월북·납북 작가 — 사망 연도가 불확실합니다"],
+      ["홍명희", "월북·납북 작가 — 사망 연도가 불확실합니다"],
+      ["김기림", "월북·납북 작가 — 사망 연도가 불확실합니다"],
+      ["백석", "1996년 사망 — 저작권이 존속합니다 (사후 70년)"],
+      ["박경리", "2008년 사망 — 저작권이 존속합니다 (사후 70년)"],
+    ] as const
+  ).map(([name, reason]) => [name.normalize("NFC"), reason] as const),
+);
 
 const str = (fd: FormData, key: string) =>
   String(fd.get(key) ?? "").trim() || null;
@@ -71,9 +81,18 @@ export async function importFromWikisource(formData: FormData) {
     back("문서 주소·저자·카테고리는 모두 필요합니다.");
   }
 
-  const blocked = BLOCKED_AUTHORS[author.replace(/\s+/g, "")];
+  // macOS Finder·클립보드 경로는 한글을 NFD(자모 분해)로 내놓기도 하고,
+  // 폭 없는 문자(zero-width space 등)가 붙어 들어오기도 한다 — 둘 다 이
+  // 조회를 조용히 실패시켜 금지 저작자를 그냥 통과시킨다. 이건 우회를 막는
+  // 관문이 아니라 실수로 새는 걸 막는 관문이라, 놓치는 쪽이 진짜 실패다.
+  const authorKey = author
+    .normalize("NFC")
+    .replace(/[\s\u200B\u200C\u200D\u00AD]/g, "");
+  const blocked = BLOCKED_AUTHORS.get(authorKey);
   if (blocked) {
-    back(`「${author}」은 등록할 수 없습니다 — ${blocked} (PRD §5.11 등록 금지 목록).`);
+    back(
+      `등록할 수 없는 저작자입니다: 「${author}」 — ${blocked} (PRD §5.11 등록 금지 목록).`,
+    );
   }
 
   // redirect()는 예외를 던져 동작한다. try 안에서 부르면 그 catch가
@@ -88,11 +107,19 @@ export async function importFromWikisource(formData: FormData) {
   const db = await createClient();
 
   // 4MB를 받기 전에 먼저 확인한다. unique 인덱스는 최종 방어선으로 남긴다.
-  const { data: existing } = await db
+  const { data: existing, error: existingErr } = await db
     .from("books")
     .select("id")
     .eq("source_ref", pageTitle)
     .maybeSingle();
+
+  if (existingErr) {
+    // data만 보고 넘어가면 조회 실패가 "중복 아님"으로 읽혀, 4MB짜리
+    // fetch를 낭비하고서야 insert에서 뒤늦게 실패한다 — 이 사전 확인이
+    // 있는 이유 자체가 사라진다. PostgREST 원문은 로그로만 남긴다.
+    console.error(`중복 확인 조회 실패 (source_ref=${pageTitle}): ${existingErr.message}`);
+    back("중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+  }
 
   if (existing) {
     redirect(`/admin/books/${existing.id}?exists=1`);
@@ -140,13 +167,36 @@ export async function importFromWikisource(formData: FormData) {
 
   if (insertErr) {
     await removeUploaded(uploaded);
-    back(
-      /books_source_ref_key/.test(insertErr.message)
-        ? "이미 등록된 위키문헌 문서입니다."
-        : insertErr.message,
-    );
+
+    if (/books_source_ref_key/.test(insertErr.message)) {
+      // 사전 확인은 관리자가 입력한 값(pageTitle)으로 조회했지만, 방금 넣은
+      // 값은 위키문헌이 리다이렉트를 따라가며 정한 source_ref다. 관리자가
+      // 리다이렉트 별칭 제목을 입력했다면 둘이 달라 사전 확인을 통과하고
+      // 여기 unique 인덱스에서야 걸린다 — 그래도 계약대로 기존 도서 수정
+      // 화면으로 보낸다. 조회 자체가 안 되면(row가 사라졌거나 등) 배너로
+      // 물러난다.
+      const insertedRef = meta.pageTitle ?? pageTitle;
+      const { data: dup } = await db
+        .from("books")
+        .select("id")
+        .eq("source_ref", insertedRef)
+        .maybeSingle();
+
+      if (dup) {
+        redirect(`/admin/books/${dup.id}?exists=1`);
+      }
+
+      back("이미 등록된 위키문헌 문서입니다.");
+    }
+
+    // 그 밖의 실패(제약 조건 등)는 PostgREST 원문을 그대로 보여줘 봐야
+    // 관리자가 고칠 수 있는 정보가 아니다 — saveBook의 humanize()와 같은
+    // 이유로 로그에만 원문을 남기고 화면에는 일반 문구를 띄운다.
+    console.error(`도서 저장 실패 (bookId=${bookId}): ${insertErr.message}`);
+    back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
   }
 
   revalidatePath("/admin/books");
+  revalidatePath("/");
   redirect(`/admin/books/${bookId}?imported=1`);
 }
