@@ -29,7 +29,7 @@ export default async function AdminBooksPage({
 
   const { data: books } = await db
     .from("books")
-    .select("id, title, author, category, epub_path, isbn, cover_url")
+    .select("id, title, author, category, epub_path, isbn, cover_url, intro, rights_note")
     .order("title");
 
   return (
@@ -41,9 +41,14 @@ export default async function AdminBooksPage({
             EPUB이 있으면 전문 도서, 없으면 링크형 도서입니다.
           </p>
         </div>
-        <Button asChild className="min-h-11">
-          <Link href="/admin/books/new">새 도서</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" className="min-h-11">
+            <Link href="/admin/books/import">위키문헌에서 가져오기</Link>
+          </Button>
+          <Button asChild className="min-h-11">
+            <Link href="/admin/books/new">새 도서</Link>
+          </Button>
+        </div>
       </header>
 
       <AdminNotice error={q(sp.error)} />
@@ -72,11 +77,23 @@ export default async function AdminBooksPage({
                 <TableCell>{b.author}</TableCell>
                 <TableCell>{b.category}</TableCell>
                 <TableCell>
-                  {b.epub_path ? (
-                    <Badge>전문</Badge>
-                  ) : (
-                    <Badge variant="secondary">링크형</Badge>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {b.epub_path ? (
+                      <Badge>전문</Badge>
+                    ) : (
+                      <Badge variant="secondary">링크형</Badge>
+                    )}
+                    {/*
+                      임포트는 본문과 서지 최소값만 채운다. 소개는 도서 상세
+                      시트의 첫 섹션이고 권리 근거는 공개 판단의 기록이라,
+                      둘이 비어 있으면 발행 준비가 끝나지 않은 도서다.
+                      표지·인용구는 없어도 정상이므로 판정에서 뺀다
+                      (PRD §5.11, §5.12).
+                    */}
+                    {(!b.intro || !b.rights_note) && (
+                      <Badge variant="outline">미완성</Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-xs">
                   {b.cover_url ? "있음" : "없음"}

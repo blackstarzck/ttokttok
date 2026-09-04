@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 /** 서버 액션이 성공을 알릴 때 쓰는 쿼리 키들. 토스트를 띄운 뒤 지운다. */
-const SUCCESS_KEYS = ["saved", "deleted", "done", "removed"];
+const SUCCESS_KEYS = ["saved", "deleted", "done", "removed", "imported", "exists"];
 
 /**
  * 어드민 성공 알림 (PRD §5.10).
