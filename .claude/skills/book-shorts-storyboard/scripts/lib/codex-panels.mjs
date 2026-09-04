@@ -27,7 +27,9 @@ export function buildPanelInstruction(jobs) {
 }
 
 export function defaultRunner(args, cwd, timeoutMs) {
-  const r = spawnSync('codex', args, {
+  // 문자열 한 줄로 넘긴다 — shell:true + 배열 인자는 DEP0190 경고를 낸다. 인자는 우리가 만든 고정 토큰과
+  // JSON.stringify로 감싼 프롬프트뿐이라 공백 결합이 안전하다.
+  const r = spawnSync(['codex', ...args].join(' '), {
     cwd,
     shell: true, // Windows에서 codex.cmd 실행에 필요
     encoding: 'utf8',
