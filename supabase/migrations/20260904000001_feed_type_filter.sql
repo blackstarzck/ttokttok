@@ -88,5 +88,8 @@ as $$
   limit greatest(p_limit, 0);
 $$;
 
+grant execute on function
+  public.get_feed_v4(text, text, int, text, uuid, text) to anon, authenticated;
+
 -- 옛 함수를 남기면 오버로드 모호성이 생긴다(위 주석).
 drop function public.get_feed_v3(text, text, int, text, uuid);

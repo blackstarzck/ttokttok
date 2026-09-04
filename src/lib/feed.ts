@@ -78,7 +78,7 @@ const SELECT = `
 `;
 
 /**
- * 페이지 경계 (get_feed_v3).
+ * 페이지 경계 (get_feed_v4).
  *
  * token은 해석하지 않는다 — DB가 만든 문자열을 그대로 돌려보내기만 하는
  * 불투명 값이다. 점수를 숫자로 주고받으면 JSON 직렬화에서 자릿수가 깎여
@@ -118,7 +118,7 @@ function spreadByBook(posts: FeedPost[]): FeedPost[] {
 /**
  * 홈 피드 한 페이지 (PRD §5.1).
  *
- * 정렬은 get_feed_v3가 한다 — 가중 랜덤 × 인기 × 신선도 × 시청 이력.
+ * 정렬은 get_feed_v4가 한다 — 가중 랜덤 × 인기 × 신선도 × 시청 이력.
  * seed가 같으면 순서가 재현되므로 다음 페이지도 같은 seed를 넘겨야 한다.
  * 커서는 (점수, id)라, 사이에 새 글이 발행돼도 페이지가 밀리지 않는다.
  */
@@ -131,16 +131,18 @@ export async function getFeed(
   const db = await createClient();
 
   // 1) 순서와 커서를 정한다.
-  const { data: ranked, error: rankError } = await db.rpc("get_feed_v3", {
+  // p_type: null — 유형 필터 없이 전체를 섞는다 (지금까지의 홈 동작 그대로).
+  const { data: ranked, error: rankError } = await db.rpc("get_feed_v4", {
     p_seed: seed,
     p_session_id: sessionId,
     p_limit: limit,
     p_cursor: cursor?.token ?? null,
     p_cursor_id: cursor?.id ?? null,
+    p_type: null,
   });
 
   if (rankError) {
-    console.error("get_feed_v3:", rankError.message);
+    console.error("get_feed_v4:", rankError.message);
     return { posts: [], nextCursor: null };
   }
 
