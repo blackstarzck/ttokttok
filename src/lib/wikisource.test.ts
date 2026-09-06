@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import {
   assertClean,
+  MIN_BODY_CHARS,
   readEpubMetadata,
   stripEpub,
   toPageTitle,
@@ -117,10 +118,12 @@ function makeFixture(): Uint8Array {
       `<html><body><h1>정보</h1><img src="images/c1_Wikipedia_logo_v2.svg.png"/></body></html>`,
     ),
     // 라이선스 상자는 섹션 안에 「라이선스」 제목과 함께 들어 있고,
-    // 상자 자체가 div로 여러 겹 중첩돼 있다.
+    // 상자 자체가 div로 여러 겹 중첩돼 있다. 본문 문단은 MIN_BODY_CHARS
+    // 문턱을 넘기려고 LONG_PROSE를 쓴다(아래 LONG_PROSE 주석 참고) —
+    // 라이선스 섹션은 strip이 지우므로 문턱을 넘겨야 하는 건 이 문단뿐이다.
     "OPS/c0_unsu.xhtml": strToU8(
       `<html><body>
-<section data-mw-section-id="0"><p>새침하게 흐린 품이 눈이 올 듯하더니</p></section>
+<section data-mw-section-id="0"><p>${LONG_PROSE}</p></section>
 <section data-mw-section-id="1"><h2>라이선스</h2>
 <div class="licenseContainer licenseBanner"><div class="inner"><div class="deep">CC BY-SA 3.0</div></div></div>
 </section>
@@ -137,6 +140,27 @@ body { margin: 0; }
   };
   return zipSync(files, { level: 6 });
 }
+
+/**
+ * MIN_BODY_CHARS(500자) 포팅 이후 여러 픽스처가 재사용하는 실감 본문.
+ *
+ * 아래 여러 테스트는 원래 자기 검사(인코딩 방향, 무결성, 고아 제목 판정
+ * 등 — 전부 글자수와 무관하다)와 상관없이 몇 글자짜리 본문을 픽스처로
+ * 썼다. `assertClean`에 최소 글자수 검사가 새로 생기면서 그 픽스처들이
+ * 검사 대상과 무관하게 "빈 껍데기" 판정에 걸리게 됐다 — 그래서 그 검사와
+ * 무관한 테스트는 본문만 이 긴 텍스트로 바꿔 새 문턱을 넘긴다(검증하는
+ * 내용 자체는 그대로 둔다).
+ */
+const LONG_PROSE_PART1 = `새침하게 흐린 품이 눈이 올 듯하더니 눈은 아니 오고 진눈깨비가 추적추적 흩날리는 날이었다. 거리로 나선 지 얼마 지나지 않아 손끝이 얼어붙는 듯했지만 오늘 날씨쯤이야 대수롭지 않게 여기며 발걸음을 재촉했다. 지나가는 사람들은 저마다 옷깃을 여미고 종종걸음으로 골목을 빠져나갔고, 낡은 처마 밑으로 빗물이 뚝뚝 떨어지는 소리만이 적막을 메웠다. 멀리서 장사치들의 외침이 간간이 들려오다가도 이내 바람 소리에 묻혀 사라졌다. 집을 나설 때 걱정하던 일들이 자꾸 머릿속을 맴돌았지만, 그는 애써 딴생각을 떨쳐내며 오늘 하루만큼은 무탈하게 지나가기를 마음속으로 빌었다. 그렇게 얼마를 걸었을까, 저 멀리 손을 드는 사람이 보이자 그의 발걸음은 자기도 모르게 빨라졌다.`;
+const LONG_PROSE_PART2 = `그러나 막상 다가가 보니 손을 든 것은 행인이 아니라 처마 밑에서 비를 피하려 애쓰던 노인이었고, 김 서방은 헛웃음을 지으며 다시 발길을 돌렸다. 하루 종일 이런 식으로 헛걸음만 반복되니 주머니는 좀처럼 무거워지지 않았고, 해는 어느새 뉘엿뉘엿 저물어 갔다. 그래도 그는 포기하지 않고 정거장 쪽으로 발걸음을 옮기며 오늘 하루의 마지막 운을 시험해 보기로 했다. 정거장에 다다르니 마침 기차가 막 도착한 참이라 짐을 든 손님들이 우르르 쏟아져 나왔다. 그는 재빨리 인력거를 세우고 목청을 가다듬어 손님을 불러 모았다. 다행히 한 신사가 선뜻 그의 인력거에 올라탔고, 김 서방은 오랜만에 느끼는 든든함에 온몸의 피로가 잠시나마 가시는 듯했다. 비록 삯이 넉넉지는 않았으나 오늘 하루를 버틸 수 있다는 사실만으로도 그는 마음이 놓였다.`;
+/** 한 챕터에 다 담을 때 쓴다 — 두 조각 합쳐 500자를 넉넉히 넘는다. */
+const LONG_PROSE = `${LONG_PROSE_PART1} ${LONG_PROSE_PART2}`;
+
+/**
+ * 라이선스 조문처럼 읽히는 실감 본문(500자 이상) — 「라이선스」 제목
+ * 뒤에 진짜 산문이 있는 정당한 문서를 흉내 낸 테스트에서 쓴다.
+ */
+const LONG_LICENSE_PROSE = `이 문서의 배포 조건은 다음과 같다. 제1조 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 라이선스에 따라 이용할 수 있다. 제2조 이용자는 저작물을 복제·배포·전송·공연·전시할 수 있으며, 이차적 저작물을 작성할 수 있다. 제3조 이용자는 반드시 원저작자를 표시해야 하며, 이 저작물을 이용하여 만든 이차적 저작물에는 동일한 라이선스를 적용해야 한다. 제4조 상업적 목적으로 이용하는 경우에도 별도의 허락 없이 이용할 수 있으나, 저작인격권은 침해되지 않는다. 제5조 이 조건에 동의하지 않는 경우 저작물을 이용할 수 없다. 제6조 이 문서를 인용하거나 재배포할 때에는 출처와 원문 주소를 함께 밝혀야 하며, 내용을 임의로 변경하여 원저작자의 뜻을 왜곡해서는 안 된다. 제7조 번역본을 작성하는 경우에도 원문의 저작권 표시와 라이선스 조건을 그대로 유지해야 하고, 번역자는 자신의 번역에 대한 권리를 별도로 주장할 수 없다. 제8조 이 조건은 문서가 개정되기 전까지 계속 유효하다. 제9조 이 조건에 대한 해석에 다툼이 있는 경우에는 원문 라이선스 조항의 원어 표현을 기준으로 한다. 제10조 이 문서의 전자책 판본을 제작·배포하는 주체는 이 조건 전문을 함께 실어야 하며, 임의로 축약하거나 생략할 수 없다. 제11조 이 조건은 사전 통지 없이 개정될 수 있으며, 개정된 조건은 공고 즉시 효력을 가진다. 제12조 이 조건과 관련하여 발생하는 모든 분쟁은 원저작자가 속한 국가의 법령을 우선 적용하여 해결한다.`;
 
 /**
  * `stripLicenseBlocks`가 보는 파일 하나만 담은 최소 EPUB.
@@ -481,8 +505,11 @@ describe("assertClean — 라이선스 상자 판정을 태그로(CSS 선택자 
   it("본문 상자는 지워지고, style CDATA에 남은 .licenseContainer>… 선택자는 손대지 않으며, assertClean이 통과한다", () => {
     // 실물 그대로: <style> CDATA에 자식 결합자(>)가 낀 라이선스 선택자가
     // 있고, 본문에는 실제 라이선스 상자(제목 + div)가 따로 있다.
+    // 본문 문단은 LONG_PROSE를 쓴다 — MIN_BODY_CHARS 문턱을 넘겨야 이
+    // 테스트가 검증하려는 CSS 선택자 생존 여부와 무관한 이유로 실패하지
+    // 않는다.
     const chapter = makeChapterXhtmlWithLicenseCssSelector(
-      `<section data-mw-section-id="0"><p>새침하게 흐린 품이 눈이 올 듯하더니</p></section>
+      `<section data-mw-section-id="0"><p>${LONG_PROSE}</p></section>
 <section data-mw-section-id="1"><h2>라이선스</h2>
 <div class="licenseContainer licenseBanner"><div class="inner"><div class="deep">CC BY-SA 3.0</div></div></div>
 </section>`,
@@ -593,9 +620,9 @@ describe("assertClean — hrefMatchesPath 인코딩 방향(Finding 2)", () => {
 </spine>
 </package>`,
       ),
-      "OPS/c0_운수.xhtml": strToU8(
-        makeChapterXhtml("<p>새침하게 흐린 품이 눈이 올 듯하더니</p>"),
-      ),
+      // 본문은 LONG_PROSE를 쓴다 — MIN_BODY_CHARS 문턱을 넘겨야 이 테스트가
+      // 검증하려는 href 인코딩 방향과 무관한 이유로 실패하지 않는다.
+      "OPS/c0_운수.xhtml": strToU8(makeChapterXhtml(`<p>${LONG_PROSE}</p>`)),
     };
     const epub = zipSync(files);
     expect(() => assertClean(epub)).not.toThrow();
@@ -616,7 +643,9 @@ describe("assertClean — hrefMatchesPath 인코딩 방향(Finding 2)", () => {
 </spine>
 </package>`,
       ),
-      "OPS/c0_a.xhtml": strToU8(makeChapterXhtml("<p>본문.</p>")),
+      // 본문은 LONG_PROSE를 쓴다 — MIN_BODY_CHARS 문턱을 넘겨야 이 테스트가
+      // 검증하려는 './' 상대 경로 정규화와 무관한 이유로 실패하지 않는다.
+      "OPS/c0_a.xhtml": strToU8(makeChapterXhtml(`<p>${LONG_PROSE}</p>`)),
     };
     const epub = zipSync(files);
     expect(() => assertClean(epub)).not.toThrow();
@@ -665,11 +694,12 @@ describe("assertClean — hrefMatchesPath 접미사 오매칭(Finding 3)", () =>
  */
 describe("assertClean — 고아 아닌 「라이선스」 제목은 통과시킨다(Finding 4)", () => {
   it("제목 뒤에 실제 산문이 있으면 고아로 보지 않는다", () => {
+    // 제목 뒤 산문은 LONG_LICENSE_PROSE를 쓴다 — MIN_BODY_CHARS 문턱을
+    // 넘겨야 이 테스트가 검증하려는 "고아 아닌 제목" 판정과 무관한 이유로
+    // 실패하지 않는다.
     const epub = makeSingleFileEpub(
       "OPS/c0_license.xhtml",
-      makeChapterXhtml(
-        `<h2>라이선스</h2><p>이 문서의 배포 조건은 다음과 같다. 제1조 …</p>`,
-      ),
+      makeChapterXhtml(`<h2>라이선스</h2><p>${LONG_LICENSE_PROSE}</p>`),
     );
     expect(() => assertClean(epub)).not.toThrow();
   });
@@ -764,16 +794,15 @@ describe("assertClean", () => {
     // 위키문헌 책에는 삽화 한 장만 있는 도판 페이지가 실제로 있다 —
     // 원래부터 본문 텍스트가 없다. 그 한 페이지 때문에 나머지 멀쩡한
     // 챕터까지 게이트에 걸리면 안 된다("하나라도 비면 실패"가 아니라
-    // "전부 비어야 실패"인 이유).
+    // "전부 비어야 실패"인 이유). ch1·ch2 본문은 LONG_PROSE를 반으로 나눠
+    // 쓴다 — 도판 챕터(0자)를 더해도 합산 MIN_BODY_CHARS 문턱을 넘겨야
+    // 이 테스트가 검증하려는 "도판 챕터 관용"과 무관한 이유로 실패하지
+    // 않는다.
     const files: Zippable = {
       mimetype: [strToU8("application/epub+zip"), { level: 0 }],
-      "OPS/c0_ch1.xhtml": strToU8(
-        makeChapterXhtml("<p>새침하게 흐린 품이 눈이 올 듯하더니</p>"),
-      ),
+      "OPS/c0_ch1.xhtml": strToU8(makeChapterXhtml(`<p>${LONG_PROSE_PART1}</p>`)),
       "OPS/c1_plate.xhtml": strToU8(makeChapterXhtml('<img src="images/plate1.png"/>')),
-      "OPS/c2_ch2.xhtml": strToU8(
-        makeChapterXhtml("<p>이 날이야말로 동소문 안에서 얼음 지치는 아이들</p>"),
-      ),
+      "OPS/c2_ch2.xhtml": strToU8(makeChapterXhtml(`<p>${LONG_PROSE_PART2}</p>`)),
     };
     const epub = zipSync(files);
     expect(assertClean(epub)).toBe(3);
@@ -897,5 +926,80 @@ describe("assertClean — 패키지 무결성", () => {
     };
     const epub = zipSync(files);
     expect(() => assertClean(epub)).toThrow(/존재하지 않는 파일을 가리킴/);
+  });
+});
+
+/**
+ * assertClean — MIN_BODY_CHARS(빈 껍데기 게이트, master 이식).
+ *
+ * ws-export는 문서에 본문이 멀쩡히 있어도 제목만 든 빈 껍데기를 내주는
+ * 때가 있다 — 「감자」(원문 6,516자)가 본문 2자짜리 EPUB으로 나왔고,
+ * 「백치 아다다」·「자유종」도 같았다. HTTP 200, 유효한 EPUB, 챕터 파일도
+ * 하나 있어서 글자수를 세지 않으면 빈 책이 그대로 등록된다.
+ *
+ * 이 branch의 기존 "챕터가 전부 비어 있음" 검사(`chapterBodyText` 기반)는
+ * 이 사각지대를 못 잡는다 — 2자는 공백이 아닌 엄연한 글자라서 그 검사를
+ * 통과해 버린다. 포팅 전 코드로 그걸 직접 확인했다: 이 describe의 첫
+ * 테스트를 `git stash`로 wikisource.ts만 되돌리고 돌려 보면 통과(assertClean이
+ * 던지지 않음)한다 — 아래 최종 리포트에 그 증거를 남긴다.
+ */
+describe("assertClean — MIN_BODY_CHARS(빈 껍데기 게이트)", () => {
+  it("챕터 본문이 몇 글자뿐이면 실패하고, 메시지에 글자수를 남겨 빈 껍데기와 마크업 파괴를 구분하게 한다", () => {
+    // 실측 그대로: 「감자」가 ws-export에서 본문 2자짜리 EPUB으로 돌아온
+    // 사례를 재현한다. chapterBodyText 기준으로는 "전부 비어 있음"이
+    // 아니므로(2자는 0자가 아니다) 그 검사는 통과하고, 이 검사만 잡는다.
+    // countBodyChars는 master처럼 파일 전체(제목 포함)에서 글자수를 세므로,
+    // makeChapterXhtml이 넣는 챕터 제목 "운수 좋은 날"(5자) + 본문 "감자"
+    // (2자) = 7자가 잡힌다 — 그래도 500자에는 한참 못 미친다.
+    const epub = makeSingleFileEpub("OPS/c0_gamja.xhtml", makeChapterXhtml("<p>감자</p>"));
+    expect(() => assertClean(epub)).toThrow(/본문이 너무 짧음 \(7자, 최소 500자\)/);
+  });
+
+  it("챕터 본문이 문턱을 넉넉히 넘으면 통과한다", () => {
+    // LONG_PROSE는 500자보다 훨씬 길다(약 589자, 공백 제외) — 문턱을
+    // 근소하게가 아니라 넉넉하게 넘는 실감 본문이다.
+    expect(LONG_PROSE.replace(/\s+/g, "").length).toBeGreaterThan(MIN_BODY_CHARS);
+    const epub = makeSingleFileEpub(
+      "OPS/c0_unsu.xhtml",
+      makeChapterXhtml(`<p>${LONG_PROSE}</p>`),
+    );
+    expect(assertClean(epub)).toBe(1);
+  });
+});
+
+/**
+ * stripEpub — 안내문(hatnote) 제거(master 이식).
+ *
+ * 위키문헌은 동음이의 안내를 본문 맨 앞에 붙인다 — 「탈출기」는 "성경의
+ * 책에 대해서는 출애굽기 문서를 참조하십시오."로 시작한다. 독자가 펼친
+ * 첫 문장이 남의 사이트 내비게이션일 수는 없다.
+ *
+ * 포팅 전 코드(`stripHatnotes` 호출이 없던 `stripEpub`)로 첫 테스트를
+ * 돌리면 hatnote div가 그대로 남아 실패한다 — 아래 최종 리포트에 그
+ * 증거를 남겼다.
+ */
+describe("stripEpub — 안내문(hatnote) 제거", () => {
+  it("안내문으로 시작하는 챕터는 안내문만 지우고 뒤따르는 본문은 남긴다", () => {
+    const chapter = makeChapterXhtml(
+      `<div class="hatnote">성경의 책에 대해서는 출애굽기 문서를 참조하십시오.</div>
+<p>${LONG_PROSE}</p>`,
+    );
+    const epub = makeSingleFileEpub("OPS/c0_talchulgi.xhtml", chapter);
+    const out = read(stripEpub(epub)).text("OPS/c0_talchulgi.xhtml");
+
+    expect(out).not.toMatch(/hatnote/);
+    expect(out).not.toMatch(/출애굽기/);
+    // 안내문 뒤 본문은 처음과 끝 모두 살아 있어야 한다.
+    expect(out).toMatch(/새침하게 흐린 품이/);
+    expect(out).toMatch(/마음이 놓였다/);
+  });
+
+  it("안내문이 없는 챕터는 본문을 그대로 둔다", () => {
+    const chapter = makeChapterXhtml(`<p>${LONG_PROSE}</p>`);
+    const epub = makeSingleFileEpub("OPS/c0_unsu.xhtml", chapter);
+    const out = read(stripEpub(epub)).text("OPS/c0_unsu.xhtml");
+
+    expect(out).toMatch(/새침하게 흐린 품이/);
+    expect(out).toMatch(/마음이 놓였다/);
   });
 });

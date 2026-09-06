@@ -343,6 +343,28 @@ function stripLicenseBlocks(html: string): string {
 }
 
 /**
+ * 안내문(hatnote)을 걷어낸다.
+ *
+ * 위키문헌은 동음이의 안내를 본문 맨 앞에 붙인다 — 「탈출기」는
+ * "성경의 책에 대해서는 출애굽기 문서를 참조하십시오."로 시작한다.
+ * 독자가 펼친 첫 문장이 남의 사이트 내비게이션일 수는 없다.
+ */
+function stripHatnotes(html: string): string {
+  let out = html;
+
+  for (;;) {
+    const hit = /<div\b[^>]*class="[^"]*\bhatnote\b[^"]*"[^>]*>/i.exec(out);
+    if (!hit) break;
+
+    const next = removeBlockAt(out, "div", hit.index);
+    if (next === out) break; // 못 지웠다 — 무한루프 방지
+    out = next;
+  }
+
+  return out;
+}
+
+/**
  * 임베드 폰트와 위키문헌 껍데기를 **한 번의 압축 왕복으로** 걷어낸다.
  *
  * 원래는 폰트 제거와 껍데기 제거가 별개 함수였고 각각 4.4MB를 통째로
@@ -424,7 +446,7 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
       );
       out[path] = strToU8(ncx);
     } else if (/\.xhtml$/i.test(path)) {
-      out[path] = strToU8(stripLicenseBlocks(strFromU8(data)));
+      out[path] = strToU8(stripHatnotes(stripLicenseBlocks(strFromU8(data))));
     } else if (/\.css$/i.test(path)) {
       // stripLicenseBlocks는 여기 쓰지 않는다. 예전엔 여기서 "CSS 규칙
       // 정리는 .xhtml에 인라인된 <style>에만 적용한다"고 했지만, 그
@@ -525,6 +547,41 @@ function chapterBodyText(xhtml: string): string {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]*>/g, "")
     .trim();
+}
+
+/**
+ * 본문으로 인정할 최소 글자수.
+ *
+ * ws-export는 **문서에 본문이 멀쩡히 있어도 제목만 든 빈 껍데기를 내주는
+ * 때가 있다.** 「감자」(원문 6,516자)가 본문 2자짜리 EPUB으로 나왔고,
+ * 「백치 아다다」·「자유종」도 같았다. HTTP 200에 EPUB 형식도 맞고 챕터
+ * 파일도 하나 있어서, 글자수를 세지 않으면 빈 책이 그대로 등록된다.
+ *
+ * 위 `chapterPaths.every(... .length === 0)` 검사로는 이걸 못 잡는다 —
+ * 2자는 공백이 아닌 엄연한 글자라 "전부 비어 있음"을 통과해 버린다.
+ *
+ * 실측 간격이 넓어 경계는 넉넉하다 — 껍데기는 2~50자, 가장 짧은 실제
+ * 작품이 7,000자였다. 시 한 편짜리 문서(약 1,000자)도 통과한다.
+ */
+export const MIN_BODY_CHARS = 500;
+
+/**
+ * 본문 챕터(c0, c1…)의 태그를 걷어낸 순수 글자수.
+ *
+ * `<style>`을 먼저 걷어낸다 — 실제 ws-export 챕터는 templatestyles가 넣는
+ * 인라인 `<style>` CDATA(CSS 텍스트 그대로)를 갖고 있어서, 태그만 지우고
+ * CSS 텍스트를 남기면 그 CSS가 본문 글자로 잘못 세어져 진짜 빈 껍데기를
+ * 놓칠 수 있다.
+ */
+export function countBodyChars(epub: Uint8Array): number {
+  const entries = unzipSync(epub);
+  return Object.entries(entries)
+    .filter(([path]) => /\/c\d+_.*\.xhtml$/i.test(path))
+    .map(([, data]) => strFromU8(data))
+    .join("")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, "").length;
 }
 
 /**
@@ -809,6 +866,18 @@ export function assertClean(epub: Uint8Array): number {
     chapterPaths.every((p) => chapterBodyText(strFromU8(entries[p])).length === 0)
   ) {
     problems.push("본문 챕터가 전부 비어 있음");
+  } else {
+    // "전부 비어 있음" 검사는 글자가 정확히 0인 극단만 잡는다. ws-export가
+    // 실제로 내는 빈 껍데기는 0자가 아니라 제목 몇 글자짜리(2~50자 실측,
+    // MIN_BODY_CHARS 주석 참고)라서 그 검사를 통과한다 — 그래서 최소
+    // 글자수 검사를 별도로 둔다. 두 검사를 다 남기는 이유: "전부 비어
+    // 있음"은 섹션을 통째로 지워버린 markup 결함을, 이 검사는 ws-export
+    // 자체가 내려준 빈 껍데기를 가리킨다 — 메시지가 갈려야 관리자가 원인을
+    // 구분할 수 있다.
+    const chars = countBodyChars(epub);
+    if (chars < MIN_BODY_CHARS) {
+      problems.push(`본문이 너무 짧음 (${chars}자, 최소 ${MIN_BODY_CHARS}자)`);
+    }
   }
 
   assertStyleBalance(chapterPaths, entries, problems);
