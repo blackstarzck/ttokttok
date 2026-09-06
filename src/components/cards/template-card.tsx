@@ -27,10 +27,20 @@ export function TemplateCard({
   layout,
   book,
   preview = false,
+  variant = "fullscreen",
 }: {
   layout: FeedCardLayout | null;
   book: FeedBook;
   preview?: boolean;
+  /**
+   * 이 본문이 놓이는 상자.
+   *
+   * fullscreen — 전면 피드(릴스·상세·어드민 미리보기). 크롬이 컨텐츠 위에
+   *   얹히므로 본문이 CHROME_SAFE_AREA로 스스로 피한다.
+   * card — 홈 카드. 피할 크롬이 없다. 세이프존 대신 평범한 카드 패딩을
+   *   쓰고, 상자가 낮아 넘칠 수 있으므로 넘침 처리를 카드 쪽에 맡긴다.
+   */
+  variant?: "fullscreen" | "card";
 }) {
   const template = layout ? POST_TEMPLATES[layout.template] : undefined;
 
@@ -50,7 +60,26 @@ export function TemplateCard({
     // 세이프존: 분할이 만들던 여백을 이제 패딩이 만든다. 값의 근거는
     // CHROME_SAFE_AREA(chrome.ts) 주석 참고 — card-placeholder.tsx와
     // post-item.tsx의 영상 폴백 분기도 같은 상수를 쓴다.
-    <div className={cn("flex h-full min-h-0 flex-col justify-center gap-4", CHROME_SAFE_AREA)}>
+    //
+    // card 변형에는 피할 크롬이 없어 CHROME_SAFE_AREA 대신 평범한 카드
+    // 패딩을 쓴다. gap-4 → gap-3: 상자가 낮아지므로 영역 사이 간격을
+    // 줄여 본문이 들어갈 여지를 만든다. cn이 뒤 값을 이기므로 순서가
+    // 중요하다.
+    //
+    // 실측(375px 폭, 4:5 상자=469px, 훅·부연설명을 registry.ts의
+    // maxLength까지 꽉 채운 합성 데이터, 실제 어절 간격 포함): 템플릿 a
+    // (커버+텍스트4) 본문 469px, 템플릿 b(텍스트4) 본문 469px — 둘 다
+    // 오버플로 0으로 정확히 들어찬다. 다만 여유가 전혀 없다 — 도서 제목이
+    // 두 줄로 넘어가는 등 biblio/genre 쪽 실제 데이터가 이 프로브보다
+    // 조금이라도 길면 넘칠 수 있다(도서 필드는 이 태스크의 글자 수 상한
+    // 대상이 아니라 DB에 길이 제약이 없다). Task 2/3에서 실제 데이터로
+    // 재확인 필요.
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col justify-center gap-4",
+        variant === "card" ? "gap-3 p-4" : CHROME_SAFE_AREA,
+      )}
+    >
       {template.regions.map((key) => {
         const entry = REGION_REGISTRY[key];
         if (!entry) return null;
