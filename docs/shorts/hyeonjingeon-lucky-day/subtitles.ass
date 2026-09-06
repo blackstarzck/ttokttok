@@ -1,0 +1,22 @@
+﻿[Script Info]
+ScriptType: v4.00+
+PlayResX: 1440
+PlayResY: 2560
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Sub,Malgun Gothic,72,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,0,2,288,288,384,1
+Style: Title,Malgun Gothic,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,8,0,5,288,288,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.40,0:00:02.00,Sub,,0,0,0,,비 오는 날인데
+Dialogue: 0,0:00:02.30,0:00:04.30,Sub,,0,0,0,,손님이 끊이지 않았다
+Dialogue: 0,0:00:04.60,0:00:06.30,Sub,,0,0,0,,벌이가 좋을수록
+Dialogue: 0,0:00:06.60,0:00:08.80,Sub,,0,0,0,,자꾸 집 쪽을 돌아봤다
+Dialogue: 0,0:00:09.10,0:00:10.40,Sub,,0,0,0,,설렁탕을 사 들고
+Dialogue: 0,0:00:10.90,0:00:12.20,Sub,,0,0,0,,문 앞에 선 그는
+Dialogue: 0,0:00:12.50,0:00:13.60,Sub,,0,0,0,,차마 열지 못했다
+Dialogue: 0,0:00:13.80,0:00:15.00,Title,,0,0,0,,현진건 · 운수 좋은 날

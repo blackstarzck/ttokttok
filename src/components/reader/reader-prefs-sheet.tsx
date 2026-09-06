@@ -38,7 +38,7 @@ export function ReaderPrefsSheet({
     <Drawer>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="mx-auto max-w-[480px]">
+      <DrawerContent>
         <DrawerHeader className="text-left">
           <DrawerTitle>읽기 설정</DrawerTitle>
         </DrawerHeader>

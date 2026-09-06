@@ -1,7 +1,7 @@
 "use server";
 
 import { PostItem } from "@/components/feed/post-item";
-import { getFeed, type FeedCursor } from "@/lib/feed";
+import { getFeed, type FeedCursor, type PostType } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 
 export type MoreFeed = {
@@ -23,8 +23,10 @@ export async function loadMoreFeed(
   seed: string,
   sessionId: string | null,
   cursor: FeedCursor | null,
+  // 어느 탭이 더 달라고 했는지. 널이면 전 유형(현재 홈).
+  type: PostType | null = null,
 ): Promise<MoreFeed> {
-  const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor);
+  const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor, type);
 
   const [user, likedIds] = await Promise.all([
     getCurrentUser(),

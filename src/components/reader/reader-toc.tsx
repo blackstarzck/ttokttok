@@ -28,7 +28,7 @@ export function ReaderToc({
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="mx-auto max-w-[480px]">
+      <DrawerContent>
         <DrawerHeader className="text-left">
           <DrawerTitle>목차</DrawerTitle>
         </DrawerHeader>

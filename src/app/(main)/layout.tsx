@@ -14,7 +14,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col">
+    <div className="mx-auto flex h-dvh w-full max-w-frame flex-col">
       <main className="min-h-0 flex-1">{children}</main>
       <BottomNav />
     </div>

@@ -5,6 +5,15 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /*
+    모바일 프레임 폭 — `(main)` 레이아웃과 바텀시트가 함께 참조한다
+    (DESIGN.md §레이아웃). 시트는 `position: fixed`라 제한하지 않으면 폭이
+    프레임이 아니라 뷰포트에 묶인다: 값을 두 곳에 적어 두면 하나만 바뀌는
+    순간 시트가 프레임 밖으로 삐져나온다 (실측 재현).
+    Tailwind v4의 --container-* 이름공간이라 `max-w-frame`으로 쓴다.
+  */
+  --container-frame: 480px;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);

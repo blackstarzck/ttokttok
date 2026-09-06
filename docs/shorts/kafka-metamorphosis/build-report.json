@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "metrics": {
+    "syllables": 49,
+    "cues": 6,
+    "shots": 3,
+    "panels": 5,
+    "promptChars": 2310
+  },
+  "sheetPng": {
+    "ok": true,
+    "browser": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+  }
+}

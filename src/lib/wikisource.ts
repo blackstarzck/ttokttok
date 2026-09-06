@@ -478,7 +478,7 @@ export function stripEpub(epub: Uint8Array): Uint8Array {
  *
  * ws-export는 `dc:title`과 `dc:source`(위키문헌 문서 URL)를 넣는다.
  * **`dc:creator`는 넣지 않는다** — 확인된 사실이고, 그래서 저자는 관리자가
- * 직접 입력한다 (결정 기록 §11-48).
+ * 직접 입력한다 (결정 기록 §11-49).
  *
  * `dc:source`를 쓰는 이유: 위키문헌이 리다이렉트·표기를 정규화해 준
  * 최종 문서 주소라서, 관리자가 입력한 값보다 신뢰할 수 있다.

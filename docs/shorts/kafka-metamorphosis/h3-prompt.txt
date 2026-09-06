@@ -1,0 +1,13 @@
+integrated_multimodal_description:
+monochrome ink line art, thin clean strokes, flat white background, minimal hatching for shadow, no color. Vertical 9:16 portrait video, 15 seconds, 3 shots. Keep every key subject and face inside the central 88% of the frame width — the outer 6% on each side is cropped by the player. Do not render any on-screen text, captions, subtitles, titles, or lettering anywhere in the video.
+Recurring on-screen character: a gaunt man in his early thirties, short dark hair, hollow cheeks, thin frame, wearing a rumpled grey shirt. Preserve these features in every shot. (S1) is the narrator and never appears on screen.
+
+[Shot 1] A gaunt man lying in a narrow bed in a dim room, staring at the ceiling, one thin arm raised stiffly above him. The camera pushes in with small amplitude at slow speed toward his wide-open eyes. The muffled ticking of an alarm clock. (S1) says in an off-screen voiceover while every on-screen character's lips remain completely closed: <d>[Korean] 아침에 눈을 떴는데</d>
+[Shot 2] At 00:03.000, the camera cuts to a low angle from the floorboards: his silhouette now hunched and insect-like against the closed bedroom door, a plate of bread pushed under the door by an unseen hand. The camera tilts up with small amplitude at slow speed. A key turning in a lock, then footsteps receding down a hallway. (S1) says in an off-screen voiceover while every on-screen character's lips remain completely closed: <d>[Korean] 몸이 벌레로 변해 있었다 가족은 그를 방에 가뒀고 세상은 아무렇지 않게</d>
+[Shot 3] At 00:10.500, the camera cuts to a wide view of a grey city street at morning rush hour, commuters streaming past a shuttered apartment window on the second floor. The camera trucks right with medium amplitude at slow speed. Crowd murmur and a distant tram bell. (S1) says in an off-screen voiceover while every on-screen character's lips remain completely closed: <d>[Korean] 출근을 재촉했다 카프카, 변신</d>
+
+overall_soundscape:
+A quiet apartment interior with a faint clock tick and wooden floor creaks, giving way to a muffled city outside — traffic hum, a tram bell, indistinct crowd murmur. No music inside the scene.
+
+non_diegetic_music:
+A single sustained cello note with slow, sparse pizzicato underneath, around 60 BPM, barely audible at first and swelling slightly in the final four seconds.

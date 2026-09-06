@@ -1,36 +1,148 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 똑똑 (Ttokttok)
 
-## Getting Started
+> **"지식이 똑똑 노크해요."**
+> 숏폼 피드를 넘기다 마음에 드는 책을 만나면, 그 자리에서 바로 읽기 시작하는 모바일 웹 서비스입니다.
 
-First, run the development server:
+---
+
+## 똑똑은 무엇인가요?
+
+인스타그램 릴스나 유튜브 쇼츠를 넘기듯, 화면을 위로 쓸어 올리면 책 소개 카드와 짧은 영상이 한 장씩 나타납니다. 마음에 드는 책이 보이면 **"읽기" 버튼 한 번**으로 첫 장이 열립니다. 서점을 검색하고, 앱을 설치하고, 결제하는 과정이 없습니다.
+
+한 문장으로 하면, **"책을 읽을 생각이 없던 사람도 책을 읽게 만드는 서비스"** 입니다.
+
+## 왜 만들었나요?
+
+- 기존 독서 앱은 "이미 읽으려는 사람"을 위한 도구입니다. 읽을 생각이 없던 사람을 끌어들이는 입구가 없습니다.
+- 반대로 숏폼은 아무 생각 없이 열어도 소비가 시작되지만, 거기서 본 책이 실제 독서로 이어지는 길이 끊겨 있습니다. 책 소개 영상을 보고, 서점을 검색하고, 구매하고, 앱을 설치하는 사이에 대부분이 이탈합니다.
+- 똑똑은 **발견과 독서 사이의 마찰을 0으로** 만듭니다. 카드에서 흥미가 생기면, 탭 한 번에 첫 장이 열립니다.
+
+성공을 재는 잣대도 여기에 맞춰 두 가지입니다. 게시물을 본 사람 중 **몇 명이 실제로 책을 열었는가**, 그리고 **얼마나 오래 읽었는가**.
+
+## 어떻게 사용하나요?
+
+스마트폰 브라우저에서 열어 쓰는 웹 서비스입니다. 앱 설치가 필요 없고, **로그인 없이도** 피드를 보고 책을 읽을 수 있습니다.
+
+### 1. 홈 — 책을 발견하는 피드
+
+- 화면을 위아래로 넘기면 게시물이 한 장씩 바뀝니다.
+- 게시물은 두 종류입니다. 책을 소개하는 **카드**(한 줄 훅 문구, 표지, 장르, 서지 정보)와 30~60초짜리 **세로 영상**.
+- 오른쪽에는 좋아요·댓글·공유 버튼과 함께 **읽기** 버튼이 있습니다. 화면 아래에는 책 표지와 제목·저자가 보이고, 탭하면 책의 상세 정보가 올라옵니다.
+- 어떤 게시물이 먼저 보일지는 인기와 신선도를 약간 반영한 무작위입니다. 새로 올라온 글, 아직 많이 안 본 글도 골고루 노출되도록 설계했습니다.
+
+### 2. 뷰어 — 그 자리에서 읽기
+
+- "읽기"를 누르면 전자책이 전체 화면으로 열립니다. 탭이나 스와이프로 페이지를 넘기고, 글자 크기와 배경 색(밝게·어둡게·세피아)을 바꿀 수 있습니다.
+- 어디까지 읽었는지 자동으로 기억합니다. 로그인하면 다른 기기에서도 이어 읽을 수 있고, 로그인하지 않아도 같은 브라우저에서는 이어 읽기가 됩니다.
+- 끝까지 읽으면 "완독"으로 기록됩니다. 미리보기나 잠긴 챕터는 없습니다. 열리는 책은 끝까지 읽힙니다.
+
+### 3. 탐색 — 찾아보기
+
+- 검색창에서 책 제목·저자·채널 이름으로 찾습니다.
+- 그 아래로 **오늘의 추천**(운영자가 고른 책), **장르 칩**(소설·시·수필 등), **급상승**(최근 7일 동안 많이 본 게시물)이 이어집니다.
+
+### 4. 프로필 — 나의 독서 기록
+
+- **읽는 중**: 진행률이 있는 책. 탭하면 이어 읽습니다.
+- **보관함**: 찜한 책.
+- **완독**: 끝까지 읽은 책.
+- 점수·레벨·포인트 같은 보상은 없습니다. 기록만 남깁니다.
+
+### 5. 로그인
+
+- 구글 또는 카카오 계정으로 로그인합니다. 이메일 가입은 없습니다.
+- 좋아요·댓글·찜·프로필처럼 "내 것"이 필요한 순간에만 로그인을 요청합니다. 그 전까지는 로그인 없이 쓸 수 있습니다.
+
+## 어떤 책이 있나요?
+
+책은 두 종류로 나뉩니다.
+
+| | 전문 도서 | 링크형 도서 |
+|---|---|---|
+| 본문 | 있음. 뷰어에서 끝까지 읽을 수 있음 | 없음. 소개 카드만 |
+| 대상 | 저작권 보호 기간이 끝난 한국 근대문학 | 그 외 모든 책 (인기 도서 등) |
+| 버튼 | "읽기" → 뷰어가 열림 | "도서 보기" → 교보문고·예스24·알라딘 구매 링크 |
+| 예 | 「운수 좋은 날」 「봄봄」 「메밀꽃 필 무렵」 「날개」 「진달래꽃」 「하늘과 바람과 별과 시」 | 경제경영·자기계발 등 시중 도서 |
+
+### 저작권을 지키는 방식
+
+- 본문을 싣는 책은 **저작자가 1962년 이전에 세상을 떠나** 한국 저작권법상 보호 기간이 끝난 작품만 고릅니다. 단순히 "옛 책"이라서가 아닙니다.
+- 해외 고전은 원작이 만료됐어도 **한국어 번역에는 번역자의 저작권이 살아 있어** 본문을 싣지 않습니다. 링크형으로만 소개합니다.
+- 본문은 위키문헌(ko.wikisource.org) 같은 공개 소스에서 가져와 자체 보관하고, **표지는 직접 만듭니다**. 시중 출판사의 표지는 그 출판사의 것이라 쓰지 않습니다.
+- 링크형 도서의 카드에 담기는 인용은 문장 단위의 짧은 인용에 출처를 표기합니다. 출판사·저작권자가 요청하면 즉시 내립니다.
+
+## 콘텐츠는 누가 올리나요?
+
+일반 사용자는 게시물을 올릴 수 없습니다. 모든 게시물은 **운영자(관리자)** 가 올리며, 장르별 **채널**의 이름으로 발행됩니다. 채널은 "이 장르를 골라 소개하는 사람" 역할을 하는 가상의 큐레이터입니다.
+
+- 예: **밤의 문장들**(소설·수필), **경성 모던**(근대 소설), **시 한 잔**(시)
+
+운영자는 별도의 관리자 화면에서 다음을 합니다.
+
+- 책 등록: 전자책 파일 업로드, 서지 정보, 구매 링크
+- 게시물 작성: 카드 문구 입력이나 영상 등록. 작성하면서 실제 화면 그대로의 미리보기를 봅니다
+- 채널 관리, 오늘의 추천 지정
+- 댓글 신고 처리, 금칙어 관리
+
+### 댓글은 안전한가요?
+
+- 금칙어가 들어간 댓글은 등록 자체가 막힙니다.
+- 모든 댓글에 **신고** 버튼이 있습니다(스팸·욕설·기타). 운영자가 확인해 삭제하거나 기각합니다.
+
+## 지금은 하지 않는 것
+
+- 사용자가 글·영상을 올리는 기능
+- 결제·구독. 수익화하지 않으며, 책 구매는 외부 서점 링크로만 안내합니다
+- 포인트·레벨·연속 기록 같은 보상형 기능
+- 취향을 학습하는 개인화 추천
+- 앱스토어 앱, 푸시 알림
+- 한국어 외 언어
+
+## 자주 묻는 질문
+
+**돈이 드나요?**
+아니요. 전문 도서는 무료로 끝까지 읽습니다. 링크형 도서는 외부 서점으로 안내만 하고, 똑똑은 결제에 관여하지 않습니다.
+
+**로그인 없이 쓸 수 있나요?**
+네. 피드·탐색·읽기·이어 읽기까지 로그인 없이 됩니다. 좋아요·댓글·찜·프로필만 로그인이 필요합니다.
+
+**컴퓨터에서 열면요?**
+화면 가운데에 스마트폰 크기의 프레임이 뜨고, 그 안에서 똑같이 동작합니다.
+
+**공유하면 뭐가 보이나요?**
+게시물마다 고유 주소가 있습니다. 카카오톡 등에 붙이면 책 표지·제목·훅 문구가 미리보기로 뜹니다.
+
+**화면이 너무 밝아요.**
+기본은 밝은 테마이고, 어두운 테마나 기기 설정 따라가기를 고를 수 있습니다.
+
+---
+
+## 개발자를 위한 안내
+
+기술 스택은 Next.js(App Router) · Tailwind CSS v4 · shadcn/ui · Supabase(인증·DB·저장소) · epub.js 이며, Vercel에 배포합니다.
 
 ```bash
+npm install
+cp .env.example .env.local   # Supabase 값을 채운다
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| 명령 | 역할 |
+|---|---|
+| `npm run dev` / `npm run build` | 개발 서버 / 프로덕션 빌드(타입체크 포함) |
+| `npm run admin:create` | 관리자 계정 생성. 공개 가입 경로는 없습니다 |
+| `npm run seed` | 개발용 시드 데이터(채널·도서·게시물) |
+| `npm run covers` | 전문 도서 표지 생성 후 업로드 |
+| `npm run epubs:refresh` | 위키문헌 EPUB을 다시 받아 교체 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> **주의**: 현재 개발용과 운영용 Supabase 프로젝트가 분리되어 있지 않습니다. `seed`·`covers`·`epubs:refresh`는 service role 키로 실행되므로, 로컬에서 돌려도 **운영 데이터가 즉시 바뀝니다**. 실행 전에 확인하세요.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+자세한 내용은 아래 문서를 참고합니다.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| 문서 | 내용 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | 작업 전 필독 규칙 요약과 문서 지도 |
+| [docs/prd-ttokttok.md](docs/prd-ttokttok.md) | 제품 요구사항. 기능 명세·데이터 모델·로드맵·결정 기록 |
+| [docs/DESIGN.md](docs/DESIGN.md) | 디자인 시스템. 토큰과 사용 규칙 |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | 프론트엔드 구조 규칙 |
+| `supabase/migrations/` | DB 스키마·권한·함수의 원천 |

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, User } from "lucide-react";
+import { Clapperboard, Home, Search, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/", label: "홈", icon: Home },
+  { href: "/reels", label: "릴스", icon: Clapperboard },
   { href: "/discover", label: "탐색", icon: Search },
   { href: "/profile", label: "프로필", icon: User },
 ] as const;
