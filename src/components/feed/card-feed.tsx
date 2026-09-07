@@ -74,7 +74,7 @@ export function CardFeed({
   // 렌더마다 해제·재생성된다. 값 셋만 넣는다(fetchNextPage는 TanStack
   // Query가 안정적으로 유지한다). FeedScroller가 상태를 가드이자
   // 의존성으로 함께 써서 자기 요청을 취소하던 버그와 같은 부류다.
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError, refetch, isFetching } = query;
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -182,13 +182,43 @@ export function CardFeed({
   // 곧 빈 화면이 된다(사전 병합 리뷰 Important 6). type='cards'로
   // 좁혀지며 빈 경우 자체도 더 잦아졌다.
   if (postIds.length === 0) {
+    // initialFailed는 마운트 시점의 서버 실패만 안다 — "다시 시도"로
+    // refetch()가 다시 실패하면 그 이후의 실패는 isError가 잡는다. 이
+    // 실패 화면은 nextCursor가 애초에 null(getFeed 실패 시 항상 null)이라
+    // hasNextPage도 늘 false다 — 아래(더 불러오기 실패) 쪽의 fetchNextPage
+    // 버튼과 같은 걸 여기 놓으면 그 가드에 막혀 아무 일도 안 일어난다.
+    // 페이지가 이거 하나뿐이라(첫 페이지) refetch()가 정확히 이 페이지만
+    // 다시 부른다.
+    const failed = initialFailed || isError;
+
+    // "다시 시도" 클릭 직후에도 실패 문구+버튼이 그대로 남아 있으면 눌린
+    // 건지 알 수 없다 — 더 불러오기 실패(아래) 쪽은 isFetchingNextPage가
+    // 이 피드백을 주므로 여기도 맞춘다.
+    if (isFetching) {
+      return (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+          <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
+          <span className="sr-only">피드를 불러오는 중</span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6">
         <p className="text-muted-foreground text-center text-sm">
-          {initialFailed
+          {failed
             ? "피드를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
             : "아직 게시물이 없어요."}
         </p>
+        {failed ? (
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="text-foreground text-sm underline underline-offset-2"
+          >
+            다시 시도
+          </button>
+        ) : null}
       </div>
     );
   }
