@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -76,8 +76,29 @@ export function CardFeed({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const nodes = query.data?.pages.flatMap((p) => p.nodes) ?? [];
-  const postIds = query.data?.pages.flatMap((p) => p.postIds) ?? [];
+  // 페이지 경계 중복 제거 — feed-scroller.tsx의 knownIdsRef와 같은 이유다:
+  // 키가 겹치면 React가 렌더를 뒤섞는다. 커서가 정확해도 두 페이지 사이에
+  // 새 글이 발행되면 같은 게시물이 이번 페이지와 다음 페이지 양쪽의 정렬
+  // 결과에 걸릴 수 있다. FeedScroller는 페이지를 하나씩 수동으로 붙이므로
+  // ref로 "이미 붙인 것"을 기억하지만, 여기는 TanStack Query가 매 렌더
+  // pages 전체를 새로 준다 — 그래서 ref 대신 전체 페이지를 앞에서부터
+  // 훑어 먼저 나온 것만 남긴다(뒤에 또 나오면 버린다). pages 배열 자체가
+  // 매번 참조가 바뀌므로 useMemo 캐시는 재계산을 막는 용도일 뿐, 정합성은
+  // 이 훑기 자체가 보장한다.
+  const { nodes, postIds } = useMemo(() => {
+    const seen = new Set<string>();
+    const outNodes: React.ReactNode[] = [];
+    const outIds: string[] = [];
+    for (const page of query.data?.pages ?? []) {
+      page.postIds.forEach((pid, i) => {
+        if (seen.has(pid)) return;
+        seen.add(pid);
+        outNodes.push(page.nodes[i]);
+        outIds.push(pid);
+      });
+    }
+    return { nodes: outNodes, postIds: outIds };
+  }, [query.data]);
 
   // 조회 집계 — 1초 이상 보이면 게시물당 한 번. 세는 단위는 게시물이라
   // 카드 하나가 곧 한 번이다(설계 결정 11).
