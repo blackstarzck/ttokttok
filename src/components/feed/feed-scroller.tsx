@@ -28,7 +28,10 @@ export function FeedScroller({
   seed: string;
   initialCursor: FeedCursor | null;
   /** 이 스크롤러가 보여주는 게시물 유형. 다음 페이지도 같은 유형이어야
-   * 하므로 요청마다 함께 보낸다. 널이면 전 유형(현재 홈). */
+   * 하므로 요청마다 함께 보낸다. FeedScroller는 이제 릴스 전용이라 항상
+   * "video"를 받는다 — null 허용은 홈도 이 컴포넌트를 쓰던 시절(전면
+   * 피드였을 때)의 흔적이고, 홈이 CardFeed로 바뀐 지금은 null을 넘기는
+   * 호출부가 없다. */
   type?: PostType | null;
   children: React.ReactNode;
 }) {

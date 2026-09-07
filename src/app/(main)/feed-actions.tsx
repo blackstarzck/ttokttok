@@ -24,7 +24,10 @@ export async function loadMoreFeed(
   seed: string,
   sessionId: string | null,
   cursor: FeedCursor | null,
-  // 어느 탭이 더 달라고 했는지. 널이면 전 유형(현재 홈).
+  // 어느 탭이 더 달라고 했는지. loadMoreFeed는 이제 FeedScroller(릴스
+  // 전용) 하나만 호출하므로 항상 "video"다 — null 허용은 홈도 이 액션을
+  // 쓰던 시절(전면 피드였을 때)의 흔적이고, 홈이 loadMoreCards로 옮겨간
+  // 지금은 null을 넘기는 호출부가 없다.
   type: PostType | null = null,
 ): Promise<MoreFeed> {
   const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor, type);
