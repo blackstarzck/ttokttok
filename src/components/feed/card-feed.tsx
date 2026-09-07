@@ -129,10 +129,25 @@ export function CardFeed({
     return { nodes: outNodes, postIds: outIds };
   }, [query.data]);
 
+  // 아래 조회 집계 effect의 deps 전용 — postIds 배열 자체(참조)가 아니라
+  // 값(정체성)으로 비교하려고 문자열로 편다. 게시물 id에 쉼표가 올 수
+  // 없으므로(uuid) 구분자 충돌 걱정이 없다.
+  const postIdsKey = postIds.join(",");
+
   // 조회 집계 — 1초 이상 보이면 게시물당 한 번. 세는 단위는 게시물이라
   // 카드 하나가 곧 한 번이다(설계 결정 11).
+  //
+  // deps는 postIdsKey(id들을 이어붙인 문자열)다 — postIds.length였을 때는
+  // 개수는 그대로인데 구성이 바뀌면(예: 페이지 경계 중복 제거가 다른
+  // 조합으로 걸러낼 때) 이 effect가 재실행되지 않아 새로 들어온 노드를
+  // 한 번도 관찰하지 못했다. 문자열로 바꿔 값(정체성)을 직접 비교한다.
+  // querySelectorAll도 document 전역이 아니라 이 컴포넌트의 컨테이너로
+  // 좁힌다 — 문서 전체를 훑으면 다른 CardFeed 인스턴스나 화면 밖 마크업의
+  // [data-post-id]까지 걸릴 수 있다.
   useEffect(() => {
-    const cards = document.querySelectorAll<HTMLElement>("[data-post-id]");
+    const root = containerRef.current;
+    if (!root) return;
+    const cards = root.querySelectorAll<HTMLElement>("[data-post-id]");
     const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
     const io = new IntersectionObserver(
@@ -172,7 +187,7 @@ export function CardFeed({
       io.disconnect();
       timers.forEach(clearTimeout);
     };
-  }, [postIds.length]);
+  }, [postIdsKey]);
 
   // 빈 상태·에러 상태 — FeedScroller와 같은 문구를 쓰되(notifications
   // 페이지 §5.5의 선례), 실패와 "정말 없음"을 구분한다. 카드가 하나도
