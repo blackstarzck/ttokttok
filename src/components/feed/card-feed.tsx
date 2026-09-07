@@ -257,7 +257,7 @@ export function CardFeed({
     // 스크롤바 숨김(FeedScroller와 동일 유틸) — 없으면 데스크톱 브라우저의
     // 고전 스크롤바(15px)가 이 컨테이너의 콘텐츠 폭을 그만큼 줄인다.
     // 실측(1200px 뷰포트): article이 480이 아니라 465px로 그려졌다 —
-    // post-preview.tsx·PRD §5.10·§11-52가 "홈 카드가 실제로 받는 폭"이라고
+    // post-preview.tsx·PRD §5.10·§11-56가 "홈 카드가 실제로 받는 폭"이라고
     // 적어 둔 480px과 어긋난다(미리보기 프레임은 스크롤이 없어 480 그대로다).
     <div
       ref={containerRef}

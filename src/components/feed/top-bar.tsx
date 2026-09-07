@@ -3,7 +3,7 @@ import { Bell } from "lucide-react";
 import { UnreadBadge } from "@/components/feed/unread-badge";
 
 /**
- * 홈 상단 헤더 (설계 결정 8, IA 결정 기록 §11-49).
+ * 홈 상단 헤더 (설계 결정 8, IA 결정 기록 §11-53).
  *
  * **구조적 형제**다 — `page.tsx`가 `CardFeed`와 나란히 flex로 쌓고,
  * `absolute` 오버레이가 아니다. 원래는 크롬 레이어(z-[3])였다 — §11-27이

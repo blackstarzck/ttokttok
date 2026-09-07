@@ -26,7 +26,7 @@ export async function generateMetadata({
  * 채널 정보 + 그 채널이 발행한 게시물 그리드. 항목을 누르면 유형에 따라
  * 갈린다 — 영상은 이 채널 안에서 이어 보는 채널 스코프 릴스 뷰어
  * (`/channel/[slug]/reels`)로, 카드는 게시물 상세(`/p/[postId]`)로
- * 딥링크된다(§11-54).
+ * 딥링크된다(§11-58).
  */
 export default async function ChannelPage({
   params,

@@ -97,7 +97,7 @@ export function FeedScroller({
     // 실제 offsetParent는 <body>다. 지금은 컨테이너의
     // getBoundingClientRect().top이 우연히 0이라 두 값이 일치할 뿐,
     // 위에 positioned 조상이 생기거나 구조적 헤더가 컨테이너 앞에
-    // 붙으면(홈에 §11-49로 붙은 것과 같은 방향) 조용히 엉뚱한 위치로
+    // 붙으면(홈에 §11-53로 붙은 것과 같은 방향) 조용히 엉뚱한 위치로
     // 스크롤한다. 슬롯은 하나같이 컨테이너 높이 그대로다(그래서 스냅이
     // 성립한다) — initialIndex × clientHeight가 그 사실을 그대로 옮긴
     // 식이라 레이아웃이 바뀌어도 깨지지 않는다.
