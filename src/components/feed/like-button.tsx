@@ -9,11 +9,9 @@ import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CHROME_ACTION, CHROME_COUNT, CHROME_ICON } from "@/components/feed/chrome";
+import { CARD_ACTION as SURFACE_ACTION, CARD_COUNT as SURFACE_COUNT } from "@/components/feed/card-chrome";
 
-const SURFACE_ACTION =
-  "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none";
 const SURFACE_ICON = "size-5";
-const SURFACE_COUNT = "text-xs tabular-nums";
 
 /**
  * 좋아요 토글 (PRD §5.5).

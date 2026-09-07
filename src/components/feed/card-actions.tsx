@@ -8,14 +8,11 @@ import { BookSheet } from "@/components/book/book-sheet";
 import { LoginSheet } from "@/components/auth/login-sheet";
 import { LikeButton } from "@/components/feed/like-button";
 import { CommentSheet } from "@/components/feed/comment-sheet";
+import { CARD_ACTION as ACTION, CARD_COUNT as COUNT } from "@/components/feed/card-chrome";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
 import type { FeedPost } from "@/lib/feed";
-
-const ACTION =
-  "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none";
-const COUNT = "text-xs tabular-nums";
 
 /**
  * 카드 액션 줄 (IA 개편 결정 4).
