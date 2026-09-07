@@ -5,6 +5,7 @@ import { PostItem } from "@/components/feed/post-item";
 import { getFeed } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 import { FEED_SEED_COOKIE } from "@/lib/feed-seed";
+import { SESSION_ID_COOKIE } from "@/lib/session-id";
 
 export const metadata: Metadata = { title: "릴스" };
 
@@ -31,8 +32,11 @@ export const metadata: Metadata = { title: "릴스" };
 export default async function ReelsPage() {
   const jar = await cookies();
   const seed = jar.get(FEED_SEED_COOKIE)?.value ?? crypto.randomUUID();
+  // 1페이지와 다음 페이지가 같은 점수 함수로 계산되도록 세션 id를 넘긴다
+  // (session-id.ts 주석 — 널로 두면 seen_penalty가 1페이지에만 빠진다).
+  const sessionId = jar.get(SESSION_ID_COOKIE)?.value ?? null;
 
-  const { posts, nextCursor } = await getFeed(seed, null, 10, null, "video");
+  const { posts, nextCursor } = await getFeed(seed, sessionId, 10, null, "video");
 
   const [user, likedIds] = await Promise.all([
     getCurrentUser(),

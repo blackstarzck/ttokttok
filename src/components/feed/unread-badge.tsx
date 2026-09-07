@@ -24,6 +24,13 @@ import { NOTIFICATION_LIMIT } from "@/lib/notifications-client";
  * 지울 수 있는 배지보다 나쁘다. 숫자가 이 기능이 가진 유일한 신뢰 신호이기
  * 때문이다. 목록과 같은 창을 세면 "보이는 걸 다 읽으면 배지가 0"이 항상
  * 성립한다.
+ *
+ * 색은 시맨틱 토큰(`destructive`)이다 — 예전에는 `bg-white`/`text-[#111111]`
+ * 고정값이었는데, 그건 `TopBar`가 임의의 콘텐츠 픽셀 위 오버레이였을 때
+ * 얘기다(IA 결정 기록 §11-53로 구조적 헤더가 됨). 지금 이 배지가 앉는
+ * 면은 `bg-background`인 카드 표면이라, 흰색 고정을 그대로 두면 라이트
+ * 테마에서 배지가 배경과 거의 같은 명도라 로고와 같은 흰색-위-흰색
+ * 문제가 재현된다.
  */
 export function UnreadBadge() {
   const { data } = useQuery({
@@ -48,7 +55,7 @@ export function UnreadBadge() {
   if (!data) return null;
 
   return (
-    <span className="absolute -top-0.5 -right-0.5 flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-[#111111] tabular-nums">
+    <span className="bg-destructive text-destructive-foreground ring-background absolute -top-0.5 -right-0.5 flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-bold ring-2 tabular-nums">
       {/* 이 span은 태그를 안 붙이면 role="generic"인데, ARIA 스펙은
           generic role에 이름을 붙이는 것 자체를 금지한다 — aria-label을
           여기 달면 브라우저·스크린리더마다 처리가 갈려 이식성이 없다

@@ -2,9 +2,26 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { PostItem } from "@/components/feed/post-item";
+import { PostCard } from "@/components/feed/post-card";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { FeedBook, FeedCardLayout, FeedPost } from "@/lib/feed";
+
+/**
+ * 카드 미리보기 프레임 폭.
+ *
+ * 홈 카드는 풀블리드라 `(main)` 레이아웃의 `max-w-frame`(globals.css,
+ * 480px)을 그대로 받는다 — 좌우 패딩이 없으니 프레임 폭 = 카드 폭이다.
+ * 어드민은 보통 데스크톱 브라우저에서 쓰므로, 그 화면에서 홈을 열면
+ * 뷰포트가 480px보다 넓어 카드가 이 상한(480px)을 그대로 받는다. 예전
+ * 375px(전면 피드용 폰 실측 폭)를 그대로 물려 쓰면 어드민이 보는 폭과
+ * 사용자 다수가 실제로 받는 폭이 달라, 375px에서는 안 넘치던 텍스트가
+ * 480px에서 여백을 만들거나 그 반대로 보일 수 있다.
+ */
+const CARD_FRAME_WIDTH = 480;
+
+/** 전면 피드(릴스·게시물 상세) 미리보기 폭 — 기존 375px 실측 폭을 유지한다. */
+const FULLSCREEN_FRAME_WIDTH = 375;
 
 /** 카드와 하단 도서바가 읽는 필드 전부. lib/feed.ts의 SELECT와 같은 목록이다. */
 const BOOK_COLUMNS = `
@@ -57,22 +74,31 @@ const NO_CHANNEL: PreviewChannel = {
   avatar_url: null,
 };
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({
+  width = CARD_FRAME_WIDTH,
+  children,
+}: {
+  /** 프레임 내용 폭(px) — 실제로 그 게시물 유형이 받는 폭과 같아야 한다. */
+  width?: number;
+  children: React.ReactNode;
+}) {
   return (
     <div className="border-border w-fit overflow-hidden rounded-xl border shadow-sm">
       {/*
-        375×812를 정확히 지켜야 한다. 테두리를 이 박스에 걸면 box-sizing이
-        border-box라 내용 폭이 373px가 되어 미리보기가 거짓말을 한다 —
-        그래서 테두리는 바깥 래퍼가 갖는다.
+        높이 812px, 폭은 게시물 유형이 실제로 받는 폭을 그대로 써야 한다
+        (카드 480px·전면 375px — 아래 CARD_FRAME_WIDTH/FULLSCREEN_FRAME_WIDTH).
+        테두리를 이 박스에 걸면 box-sizing이 border-box라 내용 폭이 2px
+        줄어 미리보기가 거짓말을 한다 — 그래서 테두리는 바깥 래퍼가 갖는다.
 
         inert는 하위 트리의 포인터·키보드·포커스를 브라우저 수준에서
-        막는다. ActionBar는 record_share RPC와 analytics를 실제로 호출하므로
-        미리보기에서 눌리면 집계가 오염된다. pointer-events-none은 키보드로
-        뚫리지만 inert는 뚫리지 않는다.
+        막는다. ActionBar·CardActions는 record_share RPC와 analytics를
+        실제로 호출하므로 미리보기에서 눌리면 집계가 오염된다.
+        pointer-events-none은 키보드로 뚫리지만 inert는 뚫리지 않는다.
       */}
       <div
         inert
-        className="bg-background flex h-[812px] w-[375px] flex-col"
+        style={{ width }}
+        className="bg-background flex h-[812px] flex-col"
       >
         {children}
       </div>
@@ -93,12 +119,26 @@ function Empty({ message }: { message: string }) {
 /**
  * 카드 조합 실시간 미리보기 (PRD §5.10).
  *
- * 사용자 화면을 흉내 내지 않고 **같은 컴포넌트를 그대로 쓴다**. PostItem을
- * 임포트하고 (main) 레이아웃과 같은 박스 구조로 감싸므로, 마크업이나
- * 클래스가 한쪽만 바뀌어 어긋날 여지가 없다.
+ * 사용자 화면을 흉내 내지 않고 **그 게시물이 실제로 나타나는 화면과 같은
+ * 컴포넌트를 그대로 쓴다**: `type='cards'`는 홈에서 `PostCard`로,
+ * `type='video'`는 릴스·게시물 상세에서 `PostItem`으로 보이므로 미리보기도
+ * 같은 분기를 탄다. 사전 병합 리뷰(Important 4)에서 이 미리보기가 카드
+ * 게시물도 항상 `PostItem`(전면 레이아웃)으로 그리는 게 드러났다 — 홈이
+ * 카드 피드로 바뀐 뒤에도 남아 있던 오래된 가정이었다. 상자·패딩·커버
+ * 크기가 실제 홈과 달라, 편집기에서 상한까지 채워 미리보기를 통과시킨
+ * 문구가 홈에서는 넘칠 수 있었다(정확히 §5.10이 막으려던 실패).
  *
- * 이 설계에는 규약이 따라붙는다: 카드 컴포넌트에 부수효과를 넣으면
- * 미리보기가 그것을 실행한다 (FRONTEND.md §3).
+ * (main) 레이아웃과 같은 박스 구조로 감싸므로, 마크업이나 클래스가
+ * 한쪽만 바뀌어 어긋날 여지가 없다. 이 설계에는 규약이 따라붙는다:
+ * 카드 컴포넌트에 부수효과를 넣으면 미리보기가 그것을 실행한다
+ * (FRONTEND.md §3).
+ *
+ * 오늘 이 컴포넌트를 실제로 호출하는 곳(post-editor.tsx)은 카드 게시물
+ * 편집기뿐이다 — 영상 게시물 폼(video-post-form.tsx)에는 실시간 미리보기가
+ * 아예 없다. `type` 분기는 그래도 남겨 둔다: FeedPost를 쓰는 다른 곳
+ * (post-item.tsx 등)이 전부 이 분기로 화면을 정하므로, 이 컴포넌트만
+ * "카드 전용"이라고 가정하면 나중에 영상 미리보기가 추가될 때 또 하나의
+ * "닮았지만 다른" 갈림길이 생긴다.
  */
 export function PostPreview({
   bookId,
@@ -133,15 +173,29 @@ export function PostPreview({
     post_videos: null,
   };
 
+  const isVideo = post.type === "video";
+
   return (
-    <Frame>
+    <Frame width={isVideo ? FULLSCREEN_FRAME_WIDTH : CARD_FRAME_WIDTH}>
       {/*
         (main) 레이아웃과 같은 박스다: min-h-0 flex-1로 남은 높이를 주고
         하단 GNB가 그 아래를 차지한다. main 태그를 쓰지 않는 이유는 어드민
         레이아웃에 이미 main이 있어 두 개가 되기 때문이다.
+
+        overflow-y-auto — CardFeed(실제 홈)도 카드를 이 클래스를 쓰는
+        컨테이너 안에서 스크롤한다. 카드 상자는 이제 고정 비율이 아니라
+        내용에 맞춰 늘어나므로(post-card.tsx) 이론상 넘칠 일이 없지만,
+        바깥 Frame 래퍼에는 overflow-hidden이 있다 — 여기서 스크롤을 열어
+        두지 않으면 어떤 이유로든 812px를 넘는 내용이 잘려 나가 편집자가
+        문제를 보지 못한 채 발행하게 된다. 잘라서 숨기기보다는 스크롤로
+        드러내는 쪽을 택한다.
       */}
-      <div className="min-h-0 flex-1">
-        <PostItem post={post} isGuest preview />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isVideo ? (
+          <PostItem post={post} isGuest preview />
+        ) : (
+          <PostCard post={post} isGuest preview />
+        )}
       </div>
       <BottomNav />
     </Frame>

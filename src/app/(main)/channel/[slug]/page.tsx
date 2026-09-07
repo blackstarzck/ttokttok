@@ -5,23 +5,9 @@ import { ChevronLeft } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { BookCover } from "@/components/feed/book-cover";
-import { createClient } from "@/lib/supabase/server";
+import { getChannel } from "@/lib/channel";
 import { getChannelPosts } from "@/lib/feed";
 import { formatCount } from "@/lib/format";
-
-/**
- * 채널 페이지 (PRD §5.9).
- * 채널 정보 + 그 채널이 발행한 게시물 그리드. 항목을 누르면 딥링크로 간다.
- */
-async function getChannel(slug: string) {
-  const db = await createClient();
-  const { data } = await db
-    .from("channels")
-    .select("id, name, slug, genre, description, avatar_url")
-    .eq("slug", slug)
-    .maybeSingle();
-  return data;
-}
 
 export async function generateMetadata({
   params,
@@ -35,6 +21,13 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * 채널 페이지 (PRD §5.9).
+ * 채널 정보 + 그 채널이 발행한 게시물 그리드. 항목을 누르면 유형에 따라
+ * 갈린다 — 영상은 이 채널 안에서 이어 보는 채널 스코프 릴스 뷰어
+ * (`/channel/[slug]/reels`)로, 카드는 게시물 상세(`/p/[postId]`)로
+ * 딥링크된다(§11-58).
+ */
 export default async function ChannelPage({
   params,
 }: PageProps<"/channel/[slug]">) {
@@ -90,7 +83,13 @@ export default async function ChannelPage({
           {posts.map((post) => (
             <li key={post.id}>
               <Link
-                href={`/p/${post.id}`}
+                href={
+                  post.type === "video"
+                    ? `/channel/${channel.slug}/reels?start=${post.id}`
+                    : `/p/${post.id}`
+                }
+                // 영상은 이 채널 안에서 이어 보게 릴스 뷰어로 보낸다(결정 7).
+                // 카드는 전면 뷰어가 없으므로 그대로 상세(/p/[postId])로 간다.
                 className="focus-visible:ring-ring block rounded-sm focus-visible:ring-2 focus-visible:outline-none"
               >
                 <BookCover book={post.books} className="w-full" />

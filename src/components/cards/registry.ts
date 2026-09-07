@@ -32,7 +32,22 @@ import {
 export type RegionVariant = {
   /** 어드민에서 고를 때 보이는 이름 */
   label: string;
-  component: ComponentType<{ book: FeedBook; text?: string }>;
+  /**
+   * compact — 홈 카드 안에 놓였는지(TemplateCard variant="card").
+   * 지금은 커버 영역만 쓴다. 카드 본문 상자는 고정 비율이 아니라 내용에
+   * 맞춰 늘어나므로(post-card.tsx) 예전처럼 "상자를 넘친다"는 문제는
+   * 아니지만, 큰 커버(w-36)를 그대로 두면 카드 하나가 유난히 길어져
+   * 스크롤 비용이 커진다 — 그래서 카드 모드에서는 작은 커버(w-24)를
+   * 쓴다. (예전에 상자를 4:5로 고정했을 때는 큰 커버가 상자를 넘고,
+   * 넘치는 대신 flex가 커버를 눌러 **책 표지가 찌그러졌다** — 216→175px,
+   * 2:3 → 0.82:1로 실측. 그 상자를 버린 이유이기도 하다.) 나머지 영역은
+   * 이 값을 무시해도 된다.
+   */
+  component: ComponentType<{
+    book: FeedBook;
+    text?: string;
+    compact?: boolean;
+  }>;
 };
 
 export type RegionEntry = {

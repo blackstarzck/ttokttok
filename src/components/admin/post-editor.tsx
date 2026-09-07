@@ -268,13 +268,13 @@ export function PostEditor({
         <h2 className="text-sm font-medium">
           미리보기{" "}
           <span className="text-muted-foreground text-xs font-normal">
-            375×812 · 사용자 화면과 같은 컴포넌트
+            480×812 · 홈과 같은 컴포넌트(PostCard)
           </span>
         </h2>
 
         <PostPreview bookId={bookId} channel={channel} layout={layout} />
 
-        <p className="text-muted-foreground max-w-[375px] text-xs break-keep">
+        <p className="text-muted-foreground max-w-[480px] text-xs break-keep">
           조작할 수 없습니다 — 미리보기에서 누른 좋아요·공유가 실제 집계에
           섞이지 않도록 막아 두었습니다. 인용구·상세 정보는 게시물이 아니라
           도서에 속하며, 하단 도서 바를 탭했을 때 열리는 시트에서 보입니다.

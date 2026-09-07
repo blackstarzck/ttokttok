@@ -9,6 +9,9 @@ import { track } from "@/lib/analytics";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CHROME_ACTION, CHROME_COUNT, CHROME_ICON } from "@/components/feed/chrome";
+import { CARD_ACTION as SURFACE_ACTION, CARD_COUNT as SURFACE_COUNT } from "@/components/feed/card-chrome";
+
+const SURFACE_ICON = "size-5";
 
 /**
  * 좋아요 토글 (PRD §5.5).
@@ -23,11 +26,18 @@ export function LikeButton({
   count,
   liked,
   isGuest,
+  surface = false,
 }: {
   postId: string;
   count: number;
   liked: boolean;
   isGuest: boolean;
+  /**
+   * 카드 표면 위에 놓이는지. 크롬(흰색 고정)은 피드 위에 얹히는 오버레이
+   * 전용 예외라(DESIGN.md Colors) 카드에서는 시맨틱 토큰을 써야 한다.
+   * 로직은 한 벌이고 외피만 갈라진다.
+   */
+  surface?: boolean;
 }) {
   const [optimistic, setOptimistic] = useState({ liked, count });
   const [, startTransition] = useTransition();
@@ -35,9 +45,15 @@ export function LikeButton({
   if (isGuest) {
     return (
       <LoginSheet reason="로그인하면 좋아요를 누를 수 있어요.">
-        <button type="button" aria-label="좋아요" className={CHROME_ACTION}>
-          <Heart className={CHROME_ICON} aria-hidden />
-          <span className={CHROME_COUNT}>{formatCount(count)}</span>
+        <button
+          type="button"
+          aria-label="좋아요"
+          className={surface ? SURFACE_ACTION : CHROME_ACTION}
+        >
+          <Heart className={surface ? SURFACE_ICON : CHROME_ICON} aria-hidden />
+          <span className={surface ? SURFACE_COUNT : CHROME_COUNT}>
+            {formatCount(count)}
+          </span>
         </button>
       </LoginSheet>
     );
@@ -73,16 +89,21 @@ export function LikeButton({
       onClick={toggle}
       aria-label="좋아요"
       aria-pressed={optimistic.liked}
-      className={CHROME_ACTION}
+      className={surface ? SURFACE_ACTION : CHROME_ACTION}
     >
       {/* 채움만으로 상태를 말한다 — 빨간 하트는 관례지만 이 디자인
           시스템에서 유채색은 도서 표지의 몫이다 (DESIGN.md Colors).
           크롬은 흰색 고정이므로 채움도 흰색이다. */}
       <Heart
-        className={cn(CHROME_ICON, optimistic.liked && "fill-current")}
+        className={cn(
+          surface ? SURFACE_ICON : CHROME_ICON,
+          optimistic.liked && "fill-current",
+        )}
         aria-hidden
       />
-      <span className={CHROME_COUNT}>{formatCount(optimistic.count)}</span>
+      <span className={surface ? SURFACE_COUNT : CHROME_COUNT}>
+        {formatCount(optimistic.count)}
+      </span>
     </button>
   );
 }

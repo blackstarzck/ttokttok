@@ -94,6 +94,15 @@ export type FeedPage = {
   posts: FeedPost[];
   /** 다음 페이지 요청에 그대로 넘긴다. null이면 끝. */
   nextCursor: FeedCursor | null;
+  /**
+   * RPC·본문 조회가 실패했는가 (notifications.ts의 getNotifications와
+   * 같은 이유로 둔다). posts가 빈 배열인 경우가 "정말 게시물이 없다"와
+   * "불러오다 실패했다" 둘 다일 수 있는데, 실패를 빈 배열로 감추면 화면이
+   * 사용자에게 거짓말을 한다 — 카드 목록이 있어야 할 자리가 그냥 백지가
+   * 된다. 호출부(page.tsx·feed-actions.tsx)가 이 값으로 두 경우를
+   * 구분해 다른 문구를 보여준다.
+   */
+  failed: boolean;
 };
 
 /**
@@ -148,11 +157,13 @@ export async function getFeed(
 
   if (rankError) {
     console.error("get_feed_v4:", rankError.message);
-    return { posts: [], nextCursor: null };
+    return { posts: [], nextCursor: null, failed: true };
   }
 
   const rows = (ranked ?? []) as { id: string; cursor_token: string }[];
-  if (rows.length === 0) return { posts: [], nextCursor: null };
+  // 진짜 빈 피드다 — RPC가 성공했고 그냥 더 줄 게 없다는 뜻이라 failed가
+  // 아니다.
+  if (rows.length === 0) return { posts: [], nextCursor: null, failed: false };
 
   // 2) 그 id들의 본문을 가져온다.
   const { data, error } = await db
@@ -162,7 +173,7 @@ export async function getFeed(
 
   if (error) {
     console.error("getFeed:", error.message);
-    return { posts: [], nextCursor: null };
+    return { posts: [], nextCursor: null, failed: true };
   }
 
   // in() 결과는 순서를 보장하지 않는다 — 점수 순으로 되돌린다.
@@ -178,6 +189,7 @@ export async function getFeed(
     posts: spreadByBook(posts),
     nextCursor:
       rows.length < limit ? null : { token: last.cursor_token, id: last.id },
+    failed: false,
   };
 }
 
@@ -213,11 +225,52 @@ export async function getChannelPosts(
     .select(SELECT)
     .eq("channel_id", channelId)
     .eq("status", "published")
+    // published_at만으로는 동점(같은 밀리초에 발행) 시 행 순서가
+    // 불특정이다 — id를 2차 키로 둬 채널 그리드와 뷰어(getChannelVideos)가
+    // 항상 같은 순서로 정렬되게 고정한다. 오늘은 발행이 매번 새 밀리초
+    // 타임스탬프를 찍어 동점이 나지 않지만, 대비하지 않을 이유가 없다.
     .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
   if (error) {
     console.error("getChannelPosts:", error.message);
+    return [];
+  }
+  return (data ?? []) as unknown as FeedPost[];
+}
+
+/**
+ * 채널 하나의 발행된 **영상** 게시물. 채널 스코프 릴스 뷰어가 쓴다.
+ *
+ * 랭킹(get_feed_v4)을 타지 않고 채널 그리드와 같은 발행 역순으로 준다 —
+ * 사용자가 그리드에서 본 순서 그대로 위아래로 넘기게 하려는 것이고,
+ * 그래야 "탭한 게시물에서 시작"이 목록 안의 단순한 인덱스가 된다.
+ * 랭킹을 쓰면 커서·점수 때문에 임의 위치에서 시작하는 것이 어려워진다
+ * (결정 10이 급상승에서 피한 문제와 같다).
+ */
+export async function getChannelVideos(
+  channelId: string,
+  limit = 30,
+): Promise<FeedPost[]> {
+  const db = await createClient();
+
+  const { data, error } = await db
+    .from("posts")
+    .select(SELECT)
+    .eq("channel_id", channelId)
+    .eq("status", "published")
+    .eq("type", "video")
+    // getChannelPosts와 같은 2차 키(id)를 쓴다 — 동점이 생기면 그리드와
+    // 뷰어 정렬이 서로 다른 순서를 고를 수 있고, 30개 경계에서는 그리드엔
+    // 보이는데 뷰어 목록엔 없는 영상이 생겨 "탭한 게시물에서 시작"의
+    // start가 조용히 못 찾는 사고로 이어진다.
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("getChannelVideos:", error.message);
     return [];
   }
   return (data ?? []) as unknown as FeedPost[];
