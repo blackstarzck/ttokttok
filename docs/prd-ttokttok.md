@@ -307,6 +307,7 @@ ws-export는 FreeSerif 4종(약 7.7MB)을 항상 임베드하고, 위키문헌 �
 만료작에는 "원래 표지"가 없다. 시중 판본의 표지는 그 출판사의 저작물이고 우리 판본의 표지도 아니므로 가져다 쓸 수 없다. 우리 판본의 표지는 우리가 만든다 (`npm run covers`, 결정 기록 §11-28).
 
 - 생성물은 `covers` 공개 버킷에 `{book.id}.png`로 올라가고 `books.cover_url`에 반영된다. 재실행하면 덮어쓴다.
+- **컬럼이 담는 것이 경로냐 URL이냐가 갈린다**: `books.epub_path`는 순수 경로(비공개 버킷이라 URL이 없다), `books.cover_url`과 `post_videos.video_path`는 `getPublicUrl()`이 만든 공개 URL이다. 스토리지 API는 경로만 받으므로 지울 때는 URL을 되돌려야 한다 — `src/lib/storage-path.ts`가 그 변환을 한 곳에서 담당한다.
 - 제목 해시로 팔레트를 고정해 같은 책은 늘 같은 색이다. DESIGN.md가 "색은 도서 커버가 낸다"고 규정하므로, 무채색 UI에서 **표지만 유채색**이다.
 - 링크형 도서는 소개하는 시중 판본의 표지를 도서 식별 목적으로 사용한다 (구매 유도 맥락의 관행적 사용) — 관리자가 업로드.
 - 표지가 없는 도서는 `BookCover`의 타이포그래피 폴백으로 렌더된다 — 임시방편이 아니라 상시 경로다.
@@ -380,7 +381,7 @@ post_cards
 post_videos
   post_id uuid PK/FK,
   source_type text CHECK (source_type IN ('upload','youtube')),
-  video_path text,               -- upload일 때 Storage 경로
+  video_path text,               -- upload일 때 videos 버킷의 **공개 URL** (이름과 달리 경로가 아니다)
   youtube_id text,               -- youtube일 때
   duration_sec int
 

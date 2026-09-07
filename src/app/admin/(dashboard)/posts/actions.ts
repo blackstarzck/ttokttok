@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { POST_TEMPLATES, REGION_REGISTRY } from "@/components/cards/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseYoutubeId } from "@/lib/youtube";
+import { removeUploaded } from "@/lib/admin-storage";
+import { pathFromPublicUrl } from "@/lib/storage-path";
 
 /**
  * 카드 게시물 CRUD (PRD §5.10).
@@ -171,11 +173,32 @@ export async function deletePost(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   const db = await createClient();
+
+  // post_videos는 post_id에 on delete cascade가 걸려 있어 게시물과 함께
+  // 사라진다 — 파일 경로를 지금 읽어 두지 않으면 알 방법이 없다.
+  const { data: video } = await db
+    .from("post_videos")
+    .select("source_type, video_path")
+    .eq("post_id", id)
+    .maybeSingle();
+
   const { error } = await db.from("posts").delete().eq("id", id);
 
   if (error) {
     redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
   }
+
+  // 행이 사라진 뒤에야 파일을 치운다 — 삭제가 실패했는데 파일을 지우면
+  // 멀쩡한 게시물의 영상이 사라진다.
+  //
+  // 유튜브 게시물은 우리 버킷에 파일이 없다. video_path는 이름과 달리
+  // 공개 URL이라 경로로 되돌려야 한다 (storage-path.ts).
+  const videoPath =
+    video?.source_type === "upload"
+      ? pathFromPublicUrl(video.video_path, "videos")
+      : null;
+
+  await removeUploaded(videoPath ? [{ bucket: "videos", path: videoPath }] : []);
 
   revalidatePath("/admin/posts");
   revalidatePath("/");
