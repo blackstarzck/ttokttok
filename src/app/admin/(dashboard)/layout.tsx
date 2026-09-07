@@ -34,13 +34,30 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-dvh">
+      {/*
+        375px에서 셸이 가로로 넘치던 것을 두 줄로 눕혀 막는다.
+
+        원래는 줄바꿈 없는 한 줄이었다 — 브랜드 + 내비 5개(실측 256px) +
+        우측 그룹(실측 162px)에 gap까지 더하면 min-content가 약 478px인데,
+        375px 뷰포트의 본문 폭은 343px뿐이다. 그래서 **모든** 어드민 화면이
+        가로 스크롤을 만들었고(테이블이 없는 /admin 대시보드까지),
+        브랜드는 shrink 보호가 없어 13px로 짓눌려 읽히지도 않았다.
+
+        내비(256)와 우측 그룹(162)은 각각은 343px에 들어간다. 그래서
+        flex-wrap으로 내비만 자기 줄로 내린다 — 마크업을 복제하지 않으려고
+        `order-last w-full`을 쓰고, sm 이상에서 원래의 한 줄 순서로 되돌린다.
+        sm 기준은 이 저장소가 폭 전환에 이미 쓰는 값이다.
+
+        내비에 overflow-x-auto를 둔 이유: 항목이 하나 더 늘어도 페이지가
+        아니라 내비가 스크롤한다. 어드민 테이블이 쓰는 것과 같은 봉쇄 방식이다.
+      */}
       <header className="border-border bg-background sticky top-0 z-40 border-b">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-          <Link href="/admin" className="text-sm font-bold">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <Link href="/admin" className="shrink-0 text-sm font-bold">
             똑똑 관리자
           </Link>
 
-          <nav className="flex items-center gap-1">
+          <nav className="order-last flex w-full min-w-0 items-center gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {NAV.map((item) => (
               <Button key={item.href} asChild variant="ghost" size="sm">
                 <Link href={item.href}>{item.label}</Link>
@@ -48,7 +65,7 @@ export default async function AdminLayout({
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <Button asChild variant="ghost" size="sm">
               <Link href="/">서비스 보기</Link>
             </Button>
