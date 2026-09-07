@@ -221,7 +221,11 @@ export function CardFeed({
         </div>
       ))}
 
-      <div ref={sentinelRef} className="h-1" aria-hidden />
+      {/* shrink-0 없이 h-1만 두면 flex-col 안에서 flex-shrink:1(기본값)이
+          이 항목을 0px로 눌러 버린다 — 지금은 rootMargin: "600px"가 면적
+          0인 대상도 교차로 잡아 주는 덕에 우연히 동작할 뿐이다. 높이를
+          지키게 해 그 여유값에 기대지 않게 한다. */}
+      <div ref={sentinelRef} className="h-1 shrink-0" aria-hidden />
 
       {isFetchingNextPage ? (
         <div className="flex justify-center py-4">
