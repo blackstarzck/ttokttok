@@ -22,6 +22,7 @@ export function FeedScroller({
   seed,
   initialCursor,
   type = null,
+  initialIndex = 0,
   children,
 }: {
   postIds: string[];
@@ -33,10 +34,16 @@ export function FeedScroller({
    * 피드였을 때)의 흔적이고, 홈이 CardFeed로 바뀐 지금은 null을 넘기는
    * 호출부가 없다. */
   type?: PostType | null;
+  /**
+   * 처음 보여줄 슬롯. 채널 스코프 뷰어가 "탭한 게시물에서 시작"에 쓴다.
+   * active의 초기값이자 마운트 직후 스크롤 위치다 — 윈도우가 active 기준
+   * ±2만 마운트하므로 둘 중 하나만 하면 빈 화면이나 엉뚱한 위치가 된다.
+   */
+  initialIndex?: number;
   children: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(initialIndex);
 
   const [postIds, setPostIds] = useState(initialIds);
   const [items, setItems] = useState<React.ReactNode[]>(() =>
@@ -73,6 +80,20 @@ export function FeedScroller({
   // 렌더링 전용으로만 남긴다 — exhaustive-deps 경고를 지우려고 이 ref를
   // 다시 state로, 혹은 loadingMore를 deps로 되돌리지 말 것.
   const loadingRef = useRef(false);
+
+  // 시작 슬롯으로 한 번만 이동한다. 스냅 컨테이너라 scrollTop을 직접 준다 —
+  // scrollIntoView는 부모 스크롤까지 건드릴 수 있다.
+  const jumpedRef = useRef(false);
+  useEffect(() => {
+    if (jumpedRef.current || initialIndex === 0) return;
+    const container = containerRef.current;
+    const slot = container?.querySelector<HTMLElement>(
+      `[data-index="${initialIndex}"]`,
+    );
+    if (!container || !slot) return;
+    jumpedRef.current = true;
+    container.scrollTop = slot.offsetTop;
+  }, [initialIndex]);
 
   // ── 다음 페이지 프리페치 ──────────────────────────────────────
   useEffect(() => {

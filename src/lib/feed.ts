@@ -234,3 +234,34 @@ export async function getChannelPosts(
   }
   return (data ?? []) as unknown as FeedPost[];
 }
+
+/**
+ * 채널 하나의 발행된 **영상** 게시물. 채널 스코프 릴스 뷰어가 쓴다.
+ *
+ * 랭킹(get_feed_v4)을 타지 않고 채널 그리드와 같은 발행 역순으로 준다 —
+ * 사용자가 그리드에서 본 순서 그대로 위아래로 넘기게 하려는 것이고,
+ * 그래야 "탭한 게시물에서 시작"이 목록 안의 단순한 인덱스가 된다.
+ * 랭킹을 쓰면 커서·점수 때문에 임의 위치에서 시작하는 것이 어려워진다
+ * (결정 10이 급상승에서 피한 문제와 같다).
+ */
+export async function getChannelVideos(
+  channelId: string,
+  limit = 30,
+): Promise<FeedPost[]> {
+  const db = await createClient();
+
+  const { data, error } = await db
+    .from("posts")
+    .select(SELECT)
+    .eq("channel_id", channelId)
+    .eq("status", "published")
+    .eq("type", "video")
+    .order("published_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("getChannelVideos:", error.message);
+    return [];
+  }
+  return (data ?? []) as unknown as FeedPost[];
+}
