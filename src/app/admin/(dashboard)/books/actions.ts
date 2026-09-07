@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
 
 /**
  * 도서 CRUD (PRD §5.10).
@@ -91,12 +92,12 @@ export async function saveBook(formData: FormData) {
   const bookId = id ?? crypto.randomUUID();
 
   // 신규 저장이 실패하면 방금 올린 파일만 남는다 — 되돌리려고 기록해 둔다.
-  const uploaded: { bucket: string; path: string }[] = [];
+  const uploaded: UploadedFile[] = [];
 
   async function fail(message: string): Promise<never> {
-    if (!id) {
-      for (const f of uploaded) await admin.storage.from(f.bucket).remove([f.path]);
-    }
+    // 수정이면 기존 파일을 교체한 것이므로 지우지 않는다 — 지우면 멀쩡했던
+    // 도서의 본문이 사라진다.
+    if (!id) await removeUploaded(uploaded);
     redirect(`/admin/books?error=${encodeURIComponent(humanize(message))}`);
   }
 
