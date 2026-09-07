@@ -205,7 +205,16 @@ export function CardFeed({
     // 요구해 목록이 넘친다 — flex-1이 TopBar가 쓰고 남은 높이만 받고,
     // min-h-0이 그 안에서 자기 콘텐츠(카드 전부) 때문에 늘어나 셸을
     // 넘기지 않고 여기서 스스로 스크롤하게 한다.
-    <div ref={containerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    //
+    // 스크롤바 숨김(FeedScroller와 동일 유틸) — 없으면 데스크톱 브라우저의
+    // 고전 스크롤바(15px)가 이 컨테이너의 콘텐츠 폭을 그만큼 줄인다.
+    // 실측(1200px 뷰포트): article이 480이 아니라 465px로 그려졌다 —
+    // post-preview.tsx·PRD §5.10·§11-52가 "홈 카드가 실제로 받는 폭"이라고
+    // 적어 둔 480px과 어긋난다(미리보기 프레임은 스크롤이 없어 480 그대로다).
+    <div
+      ref={containerRef}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {nodes.map((node, i) => (
         <div key={postIds[i] ?? i} data-post-id={postIds[i]}>
           {node}
