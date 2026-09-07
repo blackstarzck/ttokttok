@@ -6,6 +6,7 @@ import { PostCard } from "@/components/feed/post-card";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { createClient } from "@/lib/supabase/client";
 import type { FeedBook, FeedCardLayout, FeedPost } from "@/lib/feed";
+import { BOOK_SELECT } from "@/lib/book-fields";
 
 /**
  * 카드 미리보기 프레임 폭.
@@ -23,13 +24,6 @@ const CARD_FRAME_WIDTH = 480;
 /** 전면 피드(릴스·게시물 상세) 미리보기 폭 — 기존 375px 실측 폭을 유지한다. */
 const FULLSCREEN_FRAME_WIDTH = 375;
 
-/** 카드와 하단 도서바가 읽는 필드 전부. lib/feed.ts의 SELECT와 같은 목록이다. */
-const BOOK_COLUMNS = `
-  id, title, author, translator, publisher, cover_url, category, isbn,
-  page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source,
-  toc, epub_path, purchase_links
-`;
-
 /**
  * 미리보기가 쓸 도서 한 권.
  *
@@ -44,7 +38,7 @@ const BOOK_COLUMNS = `
 async function fetchPreviewBook(bookId: string): Promise<FeedBook | null> {
   const { data, error } = await createClient()
     .from("books")
-    .select(BOOK_COLUMNS)
+    .select(BOOK_SELECT)
     .eq("id", bookId)
     .maybeSingle();
 

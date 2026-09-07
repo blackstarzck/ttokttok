@@ -1,11 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { FeedBook } from "@/lib/feed";
-
-const BOOK_FIELDS = `
-  id, title, author, translator, publisher, cover_url, category, isbn,
-  page_count, pub_date_paper, pub_date_ebook, intro, toc,
-  epub_path, purchase_links
-`;
+import { BOOK_SELECT } from "@/lib/book-fields";
 
 export type ReadingItem = {
   book: FeedBook;
@@ -26,7 +21,7 @@ export async function getReadingProgress(): Promise<{
   const db = await createClient();
   const { data, error } = await db
     .from("reading_progress")
-    .select(`percent, completed_at, books ( ${BOOK_FIELDS} )`)
+    .select(`percent, completed_at, books ( ${BOOK_SELECT} )`)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -52,7 +47,7 @@ export async function getBookmarks(): Promise<FeedBook[]> {
   const db = await createClient();
   const { data, error } = await db
     .from("bookmarks")
-    .select(`books ( ${BOOK_FIELDS} )`)
+    .select(`books ( ${BOOK_SELECT} )`)
     .order("created_at", { ascending: false });
 
   if (error) {

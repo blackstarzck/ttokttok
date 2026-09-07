@@ -1,21 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import type { FeedBook } from "@/lib/feed";
+import { BOOK_SELECT } from "@/lib/book-fields";
 
 /** 탐색 화면이 쓰는 도서 요약. 시트를 열어야 하므로 FeedBook 전체가 필요하다. */
 export type DiscoverBook = FeedBook;
-
-const BOOK_FIELDS = `
-  id, title, author, translator, publisher, cover_url, category, isbn,
-  page_count, pub_date_paper, pub_date_ebook, intro, toc,
-  epub_path, purchase_links
-`;
 
 /** 오늘의 추천 — 어드민이 지정한 도서 (PRD §5.6-2). */
 export async function getFeaturedBooks(): Promise<DiscoverBook[]> {
   const db = await createClient();
   const { data, error } = await db
     .from("featured_books")
-    .select(`sort_order, books ( ${BOOK_FIELDS} )`)
+    .select(`sort_order, books ( ${BOOK_SELECT} )`)
     .eq("active", true)
     .order("sort_order");
 
@@ -75,7 +70,7 @@ export async function getTrendingPosts(limit = 12): Promise<Trending> {
   if (rows.length > 0) {
     const { data } = await db
       .from("posts")
-      .select(`id, view_count, books ( ${BOOK_FIELDS} )`)
+      .select(`id, view_count, books ( ${BOOK_SELECT} )`)
       .in("id", rows.map((r) => r.post_id));
 
     const order = new Map(rows.map((r, i) => [r.post_id, i]));
@@ -88,7 +83,7 @@ export async function getTrendingPosts(limit = 12): Promise<Trending> {
   // 폴백 — 기간 로그가 없을 때만.
   const { data } = await db
     .from("posts")
-    .select(`id, view_count, books ( ${BOOK_FIELDS} )`)
+    .select(`id, view_count, books ( ${BOOK_SELECT} )`)
     .eq("status", "published")
     .order("view_count", { ascending: false })
     .limit(limit);
@@ -118,7 +113,7 @@ export async function search(query: string): Promise<SearchResults> {
   const [books, channels] = await Promise.all([
     db
       .from("books")
-      .select(BOOK_FIELDS)
+      .select(BOOK_SELECT)
       .or(`title.ilike.${like},author.ilike.${like}`)
       .order("title")
       .limit(20),
@@ -145,7 +140,7 @@ export async function getBooksByCategory(
   const db = await createClient();
   const { data, error } = await db
     .from("books")
-    .select(BOOK_FIELDS)
+    .select(BOOK_SELECT)
     .eq("category", category)
     .order("title");
 
