@@ -30,7 +30,13 @@ export function PostCard({
   const byline = formatByline(post.books);
 
   return (
-    <article className="border-border bg-card overflow-hidden rounded-xl border">
+    // 풀블리드 — 좌우 여백을 두지 않는다. 인스타가 그렇고, 무엇보다
+    // **본문이 그 24px에 달려 있다**: 목록에 좌우 패딩 12px씩을 주면 카드
+    // 폭이 351px로 줄고, 글이 더 여러 줄로 늘어나 본문 자연 높이가 460px가
+    // 되는데 4:5 상자는 439px로 함께 줄어 21px 넘친다(실측). 폭 375px에서는
+    // 437.5 vs 468.8로 31px 남는다. 그래서 구분은 여백이 아니라 아래 경계선이
+    // 맡고, 모서리도 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
+    <article className="border-border bg-card overflow-hidden border-b">
       <Link
         href={`/channel/${post.channels.slug}`}
         className="focus-visible:ring-ring flex min-h-11 items-center gap-2 px-3 focus-visible:ring-2 focus-visible:outline-none"

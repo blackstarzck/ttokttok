@@ -66,18 +66,25 @@ export function TemplateCard({
     // 줄여 본문이 들어갈 여지를 만든다. cn이 뒤 값을 이기므로 순서가
     // 중요하다.
     //
-    // 실측(폭 375px 고정 상자, 훅 60자·부연설명 90자를 registry.ts의
-    // maxLength까지 꽉 채운 한글 합성 데이터, 도서 제목 25자):
-    //   템플릿 a(커버+텍스트4) 자연 높이 433.75px — 4:5 상자 468.75px 대비 여유 35px
-    //   템플릿 b(텍스트4)      자연 높이 205.75px — 여유 263px
-    // 둘 다 들어가고 잘리는 글자도 없다(상자 안 본문의 scrollHeight−clientHeight = 0).
+    // 실측(폭 375px, 훅 60자·부연설명 90자를 registry.ts의 maxLength까지
+    // 꽉 채운 한글, 4:5 상자 = 468.75px):
+    //   템플릿 a(커버+텍스트4)  큰 커버(w-36) 509.5px → **넘침**
+    //                          작은 커버(w-24) 437.5px → 여유 31px
+    //   템플릿 b(텍스트4)       281.5px → 여유 187px
+    // 그래서 카드 모드에서는 커버 영역이 작아진다(registry.ts의 compact).
     //
-    // **자연 높이를 재는 방법에 주의.** 이 루트는 h-full이라, 높이를 고정한
-    // 상자 안에서 scrollHeight를 재면 내용이 짧든 길든 상자 높이가 그대로
-    // 나온다 — "정확히 꽉 찼다"로 오독하기 쉽다. 높이를 제약하지 않은
-    // 부모에 넣어야(h-full이 auto로 풀린다) 진짜 내용 높이가 나온다.
+    // **넘침이 눈에 안 보인다는 점이 함정이다.** 큰 커버로 4:5에 넣으면
+    // 글자가 잘리는 대신 flex가 커버를 눌러 흡수한다 — 216→175px, 2:3이
+    // 0.82:1로 찌그러진다. 오버플로 수치는 0으로 나오는데 표지가 망가진다.
     //
-    // 카드가 전면보다 **넓다**는 점이 여유의 출처다: 전면은 px-15라 본문
+    // **측정 방법에 두 번 걸렸다.** ① 이 루트는 h-full이라 높이를 고정한
+    // 상자 안에서 scrollHeight를 재면 내용이 짧든 길든 상자 높이가 나온다
+    // — "정확히 꽉 찼다"로 오독된다. 높이를 제약하지 않은 부모에 넣어야
+    // (h-full이 auto로 풀린다) 진짜 내용 높이가 나온다. ② 영역들이 전부
+    // break-keep이라 **띄어쓰기 없는 더미 텍스트는 줄바꿈이 안 되고 가로로
+    // 넘쳐** 높이가 실제보다 짧게 나온다. 어절이 있는 문장으로 재야 한다.
+    //
+    // 카드가 전면보다 넓다는 점이 그나마 여유를 만든다: 전면은 px-15라 본문
     // 폭이 255px인데 카드는 p-4라 343px다. 글자 수 상한의 "375px에서 5줄"
     // 실측은 255px 기준이므로, 카드에서는 같은 글자가 더 적은 줄을 쓴다.
     <div
@@ -91,12 +98,21 @@ export function TemplateCard({
         if (!entry) return null;
 
         const value = layout.regions?.[key] ?? {};
-        const variant =
+        // regionVariant — 바깥 variant prop(카드/전면)과 이름이 겹치면
+        // 루프 안에서 카드 모드를 참조할 수 없다.
+        const regionVariant =
           entry.variants[value.variant ?? ""] ??
           entry.variants[entry.defaultVariant];
-        const Region = variant.component;
+        const Region = regionVariant.component;
 
-        return <Region key={key} book={book} text={value.text ?? undefined} />;
+        return (
+          <Region
+            key={key}
+            book={book}
+            text={value.text ?? undefined}
+            compact={variant === "card"}
+          />
+        );
       })}
     </div>
   );

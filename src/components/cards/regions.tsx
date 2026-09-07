@@ -1,5 +1,6 @@
 import { BookCover } from "@/components/feed/book-cover";
 import { formatByline } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { RegionEntry } from "@/components/cards/registry";
 
 /**
@@ -26,7 +27,16 @@ export const coverRegion: RegionEntry = {
   variants: {
     a: {
       label: "중앙 표준",
-      component: ({ book }) => <BookCover book={book} className="w-36 self-center" />,
+      // 카드 안에서는 w-24. 큰 커버를 그대로 두면 본문이 4:5 상자를 넘고,
+      // 넘침 대신 flex가 커버를 눌러 표지 비율이 깨진다(registry.ts의
+      // compact 주석에 실측). 카드에는 바로 아래 도서 바가 커버를 다시
+      // 보여주므로 본문의 커버가 작아도 정보가 사라지지 않는다.
+      component: ({ book, compact }) => (
+        <BookCover
+          book={book}
+          className={cn(compact ? "w-24" : "w-36", "self-center")}
+        />
+      ),
     },
     b: {
       label: "좌측 소형",

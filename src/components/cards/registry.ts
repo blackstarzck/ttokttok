@@ -32,7 +32,19 @@ import {
 export type RegionVariant = {
   /** 어드민에서 고를 때 보이는 이름 */
   label: string;
-  component: ComponentType<{ book: FeedBook; text?: string }>;
+  /**
+   * compact — 홈 카드 안에 놓였는지(TemplateCard variant="card").
+   * 전면 화면보다 상자가 낮아 크게 차지하는 영역은 줄여야 한다. 지금은
+   * 커버 영역만 쓴다: 큰 커버(w-36)를 그대로 두면 본문 자연 높이가 509px가
+   * 되어 4:5 상자(469px)를 넘고, 넘치는 대신 flex가 커버를 눌러 **책 표지가
+   * 찌그러진다**(216→175px, 2:3 → 0.82:1로 실측). 나머지 영역은 이 값을
+   * 무시해도 된다.
+   */
+  component: ComponentType<{
+    book: FeedBook;
+    text?: string;
+    compact?: boolean;
+  }>;
 };
 
 export type RegionEntry = {
