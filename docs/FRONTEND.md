@@ -72,7 +72,7 @@ src/
 - 보안은 RLS가 담당한다. 클라이언트 쿼리는 anon key로 충분해야 하며, 프론트에서 권한 분기로 보안을 흉내 내지 않는다.
 - `SUPABASE_SERVICE_ROLE_KEY`는 서버 코드에서만. 용도는 EPUB signed URL 발급, 어드민 API 두 가지뿐이다.
 - 카운터(like/comment/share/view_count)는 **직접 update하지 않는다** — 트리거와 RPC(`record_view`, `record_share`)가 유일한 경로다.
-- 조회 로깅: 게시물이 뷰포트에 1초 이상 → `record_view(post_id, session_id)`. session_id는 localStorage의 랜덤 UUID.
+- 조회 로깅: 게시물이 뷰포트에 1초 이상 → `record_view(post_id, session_id)`. session_id는 **쿠키**(`ttokttok.session-id`)의 랜덤 UUID이고 미들웨어가 심는다. localStorage가 아닌 이유: 피드 1페이지는 서버 컴포넌트가 랭킹하는데 localStorage는 서버가 못 읽어, 1페이지만 `p_session_id = null`로 계산되고 다음 페이지는 실제 id로 계산돼 **점수 함수가 페이지마다 갈렸다** — 같은 게시물이 두 페이지에 모두 랭크된다(실측: 겹침 3 → 0). 피드 seed와 같은 처방이며, 다만 seed는 방문마다 새로 뽑는 세션 쿠키인 반면 이 값은 `seen_penalty`가 3일을 돌아보므로 maxAge를 준다. 자세한 근거는 `src/lib/session-id.ts` 주석.
 
 ## 6. 성능 (PRD §7의 실행 규칙)
 
