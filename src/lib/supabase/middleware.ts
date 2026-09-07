@@ -89,6 +89,9 @@ export async function updateSession(request: NextRequest) {
       path: "/",
       sameSite: "lax",
       maxAge: SESSION_ID_MAX_AGE,
+      // 지속 식별자가 매 요청에 실려 나가므로 프로덕션에서는 평문으로 보내지
+      // 않는다. 로컬은 http라 secure를 주면 아예 안 심긴다.
+      secure: process.env.NODE_ENV === "production",
     });
   }
 
