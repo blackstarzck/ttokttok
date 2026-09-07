@@ -53,6 +53,18 @@ export function CardFeed({
       ],
       pageParams: [null],
     },
+    // 전역 기본값(providers.tsx: staleTime 30s, refetchOnWindowFocus
+    // false)을 그대로 두면 마운트 시 재요청(refetchOnMount 기본 true)이
+    // 남는다 — seed를 방문(브라우징 세션) 단위로 고정하는 이유가 정확히
+    // "그 안에서는 순서가 재현된다"는 것인데(PRD §5.1, feed-seed.ts),
+    // 이미 받아 둔 페이지를 마운트마다 다시 불러오면 그 전제가 깨진다.
+    // 실측: 홈 → 릴스 → 30초+ 대기 → 홈으로 돌아오면 이미 그려 둔 카드
+    // 순서가 [8,3,1,7,6,5,2,4] → [1,7,5,8,2,3,6,4]로 바뀐다 — 재요청이
+    // page 1을 실제 session_id로 다시 채점하기 때문(세션 id 불일치는
+    // RPC 쪽 이월 과제, 여기서 고치는 건 "왜 애초에 다시 부르는가"다).
+    // 다음 페이지(스크롤 더 불러오기)는 fetchNextPage가 그대로 담당하므로
+    // 영향받지 않는다.
+    refetchOnMount: false,
   });
 
   // 바닥에 닿으면 다음 페이지. IntersectionObserver라 스크롤 이벤트를
