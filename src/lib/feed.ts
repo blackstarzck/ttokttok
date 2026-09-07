@@ -225,7 +225,12 @@ export async function getChannelPosts(
     .select(SELECT)
     .eq("channel_id", channelId)
     .eq("status", "published")
+    // published_at만으로는 동점(같은 밀리초에 발행) 시 행 순서가
+    // 불특정이다 — id를 2차 키로 둬 채널 그리드와 뷰어(getChannelVideos)가
+    // 항상 같은 순서로 정렬되게 고정한다. 오늘은 발행이 매번 새 밀리초
+    // 타임스탬프를 찍어 동점이 나지 않지만, 대비하지 않을 이유가 없다.
     .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
   if (error) {
@@ -256,7 +261,12 @@ export async function getChannelVideos(
     .eq("channel_id", channelId)
     .eq("status", "published")
     .eq("type", "video")
+    // getChannelPosts와 같은 2차 키(id)를 쓴다 — 동점이 생기면 그리드와
+    // 뷰어 정렬이 서로 다른 순서를 고를 수 있고, 30개 경계에서는 그리드엔
+    // 보이는데 뷰어 목록엔 없는 영상이 생겨 "탭한 게시물에서 시작"의
+    // start가 조용히 못 찾는 사고로 이어진다.
     .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
   if (error) {
