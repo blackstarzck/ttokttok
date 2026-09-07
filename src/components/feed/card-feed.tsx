@@ -125,9 +125,10 @@ export function CardFeed({
   }, [postIds.length]);
 
   return (
-    // 풀블리드 — 좌우 패딩을 주지 말 것. 카드 폭이 곧 본문 폭이고,
-    // 12px씩만 넣어도 본문이 4:5 상자를 21px 넘긴다(post-card.tsx 주석의
-    // 실측). 카드 사이 구분은 PostCard의 아래 경계선이 맡으므로 gap도 없다.
+    // 풀블리드 — 좌우 패딩을 주지 말 것. 카드 폭이 곧 본문 폭이라, 패딩을
+    // 주면 폭이 줄어 글이 더 여러 줄로 늘어나고 본문(가변 높이, post-card.tsx
+    // 참고)이 그만큼 더 길어진다. 카드 사이 구분은 PostCard의 아래 경계선이
+    // 맡으므로 gap도 없다.
     //
     // h-full이 아니라 min-h-0 flex-1이다 — TopBar가 오버레이가 아니라
     // page.tsx에서 이 목록의 flex 형제가 됐다(설계 결정 8). h-full을

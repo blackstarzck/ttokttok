@@ -14,7 +14,12 @@ import type { FeedPost } from "@/lib/feed";
  * 오버레이인 것과 달리 여기는 **쌓기**다 — 크롬이 컨텐츠를 가리지 않으므로
  * 스크림도 세이프존도 필요 없다.
  *
- * 본문 비율은 4:5다. 근거와 실측은 template-card.tsx의 카드 모드 주석.
+ * 본문 상자는 **고정 비율이 아니라 내용에 맞춰 늘어난다**. 근거와 실측은
+ * template-card.tsx의 카드 모드 주석 — 4:5로 고정했던 첫 시도는 폭
+ * 320~480px 전 구간과 도서명 1~3줄 전 조합을 만족하는 상자 높이가
+ * 존재하지 않았다(좁은 폭은 넘치고 넓은 폭은 텅 빈다). 넘칠 때 flex가
+ * 표지를 눌러 흡수하는데, 그 압축이 overflow 수치에 잡히지 않아 표지가
+ * 찌그러진 채 조용히 나가는 것이 4:5를 버린 이유다.
  */
 export function PostCard({
   post,
@@ -30,12 +35,11 @@ export function PostCard({
   const byline = formatByline(post.books);
 
   return (
-    // 풀블리드 — 좌우 여백을 두지 않는다. 인스타가 그렇고, 무엇보다
-    // **본문이 그 24px에 달려 있다**: 목록에 좌우 패딩 12px씩을 주면 카드
-    // 폭이 351px로 줄고, 글이 더 여러 줄로 늘어나 본문 자연 높이가 460px가
-    // 되는데 4:5 상자는 439px로 함께 줄어 21px 넘친다(실측). 폭 375px에서는
-    // 437.5 vs 468.8로 31px 남는다. 그래서 구분은 여백이 아니라 아래 경계선이
-    // 맡고, 모서리도 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
+    // 풀블리드 — 좌우 여백을 두지 않는다. 인스타가 그렇고, 폭이 좁아질수록
+    // 글이 더 여러 줄로 늘어나 본문이 더 길어지는데(narrow=더 높다), 넓어
+    // 지면 반대로 짧아진다 — 폭을 좌우 패딩 없이 최대로 주는 쪽이 그 변동
+    // 폭을 줄인다. 구분은 여백이 아니라 아래 경계선이 맡고, 모서리도
+    // 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
     <article className="border-border bg-card overflow-hidden border-b">
       <Link
         href={`/channel/${post.channels.slug}`}
@@ -54,7 +58,11 @@ export function PostCard({
         </span>
       </Link>
 
-      <div data-card-body className="bg-background aspect-4/5 overflow-hidden">
+      {/* 고정 aspect-4/5가 아니라 auto — 내용에 맞춰 늘어난다(사전 병합
+          리뷰 Important 2·3). overflow-hidden도 없다: 상자에 높이 상한이
+          없으니 잘릴 것이 없고, 있었다면 그건 표지가 눌려 찌그러지는 걸
+          다시 숨기는 것일 뿐이다. */}
+      <div data-card-body className="bg-background">
         <TemplateCard layout={post.post_cards} book={post.books} variant="card" />
       </div>
 

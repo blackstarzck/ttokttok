@@ -31,16 +31,24 @@ export const coverRegion: RegionEntry = {
       // 넘침 대신 flex가 커버를 눌러 표지 비율이 깨진다(registry.ts의
       // compact 주석에 실측). 카드에는 바로 아래 도서 바가 커버를 다시
       // 보여주므로 본문의 커버가 작아도 정보가 사라지지 않는다.
+      //
+      // shrink-0 — TemplateCard의 flex 컬럼 안에서 이 영역이 압축되지
+      // 않게 못박는다. BookCover 자신이 overflow-hidden이라(Image가
+      // fill로 채우니 잘라내야 한다) flex의 자동 최소 크기가 0으로
+      // 계산되어, 안 그러면 상자가 좁아질 때 다른 영역 대신 이 영역부터
+      // 눌려 2:3 비율이 찌그러진다(template-card.tsx 주석 실측).
       component: ({ book, compact }) => (
         <BookCover
           book={book}
-          className={cn(compact ? "w-24" : "w-36", "self-center")}
+          className={cn(compact ? "w-24" : "w-36", "shrink-0 self-center")}
         />
       ),
     },
     b: {
       label: "좌측 소형",
-      component: ({ book }) => <BookCover book={book} className="w-24" />,
+      component: ({ book }) => (
+        <BookCover book={book} className="w-24 shrink-0" />
+      ),
     },
   },
 };
