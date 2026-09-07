@@ -28,11 +28,14 @@ export function CardFeed({
   initialPostIds,
   seed,
   initialCursor,
+  initialFailed,
 }: {
   initialNodes: React.ReactNode[];
   initialPostIds: string[];
   seed: string;
   initialCursor: FeedCursor | null;
+  /** 첫 페이지(서버 컴포넌트)가 실패했는가 — getFeed의 failed 그대로. */
+  initialFailed: boolean;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loggedRef = useRef(new Set<string>());
@@ -58,7 +61,7 @@ export function CardFeed({
   // 렌더마다 해제·재생성된다. 값 셋만 넣는다(fetchNextPage는 TanStack
   // Query가 안정적으로 유지한다). FeedScroller가 상태를 가드이자
   // 의존성으로 함께 써서 자기 요청을 취소하던 버그와 같은 부류다.
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -66,7 +69,12 @@ export function CardFeed({
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        // isError면 자동 재시도하지 않는다 — loadMoreCards는 getFeed가
+        // 실패하면 던지는데(feed-actions.tsx), 그대로 두면 실패한 페이지의
+        // 커서가 그대로 남아 센티널이 계속 화면에 걸쳐 있는 동안 매
+        // 교차마다 같은 요청을 다시 쏜다. 재시도는 아래 "다시 시도" 버튼
+        // (수동)으로만 한다.
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isError) {
           void fetchNextPage();
         }
       },
@@ -74,7 +82,7 @@ export function CardFeed({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
 
   // 페이지 경계 중복 제거 — feed-scroller.tsx의 knownIdsRef와 같은 이유다:
   // 키가 겹치면 React가 렌더를 뒤섞는다. 커서가 정확해도 두 페이지 사이에
@@ -145,6 +153,25 @@ export function CardFeed({
     };
   }, [postIds.length]);
 
+  // 빈 상태·에러 상태 — FeedScroller와 같은 문구를 쓰되(notifications
+  // 페이지 §5.5의 선례), 실패와 "정말 없음"을 구분한다. 카드가 하나도
+  // 없는데 이 화면이 백지면, 배지나 알림 없이 들어온 사용자는 "원래
+  // 게시물이 없나 보다"와 "불러오다 실패했나 보다"를 구분할 수 없다 —
+  // getFeed가 RPC 오류 때도 빈 배열을 돌려주므로 구분하지 않으면 실패가
+  // 곧 빈 화면이 된다(사전 병합 리뷰 Important 6). type='cards'로
+  // 좁혀지며 빈 경우 자체도 더 잦아졌다.
+  if (postIds.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+        <p className="text-muted-foreground text-center text-sm">
+          {initialFailed
+            ? "피드를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "아직 게시물이 없어요."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     // 풀블리드 — 좌우 패딩을 주지 말 것. 카드 폭이 곧 본문 폭이라, 패딩을
     // 주면 폭이 줄어 글이 더 여러 줄로 늘어나고 본문(가변 높이, post-card.tsx
@@ -170,6 +197,21 @@ export function CardFeed({
         <div className="flex justify-center py-4">
           <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
           <span className="sr-only">다음 게시물을 불러오는 중</span>
+        </div>
+      ) : isError ? (
+        // 이미 보여준 카드는 그대로 두고 다음 페이지만 실패로 표시한다 —
+        // 첫 페이지 실패(위의 빈 상태)와 달리 여기는 이미 콘텐츠가 있으니
+        // 화면을 통째로 지울 이유가 없다. 자동 재시도는 위 옵저버가
+        // isError일 때 끄므로, 다시 시도는 이 버튼으로만 한다.
+        <div className="flex flex-col items-center gap-2 py-4">
+          <p className="text-muted-foreground text-sm">더 불러오지 못했어요.</p>
+          <button
+            type="button"
+            onClick={() => void fetchNextPage()}
+            className="text-foreground text-sm underline underline-offset-2"
+          >
+            다시 시도
+          </button>
         </div>
       ) : null}
     </div>

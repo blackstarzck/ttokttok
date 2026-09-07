@@ -94,6 +94,15 @@ export type FeedPage = {
   posts: FeedPost[];
   /** 다음 페이지 요청에 그대로 넘긴다. null이면 끝. */
   nextCursor: FeedCursor | null;
+  /**
+   * RPC·본문 조회가 실패했는가 (notifications.ts의 getNotifications와
+   * 같은 이유로 둔다). posts가 빈 배열인 경우가 "정말 게시물이 없다"와
+   * "불러오다 실패했다" 둘 다일 수 있는데, 실패를 빈 배열로 감추면 화면이
+   * 사용자에게 거짓말을 한다 — 카드 목록이 있어야 할 자리가 그냥 백지가
+   * 된다. 호출부(page.tsx·feed-actions.tsx)가 이 값으로 두 경우를
+   * 구분해 다른 문구를 보여준다.
+   */
+  failed: boolean;
 };
 
 /**
@@ -148,11 +157,13 @@ export async function getFeed(
 
   if (rankError) {
     console.error("get_feed_v4:", rankError.message);
-    return { posts: [], nextCursor: null };
+    return { posts: [], nextCursor: null, failed: true };
   }
 
   const rows = (ranked ?? []) as { id: string; cursor_token: string }[];
-  if (rows.length === 0) return { posts: [], nextCursor: null };
+  // 진짜 빈 피드다 — RPC가 성공했고 그냥 더 줄 게 없다는 뜻이라 failed가
+  // 아니다.
+  if (rows.length === 0) return { posts: [], nextCursor: null, failed: false };
 
   // 2) 그 id들의 본문을 가져온다.
   const { data, error } = await db
@@ -162,7 +173,7 @@ export async function getFeed(
 
   if (error) {
     console.error("getFeed:", error.message);
-    return { posts: [], nextCursor: null };
+    return { posts: [], nextCursor: null, failed: true };
   }
 
   // in() 결과는 순서를 보장하지 않는다 — 점수 순으로 되돌린다.
@@ -178,6 +189,7 @@ export async function getFeed(
     posts: spreadByBook(posts),
     nextCursor:
       rows.length < limit ? null : { token: last.cursor_token, id: last.id },
+    failed: false,
   };
 }
 

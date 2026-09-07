@@ -14,7 +14,7 @@ export default async function HomePage() {
   const seed = jar.get(FEED_SEED_COOKIE)?.value ?? crypto.randomUUID();
 
   // 홈은 카드 게시물만 (IA 개편 결정 1). 영상은 릴스 탭에 있다.
-  const { posts, nextCursor } = await getFeed(seed, null, 10, null, "cards");
+  const { posts, nextCursor, failed } = await getFeed(seed, null, 10, null, "cards");
 
   const [user, likedIds] = await Promise.all([
     getCurrentUser(),
@@ -30,6 +30,7 @@ export default async function HomePage() {
       <CardFeed
         seed={seed}
         initialCursor={nextCursor}
+        initialFailed={failed}
         initialPostIds={posts.map((p) => p.id)}
         initialNodes={posts.map((post) => (
           <PostCard
