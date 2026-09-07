@@ -38,6 +38,7 @@ export function CardFeed({
   initialFailed: boolean;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const loggedRef = useRef(new Set<string>());
 
   const query = useInfiniteQuery<MoreFeed>({
@@ -65,7 +66,8 @@ export function CardFeed({
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    const root = containerRef.current;
+    if (!el || !root) return;
 
     const io = new IntersectionObserver(
       ([entry]) => {
@@ -78,7 +80,14 @@ export function CardFeed({
           void fetchNextPage();
         }
       },
-      { rootMargin: "600px" },
+      // root를 반드시 지정해야 한다 — 스크롤 컨테이너는 뷰포트가 아니라
+      // 이 컴포넌트의 overflow-y-auto div다. 스펙은 rootMargin을 적용하기
+      // 전에 대상을 조상 스크롤 컨테이너 기준으로 먼저 클리핑하므로,
+      // root를 안 주면(기본값 = 뷰포트) 센티널이 뷰포트 안에 있어도
+      // 실제 스크롤 컨테이너 밖(아직 안 그려진 먼 아래)이면 교차가 아예
+      // 안 잡힌다 — rootMargin: "600px"가 프리페치를 앞당기지 못하고
+      // 바닥에 완전히 닿아야만 다음 페이지를 받는 상태로 조용히 퇴화한다.
+      { root, rootMargin: "600px" },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -184,7 +193,7 @@ export function CardFeed({
     // 요구해 목록이 넘친다 — flex-1이 TopBar가 쓰고 남은 높이만 받고,
     // min-h-0이 그 안에서 자기 콘텐츠(카드 전부) 때문에 늘어나 셸을
     // 넘기지 않고 여기서 스스로 스크롤하게 한다.
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div ref={containerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {nodes.map((node, i) => (
         <div key={postIds[i] ?? i} data-post-id={postIds[i]}>
           {node}
