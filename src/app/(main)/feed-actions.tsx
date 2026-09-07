@@ -1,5 +1,6 @@
 "use server";
 
+import { PostCard } from "@/components/feed/post-card";
 import { PostItem } from "@/components/feed/post-item";
 import { getFeed, type FeedCursor, type PostType } from "@/lib/feed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
@@ -36,6 +37,41 @@ export async function loadMoreFeed(
   return {
     nodes: posts.map((post) => (
       <PostItem
+        key={post.id}
+        post={post}
+        liked={likedIds.has(post.id)}
+        isGuest={user === null}
+        userId={user?.id ?? null}
+      />
+    )),
+    postIds: posts.map((p) => p.id),
+    nextCursor,
+  };
+}
+
+/**
+ * 홈 카드 피드의 다음 페이지.
+ *
+ * loadMoreFeed와 나눠 둔 이유: 렌더하는 컴포넌트가 다르다(PostCard vs
+ * PostItem). JSX를 그대로 돌려주는 규약은 같다 — 클라이언트가 데이터를
+ * 받아 직접 그리면 카드 템플릿과 zod까지 클라이언트 번들로 넘어간다
+ * (FRONTEND.md §2·§6).
+ */
+export async function loadMoreCards(
+  seed: string,
+  sessionId: string | null,
+  cursor: FeedCursor | null,
+): Promise<MoreFeed> {
+  const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor, "cards");
+
+  const [user, likedIds] = await Promise.all([
+    getCurrentUser(),
+    getLikedPostIds(posts.map((p) => p.id)),
+  ]);
+
+  return {
+    nodes: posts.map((post) => (
+      <PostCard
         key={post.id}
         post={post}
         liked={likedIds.has(post.id)}
