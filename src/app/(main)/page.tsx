@@ -23,7 +23,10 @@ export default async function HomePage() {
   const isGuest = user === null;
 
   return (
-    <div className="relative h-full">
+    // TopBar는 오버레이가 아니라 목록의 구조적 형제다(설계 결정 8) —
+    // CardFeed가 나머지 높이를 차지하고 스스로 스크롤한다.
+    <div className="flex h-full flex-col">
+      <TopBar isGuest={isGuest} />
       <CardFeed
         seed={seed}
         initialCursor={nextCursor}
@@ -38,7 +41,6 @@ export default async function HomePage() {
           />
         ))}
       />
-      <TopBar isGuest={isGuest} />
     </div>
   );
 }

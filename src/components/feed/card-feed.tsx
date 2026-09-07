@@ -128,7 +128,14 @@ export function CardFeed({
     // 풀블리드 — 좌우 패딩을 주지 말 것. 카드 폭이 곧 본문 폭이고,
     // 12px씩만 넣어도 본문이 4:5 상자를 21px 넘긴다(post-card.tsx 주석의
     // 실측). 카드 사이 구분은 PostCard의 아래 경계선이 맡으므로 gap도 없다.
-    <div className="flex h-full flex-col overflow-y-auto">
+    //
+    // h-full이 아니라 min-h-0 flex-1이다 — TopBar가 오버레이가 아니라
+    // page.tsx에서 이 목록의 flex 형제가 됐다(설계 결정 8). h-full을
+    // 쓰면 부모(h-full 컬럼) 안에서 TopBar 몫까지 포함해 자기 높이로
+    // 요구해 목록이 넘친다 — flex-1이 TopBar가 쓰고 남은 높이만 받고,
+    // min-h-0이 그 안에서 자기 콘텐츠(카드 전부) 때문에 늘어나 셸을
+    // 넘기지 않고 여기서 스스로 스크롤하게 한다.
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {nodes.map((node, i) => (
         <div key={postIds[i] ?? i} data-post-id={postIds[i]}>
           {node}
