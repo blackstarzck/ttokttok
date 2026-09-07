@@ -26,11 +26,15 @@ export function PostCard({
   liked = false,
   isGuest = true,
   userId = null,
+  preview,
 }: {
   post: FeedPost;
   liked?: boolean;
   isGuest?: boolean;
   userId?: string | null;
+  /** 어드민 미리보기 전용 (PRD §5.10) — TemplateCard로 그대로 흘려보낸다.
+   * 훅이 비어 있어도 스킵하지 않고 자리표시를 그리게 한다. */
+  preview?: boolean;
 }) {
   const byline = formatByline(post.books);
 
@@ -63,7 +67,12 @@ export function PostCard({
           없으니 잘릴 것이 없고, 있었다면 그건 표지가 눌려 찌그러지는 걸
           다시 숨기는 것일 뿐이다. */}
       <div data-card-body className="bg-background">
-        <TemplateCard layout={post.post_cards} book={post.books} variant="card" />
+        <TemplateCard
+          layout={post.post_cards}
+          book={post.books}
+          variant="card"
+          preview={preview}
+        />
       </div>
 
       <div className="py-1">

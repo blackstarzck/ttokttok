@@ -45,11 +45,11 @@ export function TemplateCard({
   const template = layout ? POST_TEMPLATES[layout.template] : undefined;
 
   if (!layout || !template) {
-    return preview ? <CardPlaceholder layout={layout} /> : null;
+    return preview ? <CardPlaceholder layout={layout} variant={variant} /> : null;
   }
 
   if (missingRequiredInputs(layout).length > 0) {
-    if (preview) return <CardPlaceholder layout={layout} />;
+    if (preview) return <CardPlaceholder layout={layout} variant={variant} />;
     console.error(
       `필수 입력이 빈 카드 (template=${layout.template}) — 렌더하지 않습니다.`,
     );
