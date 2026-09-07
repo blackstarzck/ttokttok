@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { BOOK_SELECT } from "@/lib/book-fields";
 
 /** 영역 하나의 저장값. variant가 없으면 레지스트리 defaultVariant로 폴백. */
 export type FeedRegionValue = {
@@ -69,9 +70,7 @@ export type FeedPost = {
 
 const SELECT = `
   id, type, like_count, comment_count, share_count, view_count,
-  books ( id, title, author, translator, publisher, cover_url, category, isbn,
-          page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source,
-          toc, epub_path, purchase_links ),
+  books ( ${BOOK_SELECT} ),
   channels ( id, name, slug, avatar_url ),
   post_cards ( template, regions ),
   post_videos ( source_type, video_path, youtube_id, duration_sec )
