@@ -657,7 +657,10 @@ export function CardFeed({
   }, [postIds.length]);
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-3">
+    // 풀블리드 — 좌우 패딩을 주지 말 것. 카드 폭이 곧 본문 폭이고,
+    // 12px씩만 넣어도 본문이 4:5 상자를 21px 넘긴다(post-card.tsx 주석의
+    // 실측). 카드 사이 구분은 PostCard의 아래 경계선이 맡으므로 gap도 없다.
+    <div className="flex h-full flex-col overflow-y-auto">
       {nodes.map((node, i) => (
         <div key={postIds[i] ?? i} data-post-id={postIds[i]}>
           {node}
