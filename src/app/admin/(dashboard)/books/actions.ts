@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
+import { pathFromPublicUrl } from "@/lib/storage-path";
 
 /**
  * 도서 CRUD (PRD §5.10).
@@ -146,12 +147,36 @@ export async function deleteBook(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   const db = await createClient();
+
+  // 파일 경로는 행이 사라지기 전에 읽어 둔다 — 지운 뒤에는 어느 파일이
+  // 이 도서 것이었는지 알 방법이 없고, 비공개 버킷이라 눈에도 안 띈다.
+  const { data: book } = await db
+    .from("books")
+    .select("epub_path, cover_url")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await db.from("books").delete().eq("id", id);
 
   if (error) {
-    // 게시물이 참조 중이면 FK에 걸린다.
+    // 게시물이 참조 중이면 FK에 걸린다. 행이 남았으니 파일도 그대로 둔다 —
+    // 여기서 지우면 멀쩡한 도서의 본문이 사라진다.
     redirect(`/admin/books?error=${encodeURIComponent(error.message)}`);
   }
+
+  // 행이 사라진 뒤에야 파일을 치운다. 순서를 뒤집으면 위 FK 실패가
+  // 본문 유실로 바뀐다.
+  //
+  // cover_url은 경로가 아니라 공개 URL이라 되돌려야 한다 (storage-path.ts).
+  // 파일이 이미 없어도 removeUploaded는 로그만 남기고 넘어간다 — 뒤처리
+  // 실패가 "삭제했습니다"를 오류로 바꿔서는 안 된다.
+  const orphans: UploadedFile[] = [];
+  if (book?.epub_path) orphans.push({ bucket: "epubs", path: book.epub_path });
+
+  const coverPath = pathFromPublicUrl(book?.cover_url, "covers");
+  if (coverPath) orphans.push({ bucket: "covers", path: coverPath });
+
+  await removeUploaded(orphans);
 
   revalidatePath("/admin/books");
   redirect("/admin/books?deleted=1");
