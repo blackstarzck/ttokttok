@@ -20,9 +20,14 @@ import type { LikedPost, MyComment } from "@/lib/activity";
 export function ActivityTab({
   likedPosts,
   comments,
+  likedFailed,
+  commentsFailed,
 }: {
   likedPosts: LikedPost[];
   comments: MyComment[];
+  /** 조회가 실패했는가 — 빈 목록과 다른 문구를 쓰기 위한 것. */
+  likedFailed?: boolean;
+  commentsFailed?: boolean;
 }) {
   const [tab, setTab] = useState<"likes" | "comments">("likes");
 
@@ -32,8 +37,12 @@ export function ActivityTab({
       <div className="flex gap-2">
         {(
           [
-            ["likes", `좋아요 ${likedPosts.length}`],
-            ["comments", `내 댓글 ${comments.length}`],
+            // 실패했는데 0으로 쓰면 탭 라벨부터 거짓말이 된다.
+            ["likes", likedFailed ? "좋아요" : `좋아요 ${likedPosts.length}`],
+            [
+              "comments",
+              commentsFailed ? "내 댓글" : `내 댓글 ${comments.length}`,
+            ],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -71,8 +80,10 @@ export function ActivityTab({
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground py-10 text-center text-sm">
-            아직 좋아요한 게시물이 없어요.
+          <p className="text-muted-foreground py-10 text-center text-sm break-keep">
+            {likedFailed
+              ? "불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+              : "아직 좋아요한 게시물이 없어요."}
           </p>
         )
       ) : comments.length ? (
@@ -95,8 +106,10 @@ export function ActivityTab({
           ))}
         </ul>
       ) : (
-        <p className="text-muted-foreground py-10 text-center text-sm">
-          아직 쓴 댓글이 없어요.
+        <p className="text-muted-foreground py-10 text-center text-sm break-keep">
+          {commentsFailed
+            ? "불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "아직 쓴 댓글이 없어요."}
         </p>
       )}
     </div>

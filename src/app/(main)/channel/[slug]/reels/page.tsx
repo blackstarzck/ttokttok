@@ -4,6 +4,7 @@ import { FeedScroller } from "@/components/feed/feed-scroller";
 import { PostItem } from "@/components/feed/post-item";
 import { getChannel } from "@/lib/channel";
 import { getChannelVideos } from "@/lib/feed";
+import { LoadFailed } from "@/components/load-failed";
 import { getCurrentUser, getLikedPostIds } from "@/lib/auth";
 
 /**
@@ -21,7 +22,8 @@ export async function generateMetadata({
   params,
 }: PageProps<"/channel/[slug]/reels">): Promise<Metadata> {
   const { slug } = await params;
-  const channel = await getChannel(slug);
+  const { channel, failed } = await getChannel(slug);
+  if (failed) return { title: "채널을 불러오지 못했어요" };
   if (!channel) return { title: "채널을 찾을 수 없어요" };
   return { title: channel.name };
 }
@@ -33,10 +35,16 @@ export default async function ChannelReelsPage({
   const { slug } = await params;
   const { start } = await searchParams;
 
-  const channel = await getChannel(slug);
+  const { channel, failed: channelFailed } = await getChannel(slug);
+  // 조회 실패는 notFound()가 아니다 — 그렇게 두면 그리드에서 영상을 누른
+  // 사용자가 "없는 채널"이라는 거짓말 앞에 갇힌다.
+  if (channelFailed) return <LoadFailed message="채널을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." />;
   if (!channel) notFound();
 
-  const posts = await getChannelVideos(channel.id);
+  const { posts, failed: videosFailed } = await getChannelVideos(channel.id);
+  // 여기도 마찬가지다. 영상이 정말 없으면 notFound()가 맞지만(그리드에
+  // 영상이 없으면 이 화면으로 오는 길 자체가 없다), 실패는 다른 이야기다.
+  if (videosFailed) return <LoadFailed message="영상을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." />;
   if (posts.length === 0) notFound();
 
   const startId = typeof start === "string" ? start : undefined;

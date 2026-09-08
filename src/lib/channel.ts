@@ -11,10 +11,19 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function getChannel(slug: string) {
   const db = await createClient();
-  const { data } = await db
+  const { data, error } = await db
     .from("channels")
     .select("id, name, slug, genre, description, avatar_url")
     .eq("slug", slug)
     .maybeSingle();
-  return data;
+
+  // error를 삼키면 조회 실패가 그대로 notFound()로 흘러가, 멀쩡히 있는
+  // 채널을 **"없는 채널"이라고 거짓말**한다 — 영상을 누르고 들어온
+  // 사용자가 막다른 길에 갇힌다. 화면이 두 경우에 다른 말을 할 수 있도록
+  // 나눠 준다 (§11-55의 getFeed·getNotifications와 같은 규약).
+  if (error) {
+    console.error("getChannel:", error.message);
+    return { channel: null, failed: true };
+  }
+  return { channel: data, failed: false };
 }
