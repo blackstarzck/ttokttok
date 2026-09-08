@@ -166,7 +166,7 @@ export default async function WikisourceCataloguePage({
                         {row.blockedReason}
                       </span>
                     ) : row.bookId ? (
-                      <Button asChild variant="ghost" size="sm">
+                      <Button asChild variant="ghost" size="sm" className="min-h-11">
                         <Link href={`/admin/books/${row.bookId}`}>✓ 등록됨</Link>
                       </Button>
                     ) : row.author ? (
