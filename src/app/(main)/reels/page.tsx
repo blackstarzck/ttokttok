@@ -48,6 +48,7 @@ export default async function ReelsPage() {
       postIds={posts.map((p) => p.id)}
       seed={seed}
       initialCursor={nextCursor}
+      cacheKey="reels"
       type="video"
     >
       {posts.map((post) => (
