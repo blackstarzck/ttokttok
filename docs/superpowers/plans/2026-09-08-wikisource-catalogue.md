@@ -1058,7 +1058,7 @@ MSG
 적용됐다는 답을 받은 뒤 확인한다. 이 확인은 읽기뿐이라 운영에 아무 영향이 없다:
 
 ```bash
-node --env-file=.env -e "const{createClient}=require('@supabase/supabase-js');const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);db.from('wikisource_works').select('*',{count:'exact',head:true}).then(({count,error})=>console.log(error?'✗ '+error.message:'✓ 표 있음, 행 '+count+'개'))"
+node --env-file=.env scripts/check-table.mjs wikisource_works
 ```
 
 기대: `✓ 표 있음, 행 0개`
@@ -2142,7 +2142,7 @@ npm run wikisource:sync
 - [ ] **Step 6: 실제로 들어갔는지 확인한다**
 
 ```bash
-node --env-file=.env -e "const{createClient}=require('@supabase/supabase-js');const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);(async()=>{const{count}=await db.from('wikisource_works').select('*',{count:'exact',head:true});const{data}=await db.from('wikisource_works').select('page_title,title,author,genre,pub_year,translator').order('title').limit(5);console.log('행',count,'개');console.table(data)})()"
+node --env-file=.env scripts/check-table.mjs wikisource_works --sample
 ```
 
 확인할 것:
@@ -3065,7 +3065,7 @@ grep -n "wikisource:sync" package.json
 echo "=== 문서에 적은 장르 수가 코드와 같나 (9개) ==="
 grep -c '"' src/lib/wikisource-meta.ts > /dev/null; node -e "import('./src/lib/wikisource-meta.ts').then(m => console.log('SCOPE_GENRES', m.SCOPE_GENRES.length, '개:', m.SCOPE_GENRES.join(', ')))"
 echo "=== 문서에 적은 행 수가 DB와 같나 (329) ==="
-node --env-file=.env -e "const{createClient}=require('@supabase/supabase-js');const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);db.from('wikisource_works').select('*',{count:'exact',head:true}).then(({count})=>console.log('wikisource_works',count,'행'))"
+node --env-file=.env scripts/check-table.mjs wikisource_works
 ```
 
 숫자가 다르면 **문서를 실제 값으로 고친다.** 위키문헌이 바뀌어 329가 아닐 수 있다 — 그때는 실제 값을 적고, 언제 기준인지 함께 적는다.
