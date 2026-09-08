@@ -13,7 +13,11 @@ export default async function EditPostPage({
   const { postId } = await params;
   const db = await createClient();
 
-  const [{ data: post }, { data: channels }, books] = await Promise.all([
+  const [
+    { data: post, error: postError },
+    { data: channels, error: channelsError },
+    books,
+  ] = await Promise.all([
     db
       .from("posts")
       .select(
@@ -24,6 +28,15 @@ export default async function EditPostPage({
     db.from("channels").select("id, name, slug, avatar_url").order("name"),
     getBookOptions(),
   ]);
+
+  // 삼키면 실패가 notFound()로 둔갑한다 — 관리자는 "조회가 실패했다"와
+  // "그런 게시물이 없다"를 구분할 수 없고, 멀쩡히 있는 게시물을 지워진
+  // 것으로 착각한다. 관용구는 reports/page.tsx 참고(어드민 내부 화면이라
+  // 별도 에러 UI 없이 던진다).
+  if (postError) throw new Error(postError.message);
+  // 채널 목록이 조용히 비면 셀렉트가 텅 빈 채로 뜨고, 관리자는 채널이
+  // 하나도 없는 것으로 읽는다.
+  if (channelsError) throw new Error(channelsError.message);
 
   if (!post) notFound();
 

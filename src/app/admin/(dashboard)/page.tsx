@@ -21,6 +21,12 @@ const CARDS = [
 export default async function AdminHomePage() {
   const db = await createClient();
 
+  // 여기는 다른 어드민 화면과 달리 **일부러 던지지 않는다.**
+  // 조회가 실패하면 count가 null이 되고 카드가 숫자 대신 "–"를 그린다 —
+  // 화면이 이미 "모른다"고 말하고 있어서, 실패를 0으로 위장하는 다른
+  // 화면들의 문제(빈 목록 = "아직 없음")가 여기엔 없다. 반대로 던지면
+  // 카운트 하나가 어긋났다고 어드민 홈 전체가 에러 화면이 되어, 실제로
+  // 하려던 일(각 화면으로 이동)까지 막힌다.
   const [books, posts, channels] = await Promise.all([
     db.from("books").select("id", { count: "exact", head: true }),
     db.from("posts").select("id", { count: "exact", head: true }),

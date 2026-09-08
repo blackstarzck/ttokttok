@@ -23,12 +23,16 @@ export default async function AdminPostsPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const { data: posts } = await db
+  const { data: posts, error } = await db
     .from("posts")
     .select(
       "id, status, type, published_at, created_at, like_count, comment_count, view_count, books(title), channels(name)",
     )
     .order("published_at", { ascending: false, nullsFirst: false });
+
+  // 삼키면 실패가 빈 목록이 되어 "아직 게시물이 없다"와 구분되지 않는다.
+  // 관용구는 reports/page.tsx 참고.
+  if (error) throw new Error(error.message);
 
   return (
     <div className="flex flex-col gap-6">

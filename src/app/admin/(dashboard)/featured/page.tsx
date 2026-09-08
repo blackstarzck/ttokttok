@@ -24,13 +24,25 @@ export default async function AdminFeaturedPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const [{ data: featured }, { data: books }] = await Promise.all([
+  const [
+    { data: featured, error: featuredError },
+    { data: books, error: booksError },
+  ] = await Promise.all([
     db
       .from("featured_books")
       .select("book_id, sort_order, active, books ( id, title, author )")
       .order("sort_order"),
     db.from("books").select("id, title, author").order("title"),
   ]);
+
+  // 삼키면 실패가 빈 목록이 되어 "아직 추천이 없다"와 구분되지 않는다.
+  // 여기서는 그게 특히 나쁘다 — 관리자가 추천이 지워진 줄 알고 다시
+  // 담으면 실제로는 이미 있던 행 위에 덧쓰게 된다. 관용구는
+  // reports/page.tsx 참고.
+  if (featuredError) throw new Error(featuredError.message);
+  // 후보 목록이 조용히 비면 "추가할 도서가 없다"로 읽힌다. 게다가 아래
+  // featuredIds 필터가 빈 배열에 걸려 아무 단서도 남지 않는다.
+  if (booksError) throw new Error(booksError.message);
 
   const rows = featured ?? [];
   const featuredIds = new Set(rows.map((r) => r.book_id));

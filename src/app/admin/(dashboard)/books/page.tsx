@@ -27,10 +27,15 @@ export default async function AdminBooksPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const { data: books } = await db
+  const { data: books, error } = await db
     .from("books")
     .select("id, title, author, category, epub_path, isbn, cover_url, intro, rights_note")
     .order("title");
+
+  // 삼키면 실패가 빈 목록이 되어 "아직 도서가 없다"와 구분되지 않는다.
+  // 관용구는 reports/page.tsx 참고 — 어드민 내부 화면이라 별도 에러 UI
+  // 없이 던지고, 메시지는 서버 로그에서 본다.
+  if (error) throw new Error(error.message);
 
   return (
     <div className="flex flex-col gap-6">

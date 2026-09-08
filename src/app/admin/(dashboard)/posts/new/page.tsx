@@ -13,10 +13,14 @@ export default async function NewPostPage({
   const isVideo = type === "video";
 
   const db = await createClient();
-  const [{ data: channels }, books] = await Promise.all([
+  const [{ data: channels, error: channelsError }, books] = await Promise.all([
     db.from("channels").select("id, name, slug, avatar_url").order("name"),
     getBookOptions(),
   ]);
+
+  // 삼키면 채널 셀렉트가 텅 빈 채로 뜬다 — 관리자는 채널을 먼저 만들어야
+  // 하는 줄 알고 이미 있는 채널을 다시 만든다. 관용구는 reports/page.tsx 참고.
+  if (channelsError) throw new Error(channelsError.message);
 
   return (
     <div className="flex flex-col gap-6">

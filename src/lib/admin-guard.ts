@@ -17,11 +17,18 @@ export async function requireAdmin(): Promise<{ userId: string }> {
 
   if (!user) redirect("/admin/login");
 
-  const { data: profile } = await db
+  const { data: profile, error } = await db
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
+
+  // 조회 실패를 삼키면 profile이 null이 되어 아래 검사가 "권한 없음"으로
+  // 흘러간다 — 진짜 관리자가 일시적 오류에 forbidden 화면을 보고 자기
+  // 계정이 강등된 줄 안다. 던져도 **닫히는 쪽은 그대로다**: 접근이
+  // 허용되지 않는다는 결과는 같고, 이유만 정직해진다. 실제 비관리자에
+  // 대한 동작(로그인 화면으로 리다이렉트)은 바뀌지 않는다.
+  if (error) throw new Error(error.message);
 
   if (profile?.role !== "admin") redirect("/admin/login?error=forbidden");
 
