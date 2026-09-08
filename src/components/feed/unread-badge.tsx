@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { NOTIFICATION_LIMIT } from "@/lib/notifications-client";
 
 /**
  * 안 읽은 알림 수 (결정 14).
@@ -15,15 +14,16 @@ import { NOTIFICATION_LIMIT } from "@/lib/notifications-client";
  * 전역 기본값이 refetchOnWindowFocus: false라 여기서만 켠다.
  * RLS(notifications_select_own)가 본인 행만 주므로 recipient 조건이 없다.
  *
- * 전체 안 읽음 개수가 아니라 목록과 같은 최신 NOTIFICATION_LIMIT개
- * 창에서만 센다 — notifications.ts(getNotifications)는 목록을 50개로
- * 자르고 더보기·전체읽음이 없다. 배지가 전체 안 읽음 수(예: 62)를 보여주면
- * 사용자는 화면에 보이는 50개를 전부 읽어도 배지가 12로 남고, 그 12개는
- * 새 알림이 쌓일수록 점점 더 목록 밖으로 밀려나 영원히 닿을 수 없는 곳으로
- * 간다 — 사용자가 절대 지울 수 없는 배지는, 실제보다 적게 세더라도 항상
- * 지울 수 있는 배지보다 나쁘다. 숫자가 이 기능이 가진 유일한 신뢰 신호이기
- * 때문이다. 목록과 같은 창을 세면 "보이는 걸 다 읽으면 배지가 0"이 항상
- * 성립한다.
+ * **전체 안 읽음 수를 센다.** 예전에는 목록과 같은 최신 50개 창에서만
+ * 셌는데, 그건 목록이 50개에서 잘리고 더 보기가 없던 시절의 처방이었다 —
+ * 전체 수(예: 62)를 보여주면 화면에 보이는 50개를 다 읽어도 배지가 12로
+ * 남고, 그 12개는 새 알림이 쌓일수록 목록 밖으로 더 밀려나 **영원히 닿을
+ * 수 없었다.** 지울 수 없는 배지보다는 적게 세는 배지가 낫다고 봤다.
+ *
+ * 이제 그 전제가 없다(§11-63): 목록에 더 보기가 생겨 51번째 이후에도
+ * 닿을 수 있고, "모두 읽음"이 한 번에 지운다. 닿을 수 있으면 정직한 수가
+ * 낫다 — 창으로 좁히면 이번엔 배지가 실제보다 **적게** 세어 사용자가
+ * 놓친 알림을 모르게 된다.
  *
  * 색은 시맨틱 토큰(`destructive`)이다 — 예전에는 `bg-white`/`text-[#111111]`
  * 고정값이었는데, 그건 `TopBar`가 임의의 콘텐츠 픽셀 위 오버레이였을 때
@@ -36,17 +36,14 @@ export function UnreadBadge() {
   const { data } = useQuery({
     queryKey: ["unread-count"],
     queryFn: async () => {
-      // count: "exact"로 전체 개수를 세지 않는다 — 목록(getNotifications)이
-      // 보여주는 것과 똑같이 최신 NOTIFICATION_LIMIT개만 골라 그 안에서
-      // read_at이 null인 것만 센다. 내용은 배지에 필요 없으므로 id·read_at만
-      // 받는다.
-      const { data: rows, error } = await createClient()
+      // head: true라 행 본문을 받지 않는다 — 배지에 필요한 건 수뿐이다.
+      // 예전에는 최신 50개를 받아 그 안에서 셌는데, 이제 전체를 센다(위 주석).
+      const { count, error } = await createClient()
         .from("notifications")
-        .select("id, read_at")
-        .order("created_at", { ascending: false })
-        .limit(NOTIFICATION_LIMIT);
+        .select("id", { count: "exact", head: true })
+        .is("read_at", null);
       if (error) return 0;
-      return (rows ?? []).filter((r) => r.read_at === null).length;
+      return count ?? 0;
     },
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
