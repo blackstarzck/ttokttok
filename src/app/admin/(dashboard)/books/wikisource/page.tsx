@@ -4,6 +4,8 @@ import { AdminNotice } from "@/components/admin/admin-notice";
 import { ImportRowButton } from "@/components/admin/import-row-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -16,10 +18,14 @@ import { createClient } from "@/lib/supabase/server";
 import {
   applyCatalogueQuery,
   buildCatalogueHref,
+  decadeOptions,
+  nextSortDir,
   parseCatalogueQuery,
+  type CatalogueQuery,
+  type SortKey,
   type WorkRow,
 } from "@/lib/wikisource-catalogue";
-import { toBookCategory } from "@/lib/wikisource-meta";
+import { SCOPE_GENRES, toBookCategory } from "@/lib/wikisource-meta";
 import { importFromWikisource } from "../import/actions";
 
 export const metadata: Metadata = { title: "위키문헌 작품 목록" };
@@ -28,6 +34,45 @@ const q = (v: string | string[] | undefined) =>
   typeof v === "string" ? v : undefined;
 
 type Row = WorkRow & { synced_at: string };
+
+/**
+ * 정렬 가능한 컬럼 머리.
+ *
+ * 현재 정렬 중인 컬럼에만 방향 화살표를 붙인다. 모든 컬럼에 붙이면
+ * 무엇이 적용된 정렬인지 안 보인다.
+ */
+function SortableHead({
+  label,
+  sortKey,
+  query,
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  query: CatalogueQuery;
+  className?: string;
+}) {
+  const active = query.sort === sortKey;
+  const arrow = active ? (query.dir === "asc" ? " ↑" : " ↓") : "";
+
+  return (
+    <TableHead className={className}>
+      <Link
+        href={buildCatalogueHref(query, {
+          sort: sortKey,
+          dir: nextSortDir(query, sortKey),
+        })}
+        className="hover:text-foreground inline-flex items-center whitespace-nowrap underline-offset-4 hover:underline"
+        aria-label={`${label} 기준으로 ${
+          nextSortDir(query, sortKey) === "asc" ? "오름차" : "내림차"
+        } 정렬`}
+      >
+        {label}
+        {arrow}
+      </Link>
+    </TableHead>
+  );
+}
 
 export default async function WikisourceCataloguePage({
   searchParams,
@@ -72,6 +117,10 @@ export default async function WikisourceCataloguePage({
 
   const result = applyCatalogueQuery(rows, query, registered);
 
+  // 필터 전 전체 행에서 만든다 — 필터를 걸면 선택지가 사라져 되돌릴 수
+  // 없게 되는 것을 막는다.
+  const { decades, hasNoYear } = decadeOptions(rows);
+
   // 언제 기준의 목록인지 — 목록은 동기화 시점의 스냅숏이다. 문자열을 그대로
   // 비교하지 않고 Date로 바꿔 비교한다 — timestamptz 직렬화가 초 단위 자릿수를
   // 생략할 수 있어(예: `...:00+00:00` vs `...:00.5+00:00`) 문자열 비교가
@@ -107,6 +156,119 @@ export default async function WikisourceCataloguePage({
       <AdminNotice error={q(sp.error)} />
 
       {/*
+        method="get"이라 제출하면 값이 그대로 주소가 된다 — 상태가 주소에
+        있으므로(FRONTEND.md §4) 클라이언트 컴포넌트가 필요 없다.
+
+        정렬은 이 폼에 없고 헤더 링크가 담당한다. 그래서 숨은 필드로 물고
+        가야 한다 — 없으면 검색할 때마다 정렬이 기본값으로 돌아간다.
+        쪽 번호는 일부러 넣지 않는다: 필터가 바뀌면 1쪽에서 다시 봐야 한다.
+      */}
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        {query.sort !== "title" && (
+          <input type="hidden" name="sort" value={query.sort} />
+        )}
+        {query.dir !== "asc" && <input type="hidden" name="dir" value={query.dir} />}
+
+        <div className="flex min-w-0 flex-1 basis-full flex-col gap-1 sm:basis-48">
+          <Label htmlFor="q" className="text-xs">
+            검색
+          </Label>
+          <Input
+            id="q"
+            name="q"
+            defaultValue={query.q}
+            placeholder="작품명 또는 저자"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="genre" className="text-xs">
+            장르
+          </Label>
+          <select
+            id="genre"
+            name="genre"
+            defaultValue={query.genre ?? ""}
+            className="border-input bg-background focus-visible:ring-ring h-11 rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <option value="">전체</option>
+            {SCOPE_GENRES.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="decade" className="text-xs">
+            출간
+          </Label>
+          <select
+            id="decade"
+            name="decade"
+            defaultValue={query.noYear ? "none" : (query.decade?.toString() ?? "")}
+            className="border-input bg-background focus-visible:ring-ring h-11 rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <option value="">전체</option>
+            {decades.map((d) => (
+              <option key={d} value={d}>
+                {d}년대
+              </option>
+            ))}
+            {hasNoYear && <option value="none">연도 없음</option>}
+          </select>
+        </div>
+
+        <Button type="submit" variant="secondary" className="min-h-11">
+          적용
+        </Button>
+
+        {/*
+          체크박스는 자바스크립트 없이 켜면 value가 실려 나가고 끄면 아예
+          안 실린다 — parseCatalogueQuery가 `1`일 때만 켜진 것으로 읽는
+          이유가 이것이다.
+        */}
+        <div className="flex basis-full flex-col gap-2 sm:basis-auto">
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="hide"
+              value="1"
+              defaultChecked={query.hideRegistered}
+              className="size-4"
+            />
+            등록된 것 숨기기
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="all"
+              value="1"
+              defaultChecked={query.showUnlistable}
+              className="size-4"
+            />
+            등록 불가 포함해서 보기
+          </label>
+        </div>
+
+        {/*
+          필터가 걸려 있을 때만 초기화를 보여준다. 항상 있으면 누를 이유가
+          없는 버튼이 자리만 차지한다.
+        */}
+        {(query.q ||
+          query.genre ||
+          query.decade !== null ||
+          query.noYear ||
+          query.hideRegistered ||
+          query.showUnlistable) && (
+          <Button asChild variant="ghost" className="min-h-11">
+            <Link href="/admin/books/wikisource">초기화</Link>
+          </Button>
+        )}
+      </form>
+
+      {/*
         목록에 없는 작품이 있다는 사실을 화면에 적는다. 범위를 소설 계열·
         시집으로 좁혔으므로 「홍염」처럼 위키문헌에 장르가 없는 작품, 수필·
         시 낱편, PD 태그 없는 문서는 여기 없다 — 그걸 모르면 관리자는
@@ -125,10 +287,10 @@ export default async function WikisourceCataloguePage({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>작품명</TableHead>
-            <TableHead>저자</TableHead>
-            <TableHead>장르</TableHead>
-            <TableHead>출간</TableHead>
+            <SortableHead label="작품명" sortKey="title" query={query} />
+            <SortableHead label="저자" sortKey="author" query={query} />
+            <SortableHead label="장르" sortKey="genre" query={query} />
+            <SortableHead label="출간" sortKey="year" query={query} />
             <TableHead className="text-right">상태</TableHead>
           </TableRow>
         </TableHeader>
