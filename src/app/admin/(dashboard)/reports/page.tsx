@@ -39,8 +39,10 @@ export default async function AdminReportsPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const [{ data: reports, error: reportsError }, { data: words }] =
-    await Promise.all([
+  const [
+    { data: reports, error: reportsError },
+    { data: words, error: wordsError },
+  ] = await Promise.all([
       db
         .from("reports")
         .select(
@@ -62,6 +64,11 @@ export default async function AdminReportsPage({
   // 뜨는데, 그것만으로도 "신고 없음"과는 구분된다 — 메시지 자체는
   // 서버 로그에서 확인한다. 내부 어드민 화면이라 별도 에러 UI 없이 던진다.
   if (reportsError) throw new Error(reportsError.message);
+
+  // 금칙어도 같은 이유로 던진다 — 이 페이지가 관용구를 세운 곳인데
+  // 정작 두 번째 조회에는 적용돼 있지 않았다. 목록이 조용히 비면
+  // 관리자는 금칙어가 하나도 없는 줄 알고 이미 등록된 단어를 다시 넣는다.
+  if (wordsError) throw new Error(wordsError.message);
 
   // 같은 댓글에 여러 신고가 붙는다 — 댓글 단위로 묶어 한 번에 처리한다.
   const grouped = new Map<

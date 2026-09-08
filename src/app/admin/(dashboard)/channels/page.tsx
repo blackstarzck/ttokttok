@@ -28,10 +28,15 @@ export default async function AdminChannelsPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const { data: channels } = await db
+  const { data: channels, error } = await db
     .from("channels")
     .select("id, name, slug, genre, description, avatar_url")
     .order("name");
+
+  // 삼키면 실패가 빈 목록이 되어 "아직 채널이 없다"와 구분되지 않는다.
+  // 게다가 바로 아래 editing 조회가 undefined가 되어, 수정하려고 연 채널이
+  // 조용히 사라진 것처럼 보인다. 관용구는 reports/page.tsx 참고.
+  if (error) throw new Error(error.message);
 
   const editing = q(sp.edit)
     ? channels?.find((c) => c.id === q(sp.edit))

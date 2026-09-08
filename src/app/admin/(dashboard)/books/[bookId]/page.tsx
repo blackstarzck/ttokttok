@@ -28,13 +28,19 @@ export default async function EditBookPage({
   const sp = await searchParams;
   const db = await createClient();
 
-  const { data: book } = await db
+  const { data: book, error: bookError } = await db
     .from("books")
     .select(
       "id, title, author, translator, publisher, category, isbn, page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source, toc, source, rights_note, epub_path, cover_url, purchase_links",
     )
     .eq("id", bookId)
     .maybeSingle();
+
+  // 삼키면 실패가 notFound()로 둔갑해 "그런 도서가 없다"고 거짓말한다.
+  // 위 generateMetadata의 조회는 반대로 그냥 두는 게 맞다 — 제목만 쓰는
+  // 부가 정보라 실패해도 일반 제목으로 물러설 뿐이고, 본문이 어차피
+  // 여기서 던진다. 관용구는 reports/page.tsx 참고.
+  if (bookError) throw new Error(bookError.message);
 
   if (!book) notFound();
 

@@ -9,10 +9,16 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function getBookOptions(): Promise<BookOption[]> {
   const db = await createClient();
-  const { data } = await db
+  const { data, error } = await db
     .from("books")
     .select("id, title, author, posts(count)")
     .order("title");
+
+  // 삼키면 도서 셀렉트가 텅 빈 채로 뜨고, 관리자는 도서를 먼저 등록해야
+  // 하는 줄 안다 — 게시물 폼은 도서 없이는 아무것도 못 만드는 화면이라
+  // 그 오해가 곧 막다른 길이다. 던지면 호출부(posts/new·posts/[postId])가
+  // 그대로 에러 화면이 된다. 관용구는 admin/reports/page.tsx 참고.
+  if (error) throw new Error(error.message);
 
   return (data ?? []).map((b) => ({
     id: b.id,
