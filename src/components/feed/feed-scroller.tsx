@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Children } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSessionId } from "@/lib/session-id";
 import { loadMoreFeed } from "@/app/(main)/feed-actions";
+import type { MoreFeed } from "@/app/(main)/feed-actions";
+import { dedupePages, shouldPrefetch } from "@/lib/feed-pagination";
 import type { FeedCursor, PostType } from "@/lib/feed";
 
 /** 활성 게시물 기준 앞뒤로 마운트할 개수 (FRONTEND.md §6 가상화). */
@@ -21,6 +24,7 @@ export function FeedScroller({
   postIds: initialIds,
   seed,
   initialCursor,
+  cacheKey,
   type = null,
   initialIndex = 0,
   children,
@@ -28,6 +32,17 @@ export function FeedScroller({
   postIds: string[];
   seed: string;
   initialCursor: FeedCursor | null;
+  /**
+   * 이 스크롤러의 캐시 범위. **호출부마다 달라야 한다.**
+   *
+   * 채널 스코프 뷰어는 랭킹을 타지 않아 `seed=""`를 넘긴다(결정 §11-58).
+   * 그래서 키를 seed만으로 잡으면 **모든 채널 뷰어가 같은 캐시 항목을
+   * 공유해**, 먼저 마운트된 채널의 게시물이 다른 채널 화면에 그대로
+   * 나타난다(initialData가 그 키에 심기고 `refetchOnMount: false`라 다시
+   * 받지도 않는다). 라우트를 구분하는 값을 넘길 것 — 릴스 탭은 `"reels"`,
+   * 채널 뷰어는 `` `channel:${slug}` ``.
+   */
+  cacheKey: string;
   /** 이 스크롤러가 보여주는 게시물 유형. 다음 페이지도 같은 유형이어야
    * 하므로 요청마다 함께 보낸다. FeedScroller는 이제 릴스 전용이라 항상
    * "video"를 받는다 — null 허용은 홈도 이 컴포넌트를 쓰던 시절(전면
@@ -45,19 +60,61 @@ export function FeedScroller({
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(initialIndex);
 
-  const [postIds, setPostIds] = useState(initialIds);
-  const [items, setItems] = useState<React.ReactNode[]>(() =>
-    Children.toArray(children),
-  );
-  const [cursor, setCursor] = useState(initialCursor);
-  const [loadingMore, setLoadingMore] = useState(false);
-
   // 이미 집계한 게시물 — 리렌더를 유발할 필요가 없으므로 ref로 둔다.
   const loggedRef = useRef(new Set<string>());
 
-  // 이미 붙인 게시물. setState 업데이터는 순수해야 하고 StrictMode에서 두 번
-  // 돌기 때문에, 중복 판정은 그 밖에서 ref로 한다.
-  const knownIdsRef = useRef(new Set(initialIds));
+  const initialNodes = useMemo(() => Children.toArray(children), [children]);
+
+  /**
+   * 페이지네이션은 TanStack Query가 맡는다 (FRONTEND.md §4).
+   *
+   * 예전에는 useState + useEffect로 손코딩했고, 정확히 거기서 버그가
+   * 나왔다: 진행 중 플래그를 가드이자 deps로 함께 써서 `setLoadingMore(true)`가
+   * 곧바로 effect를 cleanup→재실행시켰고, 재실행된 쪽은 "이미 로딩 중"이라
+   * 즉시 return하는 사이 원래 fetch의 결과는 cleanup이 세운 cancelled
+   * 플래그에 버려졌다. 다음 페이지가 영영 안 붙고 스피너만 남았다.
+   * 그 문제는 ref 가드로 막았지만, 요청 수명을 직접 들고 있는 한 같은
+   * 부류가 또 나올 수 있다 — 여기서는 아예 소유권을 넘긴다.
+   *
+   * 그래서 아래 프리페치 effect에는 **cleanup이 없다.** 재실행돼도
+   * 가드에 걸려 그냥 빠져나갈 뿐, 취소할 것이 없다.
+   *
+   * `refetchOnMount: false`는 CardFeed와 같은 이유다 — seed를 방문 단위로
+   * 고정하는 전제(PRD §5.1)가 마운트마다 재요청하면 깨진다. 릴스는
+   * 탭을 오갈 때 실제로 매번 다시 마운트된다.
+   */
+  const query = useInfiniteQuery<MoreFeed>({
+    queryKey: ["feed-scroller", cacheKey, seed],
+    queryFn: ({ pageParam }) =>
+      loadMoreFeed(seed, getSessionId(), pageParam as FeedCursor | null, type),
+    initialPageParam: initialCursor,
+    getNextPageParam: (last) => last.nextCursor,
+    initialData: {
+      pages: [
+        { nodes: initialNodes, postIds: initialIds, nextCursor: initialCursor },
+      ],
+      pageParams: [null],
+    },
+    refetchOnMount: false,
+  });
+
+  // query 객체를 통째로 deps에 넣지 말 것 — 매 렌더 새 객체다. 값만 꺼낸다
+  // (fetchNextPage는 TanStack Query가 안정적으로 유지한다).
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
+
+  // 페이지 경계 중복 제거 — CardFeed와 같은 규칙이라 lib으로 공유한다
+  // (근거와 테스트는 feed-pagination.ts). 예전에는 "이미 붙인 것"을 ref로
+  // 기억했지만, 이제 매 렌더 pages 전체가 오므로 앞에서부터 훑는다.
+  const { nodes, postIds } = useMemo(
+    () => dedupePages(query.data?.pages),
+    [query.data],
+  );
+
+  // 아래 옵저버 effect의 deps 전용 — 배열 참조가 아니라 값(정체성)으로
+  // 비교하려고 문자열로 편다. 개수만 보면 구성이 바뀌어도(중복 제거가
+  // 다른 조합으로 걸러낼 때) 재실행되지 않아 새 슬롯을 관찰하지 못한다.
+  // 게시물 id는 uuid라 쉼표가 올 수 없다.
+  const postIdsKey = postIds.join(",");
 
   const recordView = useCallback(async (postId: string) => {
     if (loggedRef.current.has(postId)) return;
@@ -69,17 +126,6 @@ export function FeedScroller({
     });
     if (error) loggedRef.current.delete(postId); // 다음 기회에 재시도
   }, []);
-
-  // 진행 중인 요청이 있는지 추적하는 가드. state(loadingMore)가 아니라
-  // ref인 이유: 이 값을 deps에 넣으면(예전처럼 loadingMore를 넣으면)
-  // setLoadingMore(true)가 곧바로 deps를 바꿔 effect를 cleanup→재실행시킨다.
-  // 재실행된 쪽은 "이미 로딩 중"이라 즉시 return하고, 원래 fetch가 나중에
-  // 끝나도 클로저 속 cancelled 플래그 때문에 결과가 버려지며 loadingMore는
-  // false로 되돌아갈 기회를 잃어 스피너가 영원히 남는다. ref는 값이 바뀌어도
-  // deps로 잡히지 않으므로 이 문제가 없다. loadingMore(state)는 스피너
-  // 렌더링 전용으로만 남긴다 — exhaustive-deps 경고를 지우려고 이 ref를
-  // 다시 state로, 혹은 loadingMore를 deps로 되돌리지 말 것.
-  const loadingRef = useRef(false);
 
   // 시작 슬롯으로 한 번만 이동한다. 스냅 컨테이너라 scrollTop을 직접 준다 —
   // scrollIntoView는 부모 스크롤까지 건드릴 수 있다.
@@ -105,32 +151,30 @@ export function FeedScroller({
   }, [initialIndex]);
 
   // ── 다음 페이지 프리페치 ──────────────────────────────────────
+  // 판단 규칙은 feed-pagination.ts에 있다(테스트로 고정). 여기에는
+  // "그래서 부른다"만 남긴다.
   useEffect(() => {
-    if (cursor === null || loadingRef.current) return;
-    if (active < postIds.length - PREFETCH_GAP) return;
-
-    loadingRef.current = true;
-    setLoadingMore(true);
-
-    loadMoreFeed(seed, getSessionId(), cursor, type)
-      .then((page) => {
-        // 이미 붙어 있는 게시물은 거른다. 키가 겹치면 React가 렌더를
-        // 뒤섞는다 — 커서가 정확해도 사이에 새 글이 발행되면 생길 수 있다.
-        const fresh = page.postIds
-          .map((pid, i) => ({ pid, node: page.nodes[i] }))
-          .filter(({ pid }) => !knownIdsRef.current.has(pid));
-        fresh.forEach(({ pid }) => knownIdsRef.current.add(pid));
-
-        setItems((prev) => [...prev, ...fresh.map((f) => f.node)]);
-        setPostIds((prev) => [...prev, ...fresh.map((f) => f.pid)]);
-        setCursor(page.nextCursor);
+    if (
+      !shouldPrefetch({
+        active,
+        count: postIds.length,
+        gap: PREFETCH_GAP,
+        hasNextPage,
+        isFetching: isFetchingNextPage,
+        isError,
       })
-      .catch((err) => console.error("피드 추가 로드 실패:", err))
-      .finally(() => {
-        loadingRef.current = false;
-        setLoadingMore(false);
-      });
-  }, [active, cursor, postIds.length, seed, type]);
+    ) {
+      return;
+    }
+    void fetchNextPage();
+  }, [
+    active,
+    postIds.length,
+    hasNextPage,
+    isFetchingNextPage,
+    isError,
+    fetchNextPage,
+  ]);
 
   // ── 활성 게시물 판정 + 조회 집계 ──────────────────────────────
   useEffect(() => {
@@ -172,8 +216,8 @@ export function FeedScroller({
       observer.disconnect();
       timers.forEach(clearTimeout);
     };
-    // postIds가 늘면 새 슬롯도 관찰해야 한다.
-  }, [postIds, recordView]);
+    // 게시물이 늘면 새 슬롯도 관찰해야 한다.
+  }, [postIdsKey, recordView]);
 
   if (postIds.length === 0) {
     return (
@@ -196,11 +240,11 @@ export function FeedScroller({
           data-post-id={id}
           className="h-full snap-start snap-always"
         >
-          {Math.abs(i - active) <= WINDOW ? items[i] : null}
+          {Math.abs(i - active) <= WINDOW ? nodes[i] : null}
         </div>
       ))}
 
-      {loadingMore ? (
+      {isFetchingNextPage ? (
         <div className="flex h-16 items-center justify-center">
           <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
           <span className="sr-only">다음 게시물을 불러오는 중</span>

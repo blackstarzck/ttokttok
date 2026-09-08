@@ -8,6 +8,7 @@ import { getSessionId } from "@/lib/session-id";
 import { loadMoreCards } from "@/app/(main)/feed-actions";
 import type { FeedCursor } from "@/lib/feed";
 import type { MoreFeed } from "@/app/(main)/feed-actions";
+import { dedupePages } from "@/lib/feed-pagination";
 
 /** 조회로 집계하기까지 뷰포트에 머물러야 하는 시간 (PRD §5.1). */
 const VIEW_DWELL_MS = 1000;
@@ -15,10 +16,11 @@ const VIEW_DWELL_MS = 1000;
 /**
  * 홈 카드 목록 (IA 개편 결정 1·11).
  *
- * 전면 피드(FeedScroller)의 손코딩 페이지네이션을 복제하지 않고 TanStack
- * Query를 쓴다 — FRONTEND.md §4가 피드 페이지네이션을 그쪽 몫으로 지정하고
- * 있고, FeedScroller가 그 규칙을 어긴 자리에서 "가드가 자기 요청을
- * 취소해 다음 페이지가 영영 안 붙던" 버그가 나왔다.
+ * 페이지네이션은 TanStack Query가 맡는다 — FRONTEND.md §4가 그쪽 몫으로
+ * 지정하고 있고, 전면 피드(FeedScroller)가 그 규칙을 어기고 손코딩하던
+ * 자리에서 "가드가 자기 요청을 취소해 다음 페이지가 영영 안 붙던" 버그가
+ * 나왔다. FeedScroller도 이제 같은 구조이고, 공통 규칙은
+ * `lib/feed-pagination.ts`에 있다.
  *
  * 서버가 렌더를 마친 JSX를 페이지 단위로 받는다. 첫 페이지는 서버
  * 컴포넌트가 넘겨준 것을 initialData로 쓴다.
@@ -75,8 +77,8 @@ export function CardFeed({
   //
   // deps에 query 객체를 통째로 넣지 말 것 — 매 렌더 새 객체라 옵저버가
   // 렌더마다 해제·재생성된다. 값 셋만 넣는다(fetchNextPage는 TanStack
-  // Query가 안정적으로 유지한다). FeedScroller가 상태를 가드이자
-  // 의존성으로 함께 써서 자기 요청을 취소하던 버그와 같은 부류다.
+  // Query가 안정적으로 유지한다). FeedScroller가 손코딩하던 시절 상태를
+  // 가드이자 의존성으로 함께 써서 자기 요청을 취소하던 버그와 같은 부류다.
   const { hasNextPage, isFetchingNextPage, fetchNextPage, isError, refetch, isFetching } = query;
 
   useEffect(() => {
@@ -108,29 +110,14 @@ export function CardFeed({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
 
-  // 페이지 경계 중복 제거 — feed-scroller.tsx의 knownIdsRef와 같은 이유다:
-  // 키가 겹치면 React가 렌더를 뒤섞는다. 커서가 정확해도 두 페이지 사이에
-  // 새 글이 발행되면 같은 게시물이 이번 페이지와 다음 페이지 양쪽의 정렬
-  // 결과에 걸릴 수 있다. FeedScroller는 페이지를 하나씩 수동으로 붙이므로
-  // ref로 "이미 붙인 것"을 기억하지만, 여기는 TanStack Query가 매 렌더
-  // pages 전체를 새로 준다 — 그래서 ref 대신 전체 페이지를 앞에서부터
-  // 훑어 먼저 나온 것만 남긴다(뒤에 또 나오면 버린다). pages 배열 자체가
-  // 매번 참조가 바뀌므로 useMemo 캐시는 재계산을 막는 용도일 뿐, 정합성은
-  // 이 훑기 자체가 보장한다.
-  const { nodes, postIds } = useMemo(() => {
-    const seen = new Set<string>();
-    const outNodes: React.ReactNode[] = [];
-    const outIds: string[] = [];
-    for (const page of query.data?.pages ?? []) {
-      page.postIds.forEach((pid, i) => {
-        if (seen.has(pid)) return;
-        seen.add(pid);
-        outNodes.push(page.nodes[i]);
-        outIds.push(pid);
-      });
-    }
-    return { nodes: outNodes, postIds: outIds };
-  }, [query.data]);
+  // 페이지 경계 중복 제거 — FeedScroller(릴스)와 같은 규칙이라 lib으로
+  // 공유한다. 근거와 테스트는 feed-pagination.ts에 있다. pages 배열은
+  // 매번 참조가 바뀌므로 useMemo는 재계산을 막는 용도일 뿐, 정합성은
+  // 훑기 자체가 보장한다.
+  const { nodes, postIds } = useMemo(
+    () => dedupePages(query.data?.pages),
+    [query.data],
+  );
 
   // 아래 조회 집계 effect의 deps 전용 — postIds 배열 자체(참조)가 아니라
   // 값(정체성)으로 비교하려고 문자열로 편다. 게시물 id에 쉼표가 올 수

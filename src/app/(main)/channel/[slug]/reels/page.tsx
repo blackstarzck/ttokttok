@@ -55,6 +55,10 @@ export default async function ChannelReelsPage({
       postIds={posts.map((p) => p.id)}
       seed=""
       initialCursor={null}
+      // 채널마다 달라야 한다 — seed가 ""라 이걸 안 나누면 모든 채널 뷰어가
+      // 같은 캐시 항목을 공유해, 먼저 연 채널의 영상이 다른 채널 화면에
+      // 그대로 남는다(feed-scroller.tsx의 cacheKey 주석).
+      cacheKey={`channel:${channel.slug}`}
       type="video"
       initialIndex={startIndex}
     >
