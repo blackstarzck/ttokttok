@@ -142,6 +142,8 @@ async function fetchProp(titles, extra) {
       }
       // 이어받은 응답은 같은 문서의 나머지 분류만 담고 온다 — 이어 붙인다.
       if (page.categories) prev.categories = [...(prev.categories ?? []), ...page.categories];
+      // revisions은 덮어쓴다 — 콘텐츠는 원자적이고, 이어받기 라운드에서는 revisions 키 없이
+      // 나타난다. categories와 달리, 이어 붙이면 중복이 되고 revisions[0]만 읽혀서 틀렸다.
       if (page.revisions) prev.revisions = page.revisions;
     }
 
