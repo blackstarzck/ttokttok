@@ -250,8 +250,35 @@ export function CardFeed({
       ref={containerRef}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
+      {/*
+        화면 밖 카드는 브라우저가 렌더를 건너뛴다 (FRONTEND.md §6 가상화).
+
+        **왜 FeedScroller처럼 언마운트하지 않는가**: 릴스의 윈도잉은 슬롯이
+        하나같이 컨테이너 높이라 성립한다 — 내용을 비워도 자리와 스크롤
+        길이가 그대로다. 홈 카드는 §11-54로 **가변 높이**를 택했으므로 같은
+        수를 못 쓴다. 손수 언마운트하려면 카드마다 높이를 재서 스페이서로
+        채워야 하는데, 그 값이 틀리면 사용자 발밑에서 스크롤이 튄다 —
+        조용히 틀리고 빌드·테스트·타입 어느 것도 못 잡는 종류다.
+
+        content-visibility는 그 계산을 브라우저에 넘긴다. React 트리는
+        그대로 두고(상태·포커스·스크롤 앵커가 안 깨진다) 화면 밖 서브트리의
+        레이아웃·페인트만 건너뛴다 — §6이 실제로 막으려는 비용이 그것이다.
+
+        `contain-intrinsic-size: auto 480px`의 `auto`가 핵심이다: 한 번
+        그려진 카드는 **실제 높이를 기억**한다. 그래서 이미 지나온(위쪽)
+        카드는 절대 크기가 바뀌지 않고, 480px 어림값은 아직 한 번도 안 그린
+        아래쪽 카드에만 쓰인다 — 어긋나도 스크롤 길이만 조금 변할 뿐 보고
+        있는 위치는 밀리지 않는다.
+
+        data-post-id는 이 래퍼에 그대로 둔다 — 조회 집계 옵저버가 관찰하는
+        대상이고, 서브트리가 건너뛰어져도 이 박스 자체는 레이아웃에 남는다.
+      */}
       {nodes.map((node, i) => (
-        <div key={postIds[i] ?? i} data-post-id={postIds[i]}>
+        <div
+          key={postIds[i] ?? i}
+          data-post-id={postIds[i]}
+          className="[contain-intrinsic-size:auto_480px] [content-visibility:auto]"
+        >
           {node}
         </div>
       ))}
