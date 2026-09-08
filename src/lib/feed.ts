@@ -219,11 +219,16 @@ export async function getPost(postId: string): Promise<FeedPost | null> {
   return data ? (data as unknown as FeedPost) : null;
 }
 
-/** 채널 하나의 발행 게시물. 채널 페이지에서 쓴다. */
+/**
+ * 채널 하나의 발행 게시물. 채널 페이지에서 쓴다.
+ *
+ * `failed`는 getFeed와 같은 규약이다(§11-55) — 빈 배열 하나로는 "아직
+ * 게시물이 없는 채널"과 "불러오다 실패했다"를 화면이 구분할 수 없다.
+ */
 export async function getChannelPosts(
   channelId: string,
   limit = 30,
-): Promise<FeedPost[]> {
+): Promise<{ posts: FeedPost[]; failed: boolean }> {
   const db = await createClient();
 
   const { data, error } = await db
@@ -241,9 +246,9 @@ export async function getChannelPosts(
 
   if (error) {
     console.error("getChannelPosts:", error.message);
-    return [];
+    return { posts: [], failed: true };
   }
-  return (data ?? []) as unknown as FeedPost[];
+  return { posts: (data ?? []) as unknown as FeedPost[], failed: false };
 }
 
 /**
@@ -258,7 +263,7 @@ export async function getChannelPosts(
 export async function getChannelVideos(
   channelId: string,
   limit = 30,
-): Promise<FeedPost[]> {
+): Promise<{ posts: FeedPost[]; failed: boolean }> {
   const db = await createClient();
 
   const { data, error } = await db
@@ -277,7 +282,7 @@ export async function getChannelVideos(
 
   if (error) {
     console.error("getChannelVideos:", error.message);
-    return [];
+    return { posts: [], failed: true };
   }
-  return (data ?? []) as unknown as FeedPost[];
+  return { posts: (data ?? []) as unknown as FeedPost[], failed: false };
 }

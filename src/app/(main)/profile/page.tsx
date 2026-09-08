@@ -17,9 +17,15 @@ import type { FeedBook } from "@/lib/feed";
 
 export const metadata: Metadata = { title: "프로필" };
 
-function Empty({ text }: { text: string }) {
+/**
+ * 목록이 빈 자리. `failed`면 문구를 바꾼다 — 실패를 "없음"으로 보여주면
+ * 사용자가 자기 기록이 사라졌다고 믿는다 (알림 화면 §5.5의 선례).
+ */
+function Empty({ text, failed }: { text: string; failed?: boolean }) {
   return (
-    <p className="text-muted-foreground py-10 text-center text-sm">{text}</p>
+    <p className="text-muted-foreground py-10 text-center text-sm break-keep">
+      {failed ? "불러오지 못했어요. 잠시 후 다시 시도해 주세요." : text}
+    </p>
   );
 }
 
@@ -102,13 +108,19 @@ export default async function ProfilePage() {
     );
   }
 
-  const [{ reading, finished }, bookmarks, likedPosts, myComments] =
-    await Promise.all([
-      getReadingProgress(),
-      getBookmarks(),
-      getLikedPosts(),
-      getMyComments(user.id),
-    ]);
+  // 네 조회는 서로 독립이라 실패도 탭별로 따로 말한다 — 한 탭이 실패했다고
+  // 프로필 전체를 에러 화면으로 만들면 나머지 탭까지 못 쓰게 된다.
+  const [
+    { reading, finished, failed: readingFailed },
+    { books: bookmarks, failed: bookmarksFailed },
+    { posts: likedPosts, failed: likedFailed },
+    { comments: myComments, failed: commentsFailed },
+  ] = await Promise.all([
+    getReadingProgress(),
+    getBookmarks(),
+    getLikedPosts(),
+    getMyComments(user.id),
+  ]);
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
@@ -121,7 +133,10 @@ export default async function ProfilePage() {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-lg font-bold">{user.nickname}</span>
           <span className="text-muted-foreground text-xs">
-            완독 {finished.length}권 · 읽는 중 {reading.length}권
+            {/* 실패했는데 0권이라고 쓰면 사용자가 기록이 날아간 줄 안다. */}
+            {readingFailed
+              ? "서재를 불러오지 못했어요"
+              : `완독 ${finished.length}권 · 읽는 중 ${reading.length}권`}
           </span>
         </div>
 
@@ -153,7 +168,7 @@ export default async function ProfilePage() {
           {reading.length ? (
             <ReadingList items={reading} />
           ) : (
-            <Empty text="아직 읽기 시작한 책이 없어요." />
+            <Empty failed={readingFailed} text="아직 읽기 시작한 책이 없어요." />
           )}
         </TabsContent>
 
@@ -161,7 +176,7 @@ export default async function ProfilePage() {
           {bookmarks.length ? (
             <BookmarkGrid books={bookmarks} />
           ) : (
-            <Empty text="찜한 책이 없어요." />
+            <Empty failed={bookmarksFailed} text="찜한 책이 없어요." />
           )}
         </TabsContent>
 
@@ -169,12 +184,17 @@ export default async function ProfilePage() {
           {finished.length ? (
             <ReadingList items={finished} />
           ) : (
-            <Empty text="아직 완독한 책이 없어요." />
+            <Empty failed={readingFailed} text="아직 완독한 책이 없어요." />
           )}
         </TabsContent>
 
         <TabsContent value="activity">
-          <ActivityTab likedPosts={likedPosts} comments={myComments} />
+          <ActivityTab
+            likedPosts={likedPosts}
+            comments={myComments}
+            likedFailed={likedFailed}
+            commentsFailed={commentsFailed}
+          />
         </TabsContent>
       </Tabs>
 

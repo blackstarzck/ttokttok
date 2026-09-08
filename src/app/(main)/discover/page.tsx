@@ -37,13 +37,30 @@ function Section({
   );
 }
 
+/**
+ * 섹션 하나가 실패했을 때. 섹션을 감추는 대신 이 문구를 넣는다 — 감추면
+ * "원래 없는 것"과 구분되지 않는다(알림 화면 §5.5의 선례를 섹션 단위로
+ * 옮긴 것). 나머지 섹션은 그대로 보여준다.
+ */
+function SectionFailed() {
+  return (
+    <p className="text-muted-foreground py-6 text-center text-sm break-keep">
+      불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+    </p>
+  );
+}
+
 async function SearchResults({ query }: { query: string }) {
-  const { books, channels } = await search(query);
+  const { books, channels, failed } = await search(query);
 
   if (books.length === 0 && channels.length === 0) {
+    // 검색은 특히 중요하다 — "결과가 없어요"를 본 사용자는 그 검색어를
+    // 포기하지만, 실제로는 조회가 실패했을 뿐이라 다시 시도하면 나온다.
     return (
-      <p className="text-muted-foreground py-10 text-center text-sm">
-        “{query}”에 대한 결과가 없어요.
+      <p className="text-muted-foreground py-10 text-center text-sm break-keep">
+        {failed
+          ? "검색에 실패했어요. 잠시 후 다시 시도해 주세요."
+          : `“${query}”에 대한 결과가 없어요.`}
       </p>
     );
   }
@@ -87,18 +104,28 @@ async function SearchResults({ query }: { query: string }) {
 }
 
 async function CategoryResults({ category }: { category: string }) {
-  const books = await getBooksByCategory(category);
+  const { books, failed } = await getBooksByCategory(category);
   return books.length ? (
     <BookGrid books={books} />
   ) : (
-    <p className="text-muted-foreground py-10 text-center text-sm">
-      이 분야에는 아직 도서가 없어요.
+    <p className="text-muted-foreground py-10 text-center text-sm break-keep">
+      {failed
+        ? "도서를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+        : "이 분야에는 아직 도서가 없어요."}
     </p>
   );
 }
 
 async function Browse({ category }: { category?: string }) {
-  const [featured, categories, trending] = await Promise.all([
+  // 섹션은 비면 통째로 사라지는 구조인데, 조회가 실패해도 똑같이 사라져서
+  // 사용자는 "오늘 추천이 없나 보다"로 읽는다. 실패한 섹션은 감추지 않고
+  // 왜 비었는지 말한다 — 세 조회는 서로 독립이므로 한쪽이 실패해도 나머지는
+  // 그대로 보여준다(화면을 통째로 지우지 않는다).
+  const [
+    { books: featured, failed: featuredFailed },
+    { categories, failed: categoriesFailed },
+    trending,
+  ] = await Promise.all([
     getFeaturedBooks(),
     getCategories(),
     getTrendingPosts(),
@@ -106,8 +133,11 @@ async function Browse({ category }: { category?: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {!category && featured.length > 0 ? (
+      {!category && (featured.length > 0 || featuredFailed) ? (
         <Section title="오늘의 추천">
+          {featuredFailed ? (
+            <SectionFailed />
+          ) : (
           <ul className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {featured.map((book) => (
               <li key={book.id} className="w-32 shrink-0">
@@ -125,11 +155,15 @@ async function Browse({ category }: { category?: string }) {
               </li>
             ))}
           </ul>
+          )}
         </Section>
       ) : null}
 
-      {categories.length > 0 ? (
+      {categories.length > 0 || categoriesFailed ? (
         <Section title="관심 분야">
+          {categoriesFailed ? (
+            <SectionFailed />
+          ) : (
           <ul className="flex flex-wrap gap-2">
             {categories.map((c) => {
               const active = c === category;
@@ -150,6 +184,7 @@ async function Browse({ category }: { category?: string }) {
               );
             })}
           </ul>
+          )}
         </Section>
       ) : null}
 
@@ -157,10 +192,13 @@ async function Browse({ category }: { category?: string }) {
         <Section title={`${category} 도서`}>
           <CategoryResults category={category} />
         </Section>
-      ) : trending.posts.length > 0 ? (
+      ) : trending.posts.length > 0 || trending.failed ? (
         <Section
           title={trending.source === "recent" ? "이번 주 급상승" : "많이 본 글"}
         >
+          {trending.failed ? (
+            <SectionFailed />
+          ) : (
           <ul className="grid grid-cols-3 gap-1">
             {trending.posts.map((post) => (
               <li key={post.id}>
@@ -176,6 +214,7 @@ async function Browse({ category }: { category?: string }) {
               </li>
             ))}
           </ul>
+          )}
         </Section>
       ) : null}
     </div>
