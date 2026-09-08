@@ -42,5 +42,12 @@
  * `flex flex-col`은 이 높이를 자식(`article`)에게 넘기기 위한 것이다 —
  * 없으면 래퍼만 커지고 카드는 그대로라 아래에 빈 띠가 남는다(실측 18px,
  * 카드가 짧을수록 커진다).
+ *
+ * `snap-start`는 카드 위끝을 목록 상단에 붙인다. 컨테이너 쪽 짝은
+ * `card-feed.tsx`의 `snap-y snap-proximity`다. 어드민 미리보기는 카드가
+ * 한 장뿐이라 스냅이 무의미하지만 상수를 갈라놓지 않는다 — 미리보기용
+ * 변형을 만드는 순간 "닮았지만 다른" 두 번째 규칙이 생기고, 그게 이
+ * 파일이 존재하는 이유를 무너뜨린다. 무해한 클래스 하나가 낫다.
  */
-export const CARD_SCROLL_ITEM = "flex min-h-[min(85%,720px)] shrink-0 flex-col";
+export const CARD_SCROLL_ITEM =
+  "flex min-h-[min(85%,720px)] shrink-0 snap-start flex-col";

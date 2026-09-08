@@ -247,9 +247,17 @@ export function CardFeed({
     // 실측(1200px 뷰포트): article이 480이 아니라 465px로 그려졌다 —
     // post-preview.tsx·PRD §5.10·§11-56가 "홈 카드가 실제로 받는 폭"이라고
     // 적어 둔 480px과 어긋난다(미리보기 프레임은 스크롤이 없어 480 그대로다).
+    //
+    // snap-proximity이지 mandatory가 아니다 — 하한(card-metrics.ts)을 넘긴
+    // 카드는 스크롤 영역보다 클 수 있다(320×568에서 카드 ~600px > 영역
+    // 455px). mandatory면 그 카드의 아래쪽을 보려 할 때마다 스크롤이 다음
+    // 스냅 지점으로 끌려가 사용자와 싸운다. 릴스(전면 피드)가 mandatory인
+    // 것과 갈리는 지점이다: 거기는 한 화면에 정확히 하나라 넘칠 카드가
+    // 없다. 센티널과 로딩·에러 푸터에는 snap-start를 주지 않는다 —
+    // 스냅 대상이 되면 목록 끝에서 빈 곳에 멈춘다.
     <div
       ref={containerRef}
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex min-h-0 flex-1 snap-y snap-proximity flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {/*
         화면 밖 카드는 브라우저가 렌더를 건너뛴다 (FRONTEND.md §6 가상화).
