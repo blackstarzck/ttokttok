@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSessionId } from "@/lib/session-id";
 import { loadMoreCards } from "@/app/(main)/feed-actions";
+import { CARD_SCROLL_ITEM } from "@/components/feed/card-metrics";
 import type { FeedCursor } from "@/lib/feed";
 import type { MoreFeed } from "@/app/(main)/feed-actions";
 import { dedupePages } from "@/lib/feed-pagination";
@@ -277,7 +278,17 @@ export function CardFeed({
         <div
           key={postIds[i] ?? i}
           data-post-id={postIds[i]}
-          className="[contain-intrinsic-size:auto_480px] [content-visibility:auto]"
+          // 두 벌이 같은 요소에 얹힌다: 높이 하한(card-metrics.ts)과
+          // 화면 밖 렌더 건너뛰기(#17). 한쪽만 남기면 빌드·테스트가 전부
+          // 통과하면서 기능만 조용히 빠지므로 반드시 함께 둔다.
+          //
+          // 어림값이 480px이 아니라 720px인 이유: CARD_SCROLL_ITEM의 하한이
+          // min(85%, 720px)이라 480px은 어떤 뷰포트에서도 과소평가다(812px
+          // 폰에서 594, 큰 화면에서 720). `auto`가 한 번 그린 카드의 실제
+          // 높이를 기억하므로 지나온 카드는 안 밀리고, 이 값은 아직 안 그린
+          // 아래쪽의 스크롤 길이 추정에만 쓰인다 — 그래도 하한과 같은 수를
+          // 두어 둘이 갈라지지 않게 한다.
+          className={`${CARD_SCROLL_ITEM} [contain-intrinsic-size:auto_720px] [content-visibility:auto]`}
         >
           {node}
         </div>

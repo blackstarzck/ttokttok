@@ -44,7 +44,7 @@ export function PostCard({
     // 지면 반대로 짧아진다 — 폭을 좌우 패딩 없이 최대로 주는 쪽이 그 변동
     // 폭을 줄인다. 구분은 여백이 아니라 아래 경계선이 맡고, 모서리도
     // 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
-    <article className="border-border bg-card overflow-hidden border-b">
+    <article className="border-border bg-card flex grow flex-col overflow-hidden border-b">
       <Link
         href={`/channel/${post.channels.slug}`}
         className="focus-visible:ring-ring flex min-h-11 items-center gap-2 px-3 focus-visible:ring-2 focus-visible:outline-none"
@@ -73,7 +73,7 @@ export function PostCard({
           면적의 대부분을 덮게 됐다 — 프레임 밖 바탕과 **같은 토큰**이라
           게시물이 어디서 시작하고 끝나는지가 사라진다. DESIGN.md Elevation의
           단차(background < card)는 본문도 카드 표면일 때만 성립한다. */}
-      <div data-card-body>
+      <div data-card-body className="grow">
         <TemplateCard
           layout={post.post_cards}
           book={post.books}
