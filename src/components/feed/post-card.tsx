@@ -65,8 +65,15 @@ export function PostCard({
       {/* 고정 aspect-4/5가 아니라 auto — 내용에 맞춰 늘어난다(사전 병합
           리뷰 Important 2·3). overflow-hidden도 없다: 상자에 높이 상한이
           없으니 잘릴 것이 없고, 있었다면 그건 표지가 눌려 찌그러지는 걸
-          다시 숨기는 것일 뿐이다. */}
-      <div data-card-body className="bg-background">
+          다시 숨기는 것일 뿐이다.
+
+          표면 색을 주지 않는다 — article의 `card`(순백)를 그대로 물려받는다.
+          한때 `bg-background`였는데 그건 4:5 시절 "카드 안에 끼워 넣은 캔버스
+          패널"이라는 의미였고, 상자가 auto·풀블리드가 되면서 그 회백이 카드
+          면적의 대부분을 덮게 됐다 — 프레임 밖 바탕과 **같은 토큰**이라
+          게시물이 어디서 시작하고 끝나는지가 사라진다. DESIGN.md Elevation의
+          단차(background < card)는 본문도 카드 표면일 때만 성립한다. */}
+      <div data-card-body>
         <TemplateCard
           layout={post.post_cards}
           book={post.books}
