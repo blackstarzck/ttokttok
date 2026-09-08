@@ -31,16 +31,22 @@ const str = (fd: FormData, key: string) =>
   String(fd.get(key) ?? "").trim() || null;
 
 /**
- * 오류를 안고 임포트 화면으로 되돌린다.
+ * 오류를 안고 온 화면으로 되돌린다.
  *
  * **화살표 함수가 아니라 함수 선언이어야 한다.** 타입스크립트의 제어 흐름
  * 분석은 `never`를 돌려주는 호출 뒤를 도달 불가로 보는데, 그 판단은 호출
  * 대상이 함수 선언(또는 명시적 타입을 가진 const 변수)일 때만 적용된다.
  * `const back = (m: string): never => …` 로 쓰면 아래에서 `source`가
  * `string | null`로 남아 타입 오류가 난다.
+ *
+ * `from`은 두 값만 뜻이 있고 나머지는 임포트 화면으로 간다. **경로를
+ * 폼에서 받지 않는 이유가 이것이다** — 숨은 필드는 사용자가 고칠 수 있고,
+ * 받은 경로로 리다이렉트하면 열린 리다이렉트가 된다.
  */
-function back(message: string): never {
-  redirect(`/admin/books/import?error=${encodeURIComponent(message)}`);
+function back(message: string, from: string | null): never {
+  const path =
+    from === "catalogue" ? "/admin/books/wikisource" : "/admin/books/import";
+  redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
 export async function importFromWikisource(formData: FormData) {
@@ -49,9 +55,11 @@ export async function importFromWikisource(formData: FormData) {
   const source = str(formData, "source");
   const author = str(formData, "author");
   const category = str(formData, "category");
+  // 오류가 났을 때 어느 화면으로 되돌릴지. 값은 아래 back이 화이트리스트로 거른다.
+  const from = str(formData, "from");
 
   if (!source || !author || !category) {
-    back("문서 주소·저자·카테고리는 모두 필요합니다.");
+    back("문서 주소·저자·카테고리는 모두 필요합니다.", from);
   }
 
   // 명단은 src/lib/book-rights.ts 하나다 — 목록 화면도 같은 것을 본다.
@@ -59,6 +67,7 @@ export async function importFromWikisource(formData: FormData) {
   if (blocked) {
     back(
       `등록할 수 없는 저작자입니다: 「${author}」 — ${blocked} (PRD §5.11 등록 금지 목록).`,
+      from,
     );
   }
 
@@ -68,7 +77,7 @@ export async function importFromWikisource(formData: FormData) {
   try {
     pageTitle = toPageTitle(source);
   } catch (err) {
-    back(err instanceof Error ? err.message : "문서 주소를 읽을 수 없습니다.");
+    back(err instanceof Error ? err.message : "문서 주소를 읽을 수 없습니다.", from);
   }
 
   const db = await createClient();
@@ -85,7 +94,7 @@ export async function importFromWikisource(formData: FormData) {
     // fetch를 낭비하고서야 insert에서 뒤늦게 실패한다 — 이 사전 확인이
     // 있는 이유 자체가 사라진다. PostgREST 원문은 로그로만 남긴다.
     console.error(`중복 확인 조회 실패 (source_ref=${pageTitle}): ${existingErr.message}`);
-    back("중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    back("중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.", from);
   }
 
   if (existing) {
@@ -97,7 +106,7 @@ export async function importFromWikisource(formData: FormData) {
     epub = await fetchEpub(pageTitle);
     assertClean(epub);
   } catch (err) {
-    back(err instanceof Error ? err.message : "본문을 받지 못했습니다.");
+    back(err instanceof Error ? err.message : "본문을 받지 못했습니다.", from);
   }
 
   const meta = readEpubMetadata(epub);
@@ -116,7 +125,7 @@ export async function importFromWikisource(formData: FormData) {
     .upload(path, epub, { contentType: "application/epub+zip", upsert: true });
 
   if (upErr) {
-    back(`본문 업로드에 실패했습니다: ${upErr.message}`);
+    back(`본문 업로드에 실패했습니다: ${upErr.message}`, from);
   }
   uploaded.push({ bucket: "epubs", path });
 
@@ -160,17 +169,20 @@ export async function importFromWikisource(formData: FormData) {
         redirect(`/admin/books/${dup.id}?exists=1`);
       }
 
-      back("이미 등록된 위키문헌 문서입니다.");
+      back("이미 등록된 위키문헌 문서입니다.", from);
     } else {
       // 그 밖의 실패(제약 조건 등)는 PostgREST 원문을 그대로 보여줘 봐야
       // 관리자가 고칠 수 있는 정보가 아니다 — saveBook의 humanize()와 같은
       // 이유로 로그에만 원문을 남기고 화면에는 일반 문구를 띄운다.
       console.error(`도서 저장 실패 (bookId=${bookId}): ${insertErr.message}`);
-      back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.", from);
     }
   }
 
   revalidatePath("/admin/books");
+  // 목록의 「✓ 등록됨」 표시가 즉시 반영돼야 한다. 없으면 관리자가 목록으로
+  // 돌아왔을 때 방금 가져온 작품이 아직 「가져오기」로 보여 두 번 누른다.
+  revalidatePath("/admin/books/wikisource");
   revalidatePath("/");
   redirect(`/admin/books/${bookId}?imported=1`);
 }

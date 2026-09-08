@@ -42,6 +42,7 @@ export default async function ImportBookPage({
             id="source"
             name="source"
             required
+            defaultValue={q(sp.source)}
             placeholder="https://ko.wikisource.org/wiki/운수_좋은_날"
           />
           <p className="text-muted-foreground text-xs">
@@ -66,6 +67,7 @@ export default async function ImportBookPage({
               id="category"
               name="category"
               required
+              defaultValue={q(sp.category)}
               placeholder="소설 / 시 / 수필…"
             />
           </div>
