@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
+import { blockedAuthorReason } from "@/lib/book-rights";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -25,49 +26,6 @@ import {
  * 처럼 판본 괄호가 붙는 경우가 있고 **그걸 자동으로 떼지 않는다** —
  * 규칙화하면 정상 제목의 괄호까지 먹는다. 수정 화면에서 사람이 고친다.
  */
-
-/**
- * 저작자 이름을 조회 키로 정규화한다.
- *
- * macOS Finder·클립보드 경로는 한글을 NFD(자모 분해)로 내놓기도 하고, 폭
- * 없는 문자(zero-width space 등)가 붙어 들어오기도 한다 — 둘 다 이 조회를
- * 조용히 실패시켜 금지 저작자를 그냥 통과시킨다. 이건 우회를 막는 관문이
- * 아니라 실수로 새는 걸 막는 관문이라, 놓치는 쪽이 진짜 실패다.
- *
- * 아래 목록의 키를 만들 때도, 관리자 입력을 조회할 때도 **반드시 이 함수
- * 하나만** 거친다 — 각자 따로 정규화하면 훗날 공백이 낀 이름("김 기림")이
- * 한쪽에서만 걸러져 서로 어긋나고, 차단해야 할 저작자가 조용히 통과한다.
- */
-function normalizeAuthorKey(name: string): string {
-  return name.normalize("NFC").replace(/[\s\u200B\u200C\u200D\u00AD]/g, "");
-}
-
-/**
- * 등록 금지 저작자 (PRD §5.11).
- *
- * 위키문헌에 문서가 있다는 사실이 "공개해도 된다"로 오독되는 지점이
- * 여기다 — 위키문헌은 우리와 다른 기준으로 운영된다. 그래서 임포트
- * 경로에만 관문을 둔다. 수동 등록(saveBook)은 막지 않는다: 손으로 적어
- * 넣는 행위에는 이런 오독이 끼어들지 않는다.
- *
- * `Map`으로 두는 이유: 객체 리터럴이면 `BLOCKED_AUTHORS["constructor"]` 같은
- * 프로토타입 키 조회가 함수를 반환해 "차단됨"으로 오판된다. 키는
- * `normalizeAuthorKey`(위)로 저장한다 — 조회 쪽(아래)도 같은 함수를 거치므로
- * 두 쪽이 어긋날 일이 구조적으로 없다.
- */
-const BLOCKED_AUTHORS = new Map<string, string>(
-  (
-    [
-      ["정지용", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["이태준", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["박태원", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["홍명희", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["김기림", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["백석", "1996년 사망 — 저작권이 존속합니다 (사후 70년)"],
-      ["박경리", "2008년 사망 — 저작권이 존속합니다 (사후 70년)"],
-    ] as const
-  ).map(([name, reason]) => [normalizeAuthorKey(name), reason] as const),
-);
 
 const str = (fd: FormData, key: string) =>
   String(fd.get(key) ?? "").trim() || null;
@@ -96,9 +54,8 @@ export async function importFromWikisource(formData: FormData) {
     back("문서 주소·저자·카테고리는 모두 필요합니다.");
   }
 
-  // 목록 쪽 키와 같은 함수로 정규화해야 어긋나지 않는다 (normalizeAuthorKey 참고).
-  const authorKey = normalizeAuthorKey(author);
-  const blocked = BLOCKED_AUTHORS.get(authorKey);
+  // 명단은 src/lib/book-rights.ts 하나다 — 목록 화면도 같은 것을 본다.
+  const blocked = blockedAuthorReason(author);
   if (blocked) {
     back(
       `등록할 수 없는 저작자입니다: 「${author}」 — ${blocked} (PRD §5.11 등록 금지 목록).`,
