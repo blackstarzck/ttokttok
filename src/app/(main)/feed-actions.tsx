@@ -30,7 +30,14 @@ export async function loadMoreFeed(
   // 지금은 null을 넘기는 호출부가 없다.
   type: PostType | null = null,
 ): Promise<MoreFeed> {
-  const { posts, nextCursor } = await getFeed(seed, sessionId, 10, cursor, type);
+  const { posts, nextCursor, failed } = await getFeed(seed, sessionId, 10, cursor, type);
+  // loadMoreCards와 같은 이유로 던진다(§11-61). getFeed는 실패해도
+  // {posts: [], nextCursor: null}을 주므로 그대로 넘기면 스크롤러 쪽에서
+  // "다음 페이지가 없다"와 구분할 수 없고, 릴스가 **에러도 스피너도 없이
+  // 그냥 멈춘다** — 사용자는 "영상이 여기까지인가 보다"로 읽는다.
+  // 던지면 TanStack Query의 isError가 서고, 마지막 성공 페이지의 커서가
+  // 그대로 남아 "다시 시도"가 같은 커서로 재요청한다.
+  if (failed) throw new Error("피드를 불러오지 못했습니다.");
 
   const [user, likedIds] = await Promise.all([
     getCurrentUser(),
