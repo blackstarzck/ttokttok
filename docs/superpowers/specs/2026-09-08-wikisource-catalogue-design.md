@@ -78,7 +78,9 @@
 | − PD 태그 없음 | 26 |
 | **목록에 남는 것** | **329** |
 
-`역자` 있음(번역물)은 별도로 세지 않았다 — 번역물은 대개 PD 태그가 없어 위 26에 포함된다. 동기화 스크립트는 두 조건을 각각 적용하고 사유별로 보고한다.
+번역물은 위 계산에 들어 있지 않다. **번역물은 표에서 빼지 않는다** — `translator`에 기록해 두고 목록 화면에서만 숨긴다(아래 「화면」). 대개 PD 태그가 없어 위 26에서 이미 걸린다.
+
+**판정을 두 층으로 나눈다.** 표에 담을지(동기화)와 목록에 보일지(화면)는 다른 질문이다. 표에서 지우면 "왜 이 작품이 목록에 없나"에 답할 수 없다.
 
 ### 작품마다 붙는 메타데이터
 
@@ -187,7 +189,7 @@ create policy "wikisource_works_admin_read" on public.wikisource_works
 1. 장르 분류 9개를 `categorymembers`로 나열(namespace 0, `cmcontinue`로 이어받기). 중복 제거하면 실측 **365개**, 요청 9회
 2. 제목을 **20개씩 묶어** `prop=categories`와 `prop=revisions`를 요청 — 배치 19개 × 2속성 = 약 **38회**
 3. 분류에서 장르·연도·PD 태그를, 위키텍스트에서 제목·저자·역자를 뽑는다
-4. **제외**: `하위 문서` / `친일문학` / PD 태그 없음 / `역자` 있음
+4. **표에서 제외**: 범위 밖 장르 / `하위 문서` / `친일문학` / PD 태그 없음. 번역물은 제외하지 않고 `translator`에 기록한다 — 숨기는 것은 화면의 일이다
 5. `page_title` 기준 upsert. 위키문헌에서 사라졌거나 제외 조건에 걸리게 된 문서는 표에서 지운다
 6. 보고: 신규 / 갱신 / 삭제 / 제외(사유별) / 저자 추출 실패 수
 
@@ -224,7 +226,7 @@ create policy "wikisource_works_admin_read" on public.wikisource_works
 **목록에서 숨기는 것** (사용자 결정: 보이는 목록은 곧 가져올 수 있는 목록이어야 한다):
 
 1. **금지 저작자의 작품** — PRD §5.11 등록 금지 목록 7명
-2. **번역물** — `translator`가 있는 것 (동기화에서 이미 걸러지므로 표에 거의 없다)
+2. **번역물** — `translator`가 있는 것. PRD §5.11: 원작이 만료여도 번역본은 별개다
 
 `[ ] 등록 불가 포함해서 보기`를 켜면 회색으로 이유와 함께 보인다. 기본은 꺼짐.
 
@@ -273,7 +275,8 @@ create policy "wikisource_works_admin_read" on public.wikisource_works
   - `하위 문서` → `isSubpage`, `친일문학` → `isCollaborationist`
   - `PD-old-*` → pdTag. 없으면 null → 제외
 - `toBookCategory(genre)` → `소설` 또는 `시`
-- `isCandidate({genre, pdTag, isSubpage, isCollaborationist, translator})` → boolean — 제외 규칙 네 개를 한 곳에 모은다
+- `isCandidate({genre, pdTag, isSubpage, isCollaborationist})` → boolean — **표에 담을지** 판정한다. 제외 규칙 네 개를 한 곳에 모은다
+- `isListable({author, translator})` → `{ ok, reason }` — **목록에 보일지** 판정한다. 금지 저작자와 번역물은 표에 남고 화면에서만 숨는다. 두 판정을 한 함수에 섞으면 표에서 지워야 할 것과 가려야 할 것이 구별되지 않는다
 
 픽스처는 **실측한 실제 위키텍스트·분류 모양**을 쓴다. 단순화한 픽스처가 위 세 파싱 오류를 하나도 못 잡았다.
 
