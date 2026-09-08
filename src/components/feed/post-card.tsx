@@ -44,7 +44,19 @@ export function PostCard({
     // 지면 반대로 짧아진다 — 폭을 좌우 패딩 없이 최대로 주는 쪽이 그 변동
     // 폭을 줄인다. 구분은 여백이 아니라 아래 경계선이 맡고, 모서리도
     // 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
-    <article className="border-border bg-card flex grow flex-col overflow-hidden border-b">
+    //
+    // overflow-hidden을 걷어냈다 — §11-54의 두 번째 방어선("찌그러진 채
+    // 조용히 나가는 대신, 넘치면 눈에 띄게")이 기대는 바로 그 신호를 가리는
+    // 클래스였다. 높이 제약이 다시 들어오면 밀려난 바이라인·액션 줄을 이
+    // 클래스가 가려 오버플로 수치도 0, 표지 비율도 0.667로 나와 탐지기
+    // 둘이 동시에 침묵한다. 이 브랜치에서 생긴 부수 효과도 있다: article이
+    // 새 grow 체인의 flex 항목이 됐는데, CSS Flexbox §4.5에 따르면 overflow가
+    // visible이 아닌 flex 항목은 자동 최소 크기가 0이라 내용 기반 바닥을
+    // 잃는다. 애초에 aspect-4/5 시절의 잔재였다 — article엔 라운딩이 없고,
+    // 잘리는 자식(Avatar, BookCover)은 스스로 자른다. 플랜의 전역 제약도
+    // 명시한다: "height·max-height·aspect-*·overflow-hidden을 카드 높이에
+    // 걸지 않는다".
+    <article className="border-border bg-card flex grow flex-col border-b">
       <Link
         href={`/channel/${post.channels.slug}`}
         className="focus-visible:ring-ring flex min-h-11 items-center gap-2 px-3 focus-visible:ring-2 focus-visible:outline-none"
