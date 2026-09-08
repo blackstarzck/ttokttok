@@ -92,7 +92,10 @@ export function flattenMyComments(rows: unknown[]): MyComment[] {
  * "생략해도 되는 조건을 굳이 쓴 경우"와 "생략하면 틀린 결과가 나오는
  * 경우"(`getMyComments` 참고)는 다른 이야기다.
  */
-export async function getLikedPosts(): Promise<LikedPost[]> {
+export async function getLikedPosts(): Promise<{
+  posts: LikedPost[];
+  failed: boolean;
+}> {
   const db = await createClient();
   const { data, error } = await db
     .from("likes")
@@ -102,9 +105,9 @@ export async function getLikedPosts(): Promise<LikedPost[]> {
 
   if (error) {
     console.error("getLikedPosts:", error.message);
-    return [];
+    return { posts: [], failed: true };
   }
-  return flattenLikedPosts(data ?? []);
+  return { posts: flattenLikedPosts(data ?? []), failed: false };
 }
 
 /**
@@ -122,7 +125,10 @@ export async function getLikedPosts(): Promise<LikedPost[]> {
  * 즉 이 한 정책의 두 절이 각각 다른 조건을 요구한다. 둘 중 하나만
  * 걸면 조용히 틀린 목록이 나온다.
  */
-export async function getMyComments(userId: string): Promise<MyComment[]> {
+export async function getMyComments(userId: string): Promise<{
+  comments: MyComment[];
+  failed: boolean;
+}> {
   const db = await createClient();
   const { data, error } = await db
     .from("comments")
@@ -134,7 +140,7 @@ export async function getMyComments(userId: string): Promise<MyComment[]> {
 
   if (error) {
     console.error("getMyComments:", error.message);
-    return [];
+    return { comments: [], failed: true };
   }
-  return flattenMyComments(data ?? []);
+  return { comments: flattenMyComments(data ?? []), failed: false };
 }

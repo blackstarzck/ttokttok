@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { PostItem } from "@/components/feed/post-item";
 import { PostCard } from "@/components/feed/post-card";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { TopBar } from "@/components/feed/top-bar";
+import { CARD_SCROLL_ITEM } from "@/components/feed/card-metrics";
 import { createClient } from "@/lib/supabase/client";
 import type { FeedBook, FeedCardLayout, FeedPost } from "@/lib/feed";
 import { BOOK_SELECT } from "@/lib/book-fields";
@@ -184,11 +186,28 @@ export function PostPreview({
         문제를 보지 못한 채 발행하게 된다. 잘라서 숨기기보다는 스크롤로
         드러내는 쪽을 택한다.
       */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/*
+        카드 미리보기에만 TopBar를 넣는다 — 실제 홈에는 있고 릴스(전면
+        피드)에는 없기 때문이다. 56px 스페이서를 쓰지 않는 이유: TopBar는
+        `h-14 shrink-0` 한 줄이라 높이를 베끼면 그게 두 번째 진실이 되고,
+        누가 상단바 높이를 바꾸면 미리보기만 조용히 어긋난다. 실물을
+        렌더하면 따라온다. isGuest라 UnreadBadge(알림 개수 조회)가 렌더되지
+        않으므로 미리보기가 쿼리를 쏘지 않고, 프레임이 inert라 링크도
+        눌리지 않는다.
+
+        이 띠가 없으면 스크롤 영역이 755px가 되어 홈(699px)과 갈리고,
+        카드 하한이 홈 594 / 미리보기 642로 달라진다 — §5.10이 막으려는
+        "편집기에서 통과시킨 문구가 홈에서는 넘친다"가 높이 축에서
+        재현되는 것이다.
+      */}
+      {isVideo ? null : <TopBar isGuest />}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {isVideo ? (
           <PostItem post={post} isGuest preview />
         ) : (
-          <PostCard post={post} isGuest preview />
+          <div className={CARD_SCROLL_ITEM}>
+            <PostCard post={post} isGuest preview />
+          </div>
         )}
       </div>
       <BottomNav />

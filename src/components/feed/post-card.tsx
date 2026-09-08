@@ -44,7 +44,19 @@ export function PostCard({
     // 지면 반대로 짧아진다 — 폭을 좌우 패딩 없이 최대로 주는 쪽이 그 변동
     // 폭을 줄인다. 구분은 여백이 아니라 아래 경계선이 맡고, 모서리도
     // 둥글리지 않는다(화면 끝에 닿는 둥근 모서리는 어색하다).
-    <article className="border-border bg-card overflow-hidden border-b">
+    //
+    // overflow-hidden을 걷어냈다 — §11-54의 두 번째 방어선("찌그러진 채
+    // 조용히 나가는 대신, 넘치면 눈에 띄게")이 기대는 바로 그 신호를 가리는
+    // 클래스였다. 높이 제약이 다시 들어오면 밀려난 바이라인·액션 줄을 이
+    // 클래스가 가려 오버플로 수치도 0, 표지 비율도 0.667로 나와 탐지기
+    // 둘이 동시에 침묵한다. 이 브랜치에서 생긴 부수 효과도 있다: article이
+    // 새 grow 체인의 flex 항목이 됐는데, CSS Flexbox §4.5에 따르면 overflow가
+    // visible이 아닌 flex 항목은 자동 최소 크기가 0이라 내용 기반 바닥을
+    // 잃는다. 애초에 aspect-4/5 시절의 잔재였다 — article엔 라운딩이 없고,
+    // 잘리는 자식(Avatar, BookCover)은 스스로 자른다. 플랜의 전역 제약도
+    // 명시한다: "height·max-height·aspect-*·overflow-hidden을 카드 높이에
+    // 걸지 않는다".
+    <article className="border-border bg-card flex grow flex-col border-b">
       <Link
         href={`/channel/${post.channels.slug}`}
         className="focus-visible:ring-ring flex min-h-11 items-center gap-2 px-3 focus-visible:ring-2 focus-visible:outline-none"
@@ -65,8 +77,15 @@ export function PostCard({
       {/* 고정 aspect-4/5가 아니라 auto — 내용에 맞춰 늘어난다(사전 병합
           리뷰 Important 2·3). overflow-hidden도 없다: 상자에 높이 상한이
           없으니 잘릴 것이 없고, 있었다면 그건 표지가 눌려 찌그러지는 걸
-          다시 숨기는 것일 뿐이다. */}
-      <div data-card-body className="bg-background">
+          다시 숨기는 것일 뿐이다.
+
+          표면 색을 주지 않는다 — article의 `card`(순백)를 그대로 물려받는다.
+          한때 `bg-background`였는데 그건 4:5 시절 "카드 안에 끼워 넣은 캔버스
+          패널"이라는 의미였고, 상자가 auto·풀블리드가 되면서 그 회백이 카드
+          면적의 대부분을 덮게 됐다 — 프레임 밖 바탕과 **같은 토큰**이라
+          게시물이 어디서 시작하고 끝나는지가 사라진다. DESIGN.md Elevation의
+          단차(background < card)는 본문도 카드 표면일 때만 성립한다. */}
+      <div data-card-body className="grow">
         <TemplateCard
           layout={post.post_cards}
           book={post.books}

@@ -24,6 +24,7 @@ export function FeedScroller({
   postIds: initialIds,
   seed,
   initialCursor,
+  initialFailed = false,
   cacheKey,
   type = null,
   initialIndex = 0,
@@ -32,6 +33,13 @@ export function FeedScroller({
   postIds: string[];
   seed: string;
   initialCursor: FeedCursor | null;
+  /**
+   * 첫 페이지(서버 컴포넌트)가 실패했는가 — `getFeed`의 `failed` 그대로.
+   *
+   * 채널 스코프 뷰어는 넘기지 않는다: 그쪽은 조회 실패를 페이지에서 먼저
+   * 가려내 `LoadFailed`를 그리므로(§11-61) 여기까지 오면 이미 성공이다.
+   */
+  initialFailed?: boolean;
   /**
    * 이 스크롤러의 캐시 범위. **호출부마다 달라야 한다.**
    *
@@ -100,7 +108,14 @@ export function FeedScroller({
 
   // query 객체를 통째로 deps에 넣지 말 것 — 매 렌더 새 객체다. 값만 꺼낸다
   // (fetchNextPage는 TanStack Query가 안정적으로 유지한다).
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    isError,
+    isFetching,
+    refetch,
+  } = query;
 
   // 페이지 경계 중복 제거 — CardFeed와 같은 규칙이라 lib으로 공유한다
   // (근거와 테스트는 feed-pagination.ts). 예전에는 "이미 붙인 것"을 ref로
@@ -219,10 +234,39 @@ export function FeedScroller({
     // 게시물이 늘면 새 슬롯도 관찰해야 한다.
   }, [postIdsKey, recordView]);
 
+  // 빈 상태 — 실패와 "정말 없음"을 가른다 (§11-61). 백지로 두면 사용자는
+  // "영상이 아직 없나 보다"로 읽고 다시 시도하지 않는다.
   if (postIds.length === 0) {
+    const failed = initialFailed || isError;
+
+    // "다시 시도" 직후에도 같은 문구가 남아 있으면 눌린 건지 알 수 없다.
+    if (isFetching) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
+          <span className="sr-only">피드를 불러오는 중</span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex h-full items-center justify-center px-6">
-        <p className="text-muted-foreground text-sm">아직 게시물이 없어요.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-6">
+        <p className="text-muted-foreground text-center text-sm break-keep">
+          {failed
+            ? "피드를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "아직 게시물이 없어요."}
+        </p>
+        {failed ? (
+          // 페이지가 첫 장 하나뿐이라 refetch()가 정확히 그것만 다시 부른다
+          // (nextCursor가 null이라 fetchNextPage는 가드에 막힌다).
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="text-foreground text-sm underline underline-offset-2"
+          >
+            다시 시도
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -244,10 +288,46 @@ export function FeedScroller({
         </div>
       ))}
 
-      {isFetchingNextPage ? (
-        <div className="flex h-16 items-center justify-center">
-          <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
-          <span className="sr-only">다음 게시물을 불러오는 중</span>
+      {/*
+        끝 슬롯 — 다음 페이지를 받는 중이거나 실패했을 때만 나온다.
+
+        게시물 슬롯과 같은 **전체 높이 + snap-start**다. 예전에는 h-16
+        블록이었는데, 스냅 컨테이너에서 슬롯이 하나같이 컨테이너 높이라
+        64px짜리는 마지막 게시물에서 오버스크롤해야 잠깐 보인다 — 실패를
+        거기 두면 사실상 안 보이는 것과 같아서, 사용자는 그냥 "영상이
+        여기까지인가 보다"로 읽는다. 슬롯으로 두면 다른 게시물과 똑같이
+        스크롤해서 닿는다.
+
+        로딩과 실패가 **같은 슬롯**을 쓰는 것도 의도다: "다시 시도"를 누른
+        순간 슬롯이 사라졌다가 다시 생기면 사용자 발밑에서 레이아웃이
+        뛴다. 자리를 지키고 안쪽만 바꾼다.
+
+        data-index·data-post-id를 주지 않는다 — 옵저버가 관찰하지 않아야
+        active 판정과 조회 집계가 이 슬롯에 걸리지 않는다.
+      */}
+      {isFetchingNextPage || isError ? (
+        <div className="flex h-full snap-start snap-always flex-col items-center justify-center gap-3 px-6">
+          {isFetchingNextPage ? (
+            <>
+              <Loader2 className="text-muted-foreground size-5 animate-spin" aria-hidden />
+              <span className="sr-only">다음 게시물을 불러오는 중</span>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground text-center text-sm break-keep">
+                더 불러오지 못했어요.
+              </p>
+              {/* 자동 재시도는 프리페치 가드가 isError에서 끊는다
+                  (feed-pagination.ts) — 여기서만 다시 부른다. */}
+              <button
+                type="button"
+                onClick={() => void fetchNextPage()}
+                className="text-foreground text-sm underline underline-offset-2"
+              >
+                다시 시도
+              </button>
+            </>
+          )}
         </div>
       ) : null}
     </div>

@@ -7,13 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { BookCover } from "@/components/feed/book-cover";
 import { getChannel } from "@/lib/channel";
 import { getChannelPosts } from "@/lib/feed";
+import { LoadFailed } from "@/components/load-failed";
 import { formatCount } from "@/lib/format";
 
 export async function generateMetadata({
   params,
 }: PageProps<"/channel/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const channel = await getChannel(slug);
+  const { channel, failed } = await getChannel(slug);
+  // 실패와 없음을 제목에서부터 가른다 — 탭 제목만 봐도 다른 상황이다.
+  if (failed) return { title: "채널을 불러오지 못했어요" };
   if (!channel) return { title: "채널을 찾을 수 없어요" };
   return {
     title: channel.name,
@@ -32,10 +35,13 @@ export default async function ChannelPage({
   params,
 }: PageProps<"/channel/[slug]">) {
   const { slug } = await params;
-  const channel = await getChannel(slug);
+  const { channel, failed: channelFailed } = await getChannel(slug);
+  // 조회 실패를 notFound()로 흘려보내면 멀쩡히 있는 채널을 "없는 채널"이라고
+  // 거짓말한다 — 영상을 누르고 들어온 사용자가 막다른 길에 갇힌다.
+  if (channelFailed) return <LoadFailed />;
   if (!channel) notFound();
 
-  const posts = await getChannelPosts(channel.id);
+  const { posts, failed: postsFailed } = await getChannelPosts(channel.id);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -61,7 +67,7 @@ export default async function ChannelPage({
             <div className="flex items-center gap-2">
               <Badge variant="secondary">{channel.genre}</Badge>
               <span className="text-muted-foreground text-xs">
-                게시물 {formatCount(posts.length)}
+                게시물 {postsFailed ? "–" : formatCount(posts.length)}
               </span>
             </div>
           </div>
@@ -75,8 +81,12 @@ export default async function ChannelPage({
       </header>
 
       {posts.length === 0 ? (
+        // 실패와 빈 목록을 다른 문구로 가른다 (알림 화면 §5.5의 선례).
+        // 채널 정보는 이미 떠 있으므로 화면을 통째로 지우지는 않는다.
         <p className="text-muted-foreground px-4 py-10 text-center text-sm">
-          아직 발행한 게시물이 없어요.
+          {postsFailed
+            ? "게시물을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "아직 발행한 게시물이 없어요."}
         </p>
       ) : (
         <ul className="grid grid-cols-3 gap-1 p-1">
