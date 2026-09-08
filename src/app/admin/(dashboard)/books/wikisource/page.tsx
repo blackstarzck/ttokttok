@@ -54,18 +54,25 @@ function SortableHead({
 }) {
   const active = query.sort === sortKey;
   const arrow = active ? (query.dir === "asc" ? " ↑" : " ↓") : "";
+  const nextDir = nextSortDir(query, sortKey);
 
   return (
-    <TableHead className={className}>
+    <TableHead
+      className={className}
+      aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
       <Link
         href={buildCatalogueHref(query, {
           sort: sortKey,
-          dir: nextSortDir(query, sortKey),
+          dir: nextDir,
         })}
         className="hover:text-foreground inline-flex items-center whitespace-nowrap underline-offset-4 hover:underline"
-        aria-label={`${label} 기준으로 ${
-          nextSortDir(query, sortKey) === "asc" ? "오름차" : "내림차"
-        } 정렬`}
+        aria-label={
+          (active
+            ? `${label}, 현재 ${query.dir === "asc" ? "오름차" : "내림차"} 정렬. `
+            : `${label}. `) +
+          `${nextDir === "asc" ? "오름차" : "내림차"} 정렬로 변경`
+        }
       >
         {label}
         {arrow}
@@ -178,6 +185,7 @@ export default async function WikisourceCataloguePage({
             name="q"
             defaultValue={query.q}
             placeholder="작품명 또는 저자"
+            className="min-h-11"
           />
         </div>
 
