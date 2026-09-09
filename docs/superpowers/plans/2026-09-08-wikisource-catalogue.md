@@ -3149,3 +3149,576 @@ Task 3 (마이그레이션) ──→ Task 5 (동기화 스크립트) ───�
 **단위 테스트 통과 ≠ 동작한다.** 앞선 위키문헌 작업에서 `wikisource.ts`의 결함 세 개가 **93개 통과 테스트를 뚫고** 살아남았고, 실제 EPUB을 한 번 돌려 보고서야 드러났다. 단순화한 픽스처는 실제 파싱 오류 세 개를 하나도 잡지 못했다.
 
 그래서 이 계획은 순수 함수마다 테스트를 두면서도, **Task 5 Step 4·6과 Task 6 Step 9에 실제 데이터로 확인하는 단계를 못박았다.** 그 단계를 건너뛰지 않는다.
+
+---
+
+# 개정 — 브랜치 전체 검토가 찾은 Critical 결함 (2026-09-09)
+
+Task 1~8이 전부 검토를 통과한 뒤, 브랜치 전체 검토에서 **목록의 약속이 지켜지지 않는다**는 것이 드러났다. 설계가 사용자에게 한 약속은 「보이는 목록은 곧 가져올 수 있는 목록이어야 한다」인데, 실측 319편 중 8편이 PRD §5.11 기준에 미달한 상태로 보이고 있었다.
+
+**심각도의 근거:** `books`에 초안 상태가 없다(직접 확인 — `status` 컬럼 없음, `books_select_all using (true)`, 익명이 16권 전부 조회 가능). 그래서 「가져오기」 한 번이 곧 공개다. 잘못 누른 것을 나중에 발견하는 구조다.
+
+## 왜 저자 파싱이 실패했는가 — 실측으로 원인을 바꿨다
+
+처음 의심은 「`HEADER_BLOCK` 정규식이 틀 모양에 취약하다」였다. **틀렸다.** 329편의 위키텍스트를 전부 받아 항목 이름을 세어 보니 원인은 **어휘**였다:
+
+| 항목 | 횟수 | 우리 파서가 알던 것 |
+|---|---|---|
+| `제목` | 315 | ✓ |
+| `저자` | 253 | ✓ |
+| `역자` | 245 | ✓ |
+| `지은이` | 61 | ✓ |
+| `title` | 13 | ✗ |
+| `author` | 13 | ✗ |
+| `글쓴이` | 1 | ✗ |
+
+`저자 253 + 지은이 61 + author 13 + 글쓴이 1 = 328`, 그리고 머리말 틀이 아예 없는 문서 1개(「모비딕」) → 합 329. **저자 null 15편이 정확히 설명된다** (영어 틀 13 + `글쓴이` 1 + 틀 없음 1).
+
+설계 문서가 「저자(23) / 지은이(7)」라고 적은 것은 표본 30개에서 나온 것이고, 그 표본에 영어 틀이 없었다. 전수 조사가 아니면 어휘를 알 수 없다는 뜻이다.
+
+**함께 실측한 것:**
+
+- 머리말 틀 이름은 `{{머리말}}` **하나뿐**이다 (328회). `머리말2` 같은 변종은 없다 — 추측으로 정규식을 넓히지 말 것.
+- `역자`는 **유일한 역자 항목 이름**이다. `번역자`·`translator`는 없다. 다만 **영어 틀 13편에는 역자 항목이 아예 없다** — 그 13편은 머리말로 번역물 여부를 판정할 수 없다.
+- 링크 이름공간은 `저자:`(308)와 `글쓴이:`(28) 둘이다. 지금 파서는 `저자:`만 떼낸다.
+
+## 저자 문서에 우리 기준이 그대로 있다
+
+`저자:이름` 문서의 분류에 **사망 연도와 국적**이 붙어 있다(실측):
+
+```
+저자:레프 톨스토이  → 1828년년 태어남 / 1910년년 죽음 / 러시아의 저자 / 저자-PD-old-100
+저자:김동인        → 1900년년 태어남 / 1951년년 죽음 / 대한민국의 저자 / 일제 강점기의 저자
+저자:김억          → 1896년년 태어남 / 일제 강점기의 저자 / 조선민주주의인민공화국의 저자
+```
+
+`년년`은 위키문헌 틀의 오타이고 실제 분류 이름이 그렇다 — 정규식이 그것을 받아야 한다.
+
+이 값들이 중요한 이유: **지금까지 우리는 위키문헌의 `PD-old-*` 태그를 믿고 있었다.** 문서 세 곳에 「그건 위키문헌의 판단이고 우리 기준이 아니다」라고 적어 놓고도, 실제 필터는 그 태그였다. 사망 연도를 읽으면 PRD §5.11(1962년 이전 사망)을 **그대로** 구현할 수 있다.
+
+**손으로 쓴 명단은 여전히 필요하다 — 기계로 대체하면 안 된다.** 실측: 「저자:정지용」은 1950년 사망으로 적혀 있고 북한 분류도 없다. 데이터만 믿으면 통과한다. 우리가 그를 막는 이유는 사망 연도가 실제로는 다투어지기 때문이고, 그 지식은 명단에만 있다. 「저자:박태원」·「저자:홍명희」는 문서 자체가 없다.
+
+## 실측한 제외 대상 — 319편 중 8편
+
+| 저자 | 편수 | 사유 |
+|---|---|---|
+| 레프 톨스토이 | 1 | 러시아의 저자 |
+| 찰스 킹즐리 | 1 | 영국의 저자 |
+| 윌리엄 서머싯 몸 | 1 | 영국의 저자 · 1965년 사망 |
+| 요시카와 에이지 | 1 | 일본의 저자 · 1962년 사망 |
+| 김동명 | 1 | **1968년 사망** — 「파초」, `PD-공유마당` 태그로 들어온 그 작품 |
+| 김억 | 1 | 사망 연도 없음 · 북한 저자 |
+| 김동환 | 1 | 사망 연도 없음 · 북한 저자 |
+| 김규택 | 1 | 저자 문서 없음 |
+
+「모비딕」은 저자를 못 읽어 이 표에 없다. 어휘를 고쳐도 머리말 틀이 없어 저자를 알 수 없다.
+
+## 결정: 저자를 확인할 수 없는 작품은 목록에 두지 않는다
+
+**설계의 앞선 판단을 뒤집는다.** 원래는 「저자가 비어 있는 행은 숨기지 않는다 — 가져올 때 입력받는다」였고, 근거는 「99개 중 1개뿐」이라는 표본치였다.
+
+지금 알게 된 것: **저자는 모든 권리 판정의 입구다.** 사망 연도·국적·금지 명단 세 검사가 전부 저자 이름에서 출발한다. 저자를 모르면 그 세 검사를 하나도 못 한다 — 즉 기계가 아무것도 보증하지 못하는 행을 「가져올 수 있는 목록」에 두는 것이 된다. 실제로 「모비딕」이 그 자리에 앉아 있었다.
+
+그래서 저자를 못 읽은 작품은 목록에서 빠지고, **주소 입력 화면이 그 경로다** — 거기서는 사람이 저자를 타이핑하고 금지 명단 검사가 그 입력에 걸린다. 어휘를 고치면 이 경우는 329편 중 1편이다.
+
+---
+
+### Task 9: 권리 판정을 우리 기준으로 옮긴다 (순수 함수)
+
+**Files:**
+- Modify: `src/lib/wikisource-meta.ts`
+- Modify: `src/lib/wikisource-meta.test.ts`
+- Modify: `src/lib/book-rights.ts`
+- Modify: `src/lib/book-rights.test.ts`
+
+**Interfaces:**
+- Consumes: 없음 (순수 함수)
+- Produces:
+  - `EXCLUSION_REASONS: readonly ExclusionReason[]` — 손으로 관리하던 거울을 없앤다. 동기화 스크립트가 이것으로 집계 객체를 만든다
+  - `type ExclusionReason` 에 추가: `"저자 불명"` · `"저자 문서 없음"` · `"해외 저자"` · `"북한 저자"` · `"1962년 이후 사망"` · `"사망 연도 불명"`
+  - `authorPageTitle(author: string): string` — `"김소월(김정식)"` → `"저자:김소월"`
+  - `parseAuthorPage(categories: readonly string[], missing: boolean): AuthorInfo` where `AuthorInfo = { born: number | null; died: number | null; isKorean: boolean; isNorthKorean: boolean; missing: boolean }`
+  - `checkAuthor(info: AuthorInfo): { ok: true } | { ok: false; reason: ExclusionReason }`
+  - `PUBLIC_DOMAIN_DEATH_BEFORE = 1962`
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다 — 어휘**
+
+`src/lib/wikisource-meta.test.ts`에 덧붙인다. 픽스처는 **실측한 실제 위키텍스트**다:
+
+```ts
+/** 실측: 「동백꽃」 — 영어 이름 틀. 329편 중 13편이 이 모양이고, 우리 파서가 못 읽었다. */
+const 영어틀 = `{{머리말
+ | title    =동백꽃
+ | author   =[[글쓴이:김유정|김유정]]
+ | section  =
+ | previous =
+ | next     =
+ | notes    =
+}}
+
+오늘도 또 우리 수탉이 막 쫓기었다.`;
+
+/** 실측: 「구운몽」 — `글쓴이` 항목. 329편 중 1편. */
+const 글쓴이틀 = `{{머리말
+|제목 = 구운몽
+|글쓴이 = [[글쓴이:김만중|김만중]]
+|설명 = 김만중이 남해 유배 시절 지었다고 전해지는 작품이다.
+}}`;
+
+/** 실측: 「소년의 비애」 — 영어 이름 + `저자:` 이름공간 + 항목마다 들쭉날쭉한 공백. */
+const 영어틀_저자링크 = `{{머리말
+ | title    = 소년의 비애
+| author   = [[저자:이광수|이광수]]
+ | section  =
+ | notes    = 1917년 잡지 《청춘》에 실린 데뷔작.
+}}`;
+
+describe("parseHeader — 실측한 항목 이름 전부", () => {
+  it("영어 이름 틀의 author를 읽는다 (13편)", () => {
+    expect(parseHeader(영어틀)).toEqual({
+      title: "동백꽃",
+      author: "김유정",
+      translator: null,
+    });
+  });
+
+  it("글쓴이 항목을 읽는다 (1편)", () => {
+    expect(parseHeader(글쓴이틀).author).toBe("김만중");
+  });
+
+  it("영어 이름 틀에서도 저자: 이름공간을 처리한다", () => {
+    expect(parseHeader(영어틀_저자링크)).toEqual({
+      title: "소년의 비애",
+      author: "이광수",
+      translator: null,
+    });
+  });
+
+  /**
+   * 링크에 표시명이 없으면 이름공간 접두사가 값에 남는다. `저자:`만 떼던
+   * 정규식으로는 `글쓴이:김만중`이 저자 이름이 된다. 실측 링크 이름공간은
+   * `저자:`(308)와 `글쓴이:`(28) 둘이다.
+   */
+  it("표시명이 없는 링크에서 두 이름공간을 모두 떼낸다", () => {
+    expect(parseHeader(`{{머리말\n|저자 = [[글쓴이:김만중]]\n}}`).author).toBe("김만중");
+    expect(parseHeader(`{{머리말\n|저자 = [[저자:이상]]\n}}`).author).toBe("이상");
+  });
+
+  /**
+   * 영어 이름 틀에는 역자 항목이 아예 없다(실측). 그러니 그 13편은 머리말로
+   * 번역물 여부를 판정할 수 없고 — null이 「번역물 아님」의 증거가 될 수 없다 —
+   * 이것이 저자 쪽 검사를 반드시 거쳐야 하는 이유다.
+   */
+  it("영어 이름 틀은 역자를 알 수 없어 null이다", () => {
+    expect(parseHeader(영어틀).translator).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: 실패를 확인한다**
+
+```bash
+npm test -- src/lib/wikisource-meta.test.ts
+```
+
+기대: FAIL — 영어 틀·글쓴이 테스트에서 `author`가 `null`
+
+- [ ] **Step 3: 어휘를 고친다**
+
+`src/lib/wikisource-meta.ts`의 세 정규식과 `LINK`를 바꾼다. **실측한 것만 넣는다** — 틀 이름 변종(`머리말2` 등)은 실측에 없으므로 추가하지 않는다:
+
+```ts
+/**
+ * `머리말` 틀의 항목을 읽는 정규식.
+ *
+ * **항목 이름은 실측으로 정했다** (329편 전수, 2026-09-09):
+ * 제목 315 · 저자 253 · 역자 245 · 지은이 61 · title 13 · author 13 · 글쓴이 1.
+ * 처음에는 `저자`·`지은이`만 봤고 — 표본 30개에서 나온 어휘였다 — 그래서
+ * 영어 이름 틀 13편과 `글쓴이` 1편의 저자를 못 읽었다. 저자 null 15편이
+ * 그것으로 정확히 설명된다 (13 + 1 + 머리말 틀이 없는 「모비딕」 1).
+ *
+ * **`역자`는 유일한 역자 항목 이름이다** (`번역자`·`translator` 없음). 다만
+ * 영어 이름 틀에는 역자 항목이 **아예 없다** — 그 13편은 머리말로 번역물
+ * 여부를 판정할 수 없고, 그래서 저자 쪽 검사가 필요하다.
+ *
+ * 줄 단위로 읽고 `=` 주변은 `[ \t]*`만 허용한다. 항목 값은 줄바꿈으로
+ * 끝나므로 `\s*`를 쓰면 다음 줄을 값으로 끌어온다.
+ */
+const HEADER_TITLE = /^[ \t]*\|[ \t]*(?:제목|title)[ \t]*=[ \t]*(.*)$/im;
+const HEADER_AUTHOR = /^[ \t]*\|[ \t]*(?:저자|지은이|글쓴이|author)[ \t]*=[ \t]*(.*)$/im;
+const HEADER_TRANSLATOR = /^[ \t]*\|[ \t]*역자[ \t]*=[ \t]*(.*)$/m;
+
+/**
+ * 위키 링크에서 이름을 뽑는다.
+ *
+ * 이름공간 접두사는 실측한 둘을 모두 떼낸다 — `저자:`(308) · `글쓴이:`(28).
+ * 표시명이 있으면 대개 문제가 없지만, 없는 링크에서는 접두사가 값에 남아
+ * 「글쓴이:김만중」이 저자 이름이 된다.
+ */
+const LINK = /\[\[(?:저자:|글쓴이:)?([^|\]]+)(?:\|([^\]]*))?\]\]/;
+```
+
+`HEADER_TITLE`·`HEADER_AUTHOR`에 `i` 플래그를 붙이는 이유: 영어 항목 이름이 대문자로 쓰인 경우는 실측하지 못했지만 위키 틀 항목 이름은 대소문자를 구별하지 않는 관행이 있고, 한국어 이름에는 영향이 없다. `HEADER_TRANSLATOR`는 한국어 하나뿐이라 붙이지 않는다.
+
+- [ ] **Step 4: 통과를 확인한다**
+
+```bash
+npm test -- src/lib/wikisource-meta.test.ts
+```
+
+기대: PASS
+
+- [ ] **Step 5: 실패하는 테스트를 쓴다 — PD 태그·저자 문서·제외 사유**
+
+`src/lib/wikisource-meta.test.ts`에 덧붙인다. import 줄에 `authorPageTitle`·`parseAuthorPage`·`checkAuthor`·`EXCLUSION_REASONS`를 더한다:
+
+```ts
+describe("parseCategories — PD 태그를 문서대로 좁힌다", () => {
+  /**
+   * 처음 정규식은 `/^PD-/`였고 문서·주석·PRD §11-64는 모두 `PD-old-*`라고
+   * 적어 놓았다. 실측으로 두 건이 그 틈으로 들어왔다:
+   * 「파초」는 `PD-공유마당`(나이 만료가 아니라 이용 허락 기반),
+   * 「자유종」은 `PD-old-95-US`(미국 기준이라 한국법에 대해 말하는 바가 없다).
+   */
+  it("PD-old 계열만 받는다", () => {
+    expect(parseCategories(["분류:PD-old-50"]).pdTag).toBe("PD-old-50");
+    expect(parseCategories(["분류:PD-old-100"]).pdTag).toBe("PD-old-100");
+    expect(parseCategories(["분류:PD-old"]).pdTag).toBe("PD-old");
+  });
+
+  it("공유마당·미국 기준·자체 배포 태그는 받지 않는다", () => {
+    expect(parseCategories(["분류:PD-공유마당", "분류:단편소설"]).pdTag).toBeNull();
+    expect(parseCategories(["분류:PD-old-95-US", "분류:신소설"]).pdTag).toBeNull();
+    expect(parseCategories(["분류:PD-self", "분류:소설"]).pdTag).toBeNull();
+  });
+});
+
+describe("authorPageTitle", () => {
+  it("저자 문서 제목을 만든다", () => {
+    expect(authorPageTitle("김유정")).toBe("저자:김유정");
+  });
+
+  /** 실측: 「김소월(김정식)」·「이정호(李定鎬)」처럼 괄호가 붙은 이름이 있다. */
+  it("괄호와 그 뒤를 떼낸다", () => {
+    expect(authorPageTitle("김소월(김정식)")).toBe("저자:김소월");
+    expect(authorPageTitle("이정호(李定鎬)")).toBe("저자:이정호");
+    expect(authorPageTitle("요시카와 에이지(吉川英治)")).toBe("저자:요시카와 에이지");
+  });
+});
+
+describe("parseAuthorPage", () => {
+  /** 실측한 실제 분류. `년년`은 위키문헌 틀의 오타이고 분류 이름이 그렇다. */
+  const 김동인 = ["분류:1900년년 태어남", "분류:1951년년 죽음", "분류:대한민국의 저자", "분류:일제 강점기의 저자"];
+  const 톨스토이 = ["분류:1828년년 태어남", "분류:1910년년 죽음", "분류:러시아의 저자"];
+  const 김억 = ["분류:1896년년 태어남", "분류:일제 강점기의 저자", "분류:조선민주주의인민공화국의 저자"];
+
+  it("사망·출생 연도를 읽는다 — 분류 이름의 `년년`을 그대로 받는다", () => {
+    expect(parseAuthorPage(김동인, false)).toMatchObject({ born: 1900, died: 1951 });
+  });
+
+  it("국적을 판정한다", () => {
+    expect(parseAuthorPage(김동인, false).isKorean).toBe(true);
+    expect(parseAuthorPage(톨스토이, false).isKorean).toBe(false);
+  });
+
+  it("북한 저자 분류를 표시한다", () => {
+    expect(parseAuthorPage(김억, false).isNorthKorean).toBe(true);
+    expect(parseAuthorPage(김동인, false).isNorthKorean).toBe(false);
+  });
+
+  it("사망 연도가 없으면 null", () => {
+    expect(parseAuthorPage(김억, false).died).toBeNull();
+  });
+
+  it("문서가 없으면 missing", () => {
+    expect(parseAuthorPage([], true).missing).toBe(true);
+  });
+
+  /** 「일제 강점기의 저자」만 있어도 한국 저자다 — 실측에서 가장 흔한 형태다. */
+  it("일제 강점기 분류만 있어도 한국 저자로 본다", () => {
+    expect(parseAuthorPage(["분류:일제 강점기의 저자"], false).isKorean).toBe(true);
+  });
+
+  it("`분류:` 접두사가 없는 값도 견딘다", () => {
+    expect(parseAuthorPage(["1951년년 죽음", "대한민국의 저자"], false)).toMatchObject({
+      died: 1951,
+      isKorean: true,
+    });
+  });
+});
+
+describe("checkAuthor", () => {
+  const info = (o: Partial<AuthorInfo> = {}): AuthorInfo => ({
+    born: null, died: 1950, isKorean: true, isNorthKorean: false, missing: false, ...o,
+  });
+
+  it("한국 저자이고 1962년 이전 사망이면 통과", () => {
+    expect(checkAuthor(info({ died: 1951 }))).toEqual({ ok: true });
+  });
+
+  it("해외 저자를 제외한다 — 번역자 저작권이 별개다 (PRD §5.11)", () => {
+    expect(checkAuthor(info({ isKorean: false }))).toEqual({ ok: false, reason: "해외 저자" });
+  });
+
+  /** PRD §5.11의 기준을 그대로 구현한다 — 위키문헌의 PD 태그가 아니라. */
+  it("1962년 이후 사망을 제외한다", () => {
+    expect(checkAuthor(info({ died: 1968 }))).toEqual({ ok: false, reason: "1962년 이후 사망" });
+    expect(checkAuthor(info({ died: 1962 }))).toEqual({ ok: false, reason: "1962년 이후 사망" });
+    expect(checkAuthor(info({ died: 1961 }))).toEqual({ ok: true });
+  });
+
+  it("사망 연도를 모르면 제외한다 — 기준을 적용할 수 없다", () => {
+    expect(checkAuthor(info({ died: null }))).toEqual({ ok: false, reason: "사망 연도 불명" });
+  });
+
+  it("북한 저자를 제외한다 — 사망 연도가 있어도", () => {
+    expect(checkAuthor(info({ died: 1960, isNorthKorean: true }))).toEqual({
+      ok: false, reason: "북한 저자",
+    });
+  });
+
+  it("저자 문서가 없으면 제외한다", () => {
+    expect(checkAuthor(info({ missing: true }))).toEqual({ ok: false, reason: "저자 문서 없음" });
+  });
+
+  /**
+   * 사유 우선순위를 못박는다. 동기화 보고의 사유별 집계가 이 순서로
+   * 세어지므로 바뀌면 문서의 숫자와 어긋난다. 각 단정은 **한 가지 사유만**
+   * 참인 경우와 구별되어야 뜻이 있으므로, 겹치는 조합으로 확인한다.
+   */
+  it("사유가 겹치면 문서없음 → 해외 → 북한 → 사망연도 순으로 보고한다", () => {
+    expect(checkAuthor(info({ missing: true, isKorean: false, isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "저자 문서 없음" });
+    expect(checkAuthor(info({ isKorean: false, isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "해외 저자" });
+    expect(checkAuthor(info({ isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "북한 저자" });
+    expect(checkAuthor(info({ died: null })))
+      .toEqual({ ok: false, reason: "사망 연도 불명" });
+  });
+});
+
+describe("EXCLUSION_REASONS", () => {
+  /** 동기화 스크립트가 이것으로 집계 객체를 만든다 — 손으로 적은 거울을 없앤다. */
+  it("모든 사유를 담고 중복이 없다", () => {
+    expect(EXCLUSION_REASONS).toContain("범위 밖 장르");
+    expect(EXCLUSION_REASONS).toContain("해외 저자");
+    expect(EXCLUSION_REASONS).toContain("저자 불명");
+    expect(new Set(EXCLUSION_REASONS).size).toBe(EXCLUSION_REASONS.length);
+  });
+});
+```
+
+- [ ] **Step 6: 실패를 확인한다**
+
+```bash
+npm test -- src/lib/wikisource-meta.test.ts
+```
+
+기대: FAIL — `authorPageTitle is not a function` 등
+
+- [ ] **Step 7: 구현한다**
+
+`src/lib/wikisource-meta.ts`. 기존 `ExclusionReason` 타입 선언을 `EXCLUSION_REASONS`에서 파생하도록 바꾸고, 기존 `PD_TAG`를 좁히고, 아래를 더한다:
+
+```ts
+/**
+ * 후보에서 제외되는 사유 전부.
+ *
+ * 배열로 두는 이유: `scripts/sync-wikisource-works.mjs`가 사유별 집계 객체를
+ * 이것으로 만든다. 스크립트는 `.mjs`라 타입 검사가 없어서, 손으로 적은
+ * 거울을 두면 사유를 하나 더할 때 보고가 조용히 `NaN`이 된다.
+ */
+export const EXCLUSION_REASONS = [
+  "범위 밖 장르",
+  "하위 문서",
+  "친일문학",
+  "PD 태그 없음",
+  "저자 불명",
+  "저자 문서 없음",
+  "해외 저자",
+  "북한 저자",
+  "1962년 이후 사망",
+  "사망 연도 불명",
+] as const;
+
+export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
+
+/** 저자 문서 분류. `년년`은 위키문헌 틀의 오타이고 실제 분류 이름이 그렇다. */
+const DIED = /^(\d{4})년년? 죽음$/;
+const BORN = /^(\d{4})년년? 태어남$/;
+const KOREAN_AUTHOR = /^(일제 강점기|대한민국|대한제국|조선|한국)의 (저자|소설가|시인)$/;
+const NORTH_KOREAN = /조선민주주의인민공화국/;
+
+/** PRD §5.11 — 저작자가 이 해 **이전에** 사망해야 한다. */
+export const PUBLIC_DOMAIN_DEATH_BEFORE = 1962;
+
+export type AuthorInfo = {
+  born: number | null;
+  died: number | null;
+  isKorean: boolean;
+  isNorthKorean: boolean;
+  missing: boolean;
+};
+
+/**
+ * 저자 이름에서 저자 문서 제목을 만든다.
+ *
+ * 괄호와 그 뒤는 떼낸다 — 실측한 저자 이름에 「김소월(김정식)」·
+ * 「이정호(李定鎬)」처럼 괄호를 단 형태가 있고, 저자 문서는 괄호 없는
+ * 이름으로 존재한다.
+ */
+export function authorPageTitle(author: string): string {
+  return "저자:" + author.replace(/\s*[(（].*$/, "").trim();
+}
+
+export function parseAuthorPage(
+  categories: readonly string[],
+  missing: boolean,
+): AuthorInfo {
+  const names = categories.map((c) => c.replace(/^분류:/, "").trim());
+  const year = (re: RegExp) => {
+    const hit = names.map((c) => re.exec(c)?.[1]).find(Boolean);
+    return hit ? Number(hit) : null;
+  };
+  return {
+    born: year(BORN),
+    died: year(DIED),
+    isKorean: names.some((c) => KOREAN_AUTHOR.test(c)),
+    isNorthKorean: names.some((c) => NORTH_KOREAN.test(c)),
+    missing,
+  };
+}
+
+/**
+ * 저자를 근거로 등록 가능한지 판정한다 — **PRD §5.11을 그대로 구현한다.**
+ *
+ * 위키문헌의 `PD-old-*` 태그는 그들의 판단이고 우리 기준이 아니다. 우리
+ * 기준은 「저작자가 1962년 이전 사망」이며, 저자 문서의 사망 연도가 그
+ * 값이다. 태그는 후보를 모으는 그물로만 남는다.
+ *
+ * **손으로 쓴 금지 명단을 대체하지 않는다.** 실측: 「저자:정지용」은 1950년
+ * 사망으로 적혀 있고 북한 분류도 없어 이 검사를 통과한다. 그를 막는 지식은
+ * `src/lib/book-rights.ts`의 명단에만 있다. 두 검사를 함께 거친다.
+ */
+export function checkAuthor(
+  info: AuthorInfo,
+): { ok: true } | { ok: false; reason: ExclusionReason } {
+  if (info.missing) return { ok: false, reason: "저자 문서 없음" };
+  if (!info.isKorean) return { ok: false, reason: "해외 저자" };
+  if (info.isNorthKorean) return { ok: false, reason: "북한 저자" };
+  if (info.died === null) return { ok: false, reason: "사망 연도 불명" };
+  if (info.died >= PUBLIC_DOMAIN_DEATH_BEFORE) {
+    return { ok: false, reason: "1962년 이후 사망" };
+  }
+  return { ok: true };
+}
+```
+
+기존 `PD_TAG`를 좁힌다:
+
+```ts
+/**
+ * 저작권 태그 — **나이 만료 계열만** 받는다 (`PD-old`, `PD-old-50`, `PD-old-100` …).
+ *
+ * 처음에는 `/^PD-/`였는데 문서·주석·PRD §11-64가 모두 `PD-old-*`라고 적어
+ * 놓은 것보다 넓었다. 실측으로 두 건이 그 틈으로 들어왔다: 「파초」는
+ * `PD-공유마당`(나이 만료가 아니라 이용 허락 기반이라 PRD §5.11의 「권리
+ * 확보분」에 해당한다), 「자유종」은 `PD-old-95-US`(미국 기준이라 한국법에
+ * 대해 말하는 바가 없다).
+ */
+const PD_TAG = /^PD-old(-\d+)?$/;
+```
+
+- [ ] **Step 8: 금지 명단이 괄호 붙은 이름을 우회하지 못하게 한다**
+
+실측: 저자 이름에 「김소월(김정식)」·「이정호(李定鎬)」처럼 괄호가 붙은 형태가 있다. 지금 정규화는 공백과 폭 없는 문자만 걷어내므로 「정지용(鄭芝溶)」이 들어오면 명단을 그냥 통과한다. 지금 데이터에서 새는 것은 없다는 것도 확인했지만, 위키문헌이 문서를 고치면 언제든 생긴다.
+
+`src/lib/book-rights.ts`의 `blockedAuthorReason`을 바꾼다:
+
+```ts
+/**
+ * 금지 저작자면 사유를, 아니면 null.
+ *
+ * **괄호 앞의 이름으로도 조회한다.** 실측한 저자 이름에 「김소월(김정식)」·
+ * 「이정호(李定鎬)」처럼 괄호가 붙은 형태가 있다. 정규화는 공백과 폭 없는
+ * 문자만 걷어내므로, 「정지용(鄭芝溶)」이 들어오면 명단을 통과해 버린다.
+ * 놓치는 쪽이 진짜 실패인 관문이라 두 형태를 모두 본다.
+ */
+export function blockedAuthorReason(
+  author: string | null | undefined,
+): string | null {
+  if (!author) return null;
+
+  const direct = BLOCKED_AUTHORS.get(normalizeAuthorKey(author));
+  if (direct) return direct;
+
+  const bare = author.replace(/\s*[(（].*$/, "");
+  if (bare && bare !== author) {
+    return BLOCKED_AUTHORS.get(normalizeAuthorKey(bare)) ?? null;
+  }
+  return null;
+}
+```
+
+`src/lib/book-rights.test.ts`의 `blockedAuthorReason` describe에 더한다:
+
+```ts
+  /** 실측한 저자 이름에 괄호형이 있다 — 「김소월(김정식)」·「이정호(李定鎬)」. */
+  it("괄호 붙은 이름도 잡는다", () => {
+    expect(blockedAuthorReason("정지용(鄭芝溶)")).toMatch(/월북·납북/);
+    expect(blockedAuthorReason("백석（白石）")).toMatch(/1996년/);
+  });
+
+  it("괄호 앞이 금지 명단에 없으면 통과한다", () => {
+    expect(blockedAuthorReason("김소월(김정식)")).toBeNull();
+  });
+```
+
+- [ ] **Step 9: 전체 테스트와 빌드**
+
+```bash
+npm test
+```
+
+기대: 전체 PASS. `PD_TAG`를 좁혔으므로 기존 테스트가 깨질 수 있다 — 깨지면 그 테스트가 `/^PD-/`의 넓음에 기대고 있었다는 뜻이니, 테스트를 고치고 무엇을 고쳤는지 보고한다.
+
+```bash
+npm run build
+```
+
+기대: 성공
+
+- [ ] **Step 10: 커밋**
+
+```bash
+git add src/lib/wikisource-meta.ts src/lib/wikisource-meta.test.ts src/lib/book-rights.ts src/lib/book-rights.test.ts
+git commit -F- <<'MSG'
+fix(wikisource): 권리 판정을 위키문헌 태그에서 우리 기준으로 옮긴다
+
+브랜치 전체 검토가 목록의 약속이 지켜지지 않는다는 것을 찾았다. books에
+초안 상태가 없어 「가져오기」 한 번이 곧 공개인데, 319편 중 8편이 PRD
+§5.11 기준에 미달한 상태로 보이고 있었다.
+
+머리말 항목 이름을 실측으로 고쳤다. 329편을 전수 조사하니 저자 253 ·
+지은이 61 · author 13 · 글쓴이 1이었다. 표본 30개에서 뽑은 어휘로 앞의
+둘만 보고 있었고, 그래서 저자 null 15편이 나왔다 — 영어 이름 틀 13편 +
+글쓴이 1편 + 머리말 틀이 없는 모비딕 1편으로 정확히 설명된다. 처음에는
+블록 정규식이 취약한 것으로 의심했는데 원인이 아니었다.
+
+PD 태그 정규식을 문서대로 좁혔다. /^PD-/였고 문서 세 곳은 PD-old-*라고
+적어 놓았다. 그 틈으로 「파초」가 PD-공유마당(나이 만료가 아니라 이용
+허락)으로, 「자유종」이 PD-old-95-US(미국 기준)로 들어왔다.
+
+저자 문서의 사망 연도로 §5.11을 그대로 구현한다. 그동안 문서 세 곳에
+"PD 태그는 우리 기준이 아니다"라고 적어 놓고도 실제 필터는 그 태그였다.
+
+손으로 쓴 명단은 그대로 둔다 — 대체하지 않는다. 저자:정지용은 위키문헌에
+1950년 사망으로 적혀 있고 북한 분류도 없어 기계 검사를 통과한다. 그를
+막는 지식은 명단에만 있다.
+
+괄호 붙은 이름이 명단을 우회하는 구멍도 막았다.
+MSG
+```
+
+---
