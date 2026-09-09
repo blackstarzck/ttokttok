@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
+import { blockedAuthorReason } from "@/lib/book-rights";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -26,63 +27,26 @@ import {
  * 규칙화하면 정상 제목의 괄호까지 먹는다. 수정 화면에서 사람이 고친다.
  */
 
-/**
- * 저작자 이름을 조회 키로 정규화한다.
- *
- * macOS Finder·클립보드 경로는 한글을 NFD(자모 분해)로 내놓기도 하고, 폭
- * 없는 문자(zero-width space 등)가 붙어 들어오기도 한다 — 둘 다 이 조회를
- * 조용히 실패시켜 금지 저작자를 그냥 통과시킨다. 이건 우회를 막는 관문이
- * 아니라 실수로 새는 걸 막는 관문이라, 놓치는 쪽이 진짜 실패다.
- *
- * 아래 목록의 키를 만들 때도, 관리자 입력을 조회할 때도 **반드시 이 함수
- * 하나만** 거친다 — 각자 따로 정규화하면 훗날 공백이 낀 이름("김 기림")이
- * 한쪽에서만 걸러져 서로 어긋나고, 차단해야 할 저작자가 조용히 통과한다.
- */
-function normalizeAuthorKey(name: string): string {
-  return name.normalize("NFC").replace(/[\s\u200B\u200C\u200D\u00AD]/g, "");
-}
-
-/**
- * 등록 금지 저작자 (PRD §5.11).
- *
- * 위키문헌에 문서가 있다는 사실이 "공개해도 된다"로 오독되는 지점이
- * 여기다 — 위키문헌은 우리와 다른 기준으로 운영된다. 그래서 임포트
- * 경로에만 관문을 둔다. 수동 등록(saveBook)은 막지 않는다: 손으로 적어
- * 넣는 행위에는 이런 오독이 끼어들지 않는다.
- *
- * `Map`으로 두는 이유: 객체 리터럴이면 `BLOCKED_AUTHORS["constructor"]` 같은
- * 프로토타입 키 조회가 함수를 반환해 "차단됨"으로 오판된다. 키는
- * `normalizeAuthorKey`(위)로 저장한다 — 조회 쪽(아래)도 같은 함수를 거치므로
- * 두 쪽이 어긋날 일이 구조적으로 없다.
- */
-const BLOCKED_AUTHORS = new Map<string, string>(
-  (
-    [
-      ["정지용", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["이태준", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["박태원", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["홍명희", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["김기림", "월북·납북 작가 — 사망 연도가 불확실합니다"],
-      ["백석", "1996년 사망 — 저작권이 존속합니다 (사후 70년)"],
-      ["박경리", "2008년 사망 — 저작권이 존속합니다 (사후 70년)"],
-    ] as const
-  ).map(([name, reason]) => [normalizeAuthorKey(name), reason] as const),
-);
-
 const str = (fd: FormData, key: string) =>
   String(fd.get(key) ?? "").trim() || null;
 
 /**
- * 오류를 안고 임포트 화면으로 되돌린다.
+ * 오류를 안고 온 화면으로 되돌린다.
  *
  * **화살표 함수가 아니라 함수 선언이어야 한다.** 타입스크립트의 제어 흐름
  * 분석은 `never`를 돌려주는 호출 뒤를 도달 불가로 보는데, 그 판단은 호출
  * 대상이 함수 선언(또는 명시적 타입을 가진 const 변수)일 때만 적용된다.
  * `const back = (m: string): never => …` 로 쓰면 아래에서 `source`가
  * `string | null`로 남아 타입 오류가 난다.
+ *
+ * `from`은 두 값만 뜻이 있고 나머지는 임포트 화면으로 간다. **경로를
+ * 폼에서 받지 않는 이유가 이것이다** — 숨은 필드는 사용자가 고칠 수 있고,
+ * 받은 경로로 리다이렉트하면 열린 리다이렉트가 된다.
  */
-function back(message: string): never {
-  redirect(`/admin/books/import?error=${encodeURIComponent(message)}`);
+function back(message: string, from: string | null): never {
+  const path =
+    from === "catalogue" ? "/admin/books/wikisource" : "/admin/books/import";
+  redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
 export async function importFromWikisource(formData: FormData) {
@@ -91,17 +55,19 @@ export async function importFromWikisource(formData: FormData) {
   const source = str(formData, "source");
   const author = str(formData, "author");
   const category = str(formData, "category");
+  // 오류가 났을 때 어느 화면으로 되돌릴지. 값은 아래 back이 화이트리스트로 거른다.
+  const from = str(formData, "from");
 
   if (!source || !author || !category) {
-    back("문서 주소·저자·카테고리는 모두 필요합니다.");
+    back("문서 주소·저자·카테고리는 모두 필요합니다.", from);
   }
 
-  // 목록 쪽 키와 같은 함수로 정규화해야 어긋나지 않는다 (normalizeAuthorKey 참고).
-  const authorKey = normalizeAuthorKey(author);
-  const blocked = BLOCKED_AUTHORS.get(authorKey);
+  // 명단은 src/lib/book-rights.ts 하나다 — 목록 화면도 같은 것을 본다.
+  const blocked = blockedAuthorReason(author);
   if (blocked) {
     back(
       `등록할 수 없는 저작자입니다: 「${author}」 — ${blocked} (PRD §5.11 등록 금지 목록).`,
+      from,
     );
   }
 
@@ -111,7 +77,7 @@ export async function importFromWikisource(formData: FormData) {
   try {
     pageTitle = toPageTitle(source);
   } catch (err) {
-    back(err instanceof Error ? err.message : "문서 주소를 읽을 수 없습니다.");
+    back(err instanceof Error ? err.message : "문서 주소를 읽을 수 없습니다.", from);
   }
 
   const db = await createClient();
@@ -128,7 +94,7 @@ export async function importFromWikisource(formData: FormData) {
     // fetch를 낭비하고서야 insert에서 뒤늦게 실패한다 — 이 사전 확인이
     // 있는 이유 자체가 사라진다. PostgREST 원문은 로그로만 남긴다.
     console.error(`중복 확인 조회 실패 (source_ref=${pageTitle}): ${existingErr.message}`);
-    back("중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    back("중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.", from);
   }
 
   if (existing) {
@@ -140,7 +106,7 @@ export async function importFromWikisource(formData: FormData) {
     epub = await fetchEpub(pageTitle);
     assertClean(epub);
   } catch (err) {
-    back(err instanceof Error ? err.message : "본문을 받지 못했습니다.");
+    back(err instanceof Error ? err.message : "본문을 받지 못했습니다.", from);
   }
 
   const meta = readEpubMetadata(epub);
@@ -159,7 +125,7 @@ export async function importFromWikisource(formData: FormData) {
     .upload(path, epub, { contentType: "application/epub+zip", upsert: true });
 
   if (upErr) {
-    back(`본문 업로드에 실패했습니다: ${upErr.message}`);
+    back(`본문 업로드에 실패했습니다: ${upErr.message}`, from);
   }
   uploaded.push({ bucket: "epubs", path });
 
@@ -203,17 +169,20 @@ export async function importFromWikisource(formData: FormData) {
         redirect(`/admin/books/${dup.id}?exists=1`);
       }
 
-      back("이미 등록된 위키문헌 문서입니다.");
+      back("이미 등록된 위키문헌 문서입니다.", from);
     } else {
       // 그 밖의 실패(제약 조건 등)는 PostgREST 원문을 그대로 보여줘 봐야
       // 관리자가 고칠 수 있는 정보가 아니다 — saveBook의 humanize()와 같은
       // 이유로 로그에만 원문을 남기고 화면에는 일반 문구를 띄운다.
       console.error(`도서 저장 실패 (bookId=${bookId}): ${insertErr.message}`);
-      back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      back("도서 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.", from);
     }
   }
 
   revalidatePath("/admin/books");
+  // 목록의 「✓ 등록됨」 표시가 즉시 반영돼야 한다. 없으면 관리자가 목록으로
+  // 돌아왔을 때 방금 가져온 작품이 아직 「가져오기」로 보여 두 번 누른다.
+  revalidatePath("/admin/books/wikisource");
   revalidatePath("/");
   redirect(`/admin/books/${bookId}?imported=1`);
 }

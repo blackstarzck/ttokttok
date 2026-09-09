@@ -15,6 +15,7 @@
     "seed": "node --env-file=.env scripts/seed.mjs",
     "covers": "node --env-file=.env scripts/generate-covers.mjs",
     "epubs:refresh": "node --env-file=.env scripts/refresh-epubs.mjs",
+    "wikisource:sync": "node --env-file=.env scripts/sync-wikisource-works.mjs",
     "admin:create": "node --env-file=.env scripts/create-admin.mjs"
   },
   "dependencies": {

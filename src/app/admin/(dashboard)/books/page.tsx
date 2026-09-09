@@ -55,8 +55,12 @@ export default async function AdminBooksPage({
           </p>
         </div>
         <div className="flex gap-2">
+          {/*
+            목록을 먼저 보여주는 쪽이 기본 경로다 — 관리자가 위키문헌을
+            따로 뒤지지 않아도 된다. 주소 입력은 목록 화면 안에서 간다.
+          */}
           <Button asChild variant="outline" className="min-h-11">
-            <Link href="/admin/books/import">위키문헌에서 가져오기</Link>
+            <Link href="/admin/books/wikisource">위키문헌 목록</Link>
           </Button>
           <Button asChild className="min-h-11">
             <Link href="/admin/books/new">새 도서</Link>
