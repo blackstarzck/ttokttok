@@ -32,7 +32,10 @@ export function TopBar({ isGuest }: { isGuest: boolean }) {
     <header className="border-border bg-background flex h-14 shrink-0 items-center justify-between border-b px-3">
       <span className="text-base font-bold">똑똑</span>
 
-      <div className="flex items-center gap-1">
+      {/* gap-2(8px)여야 한다 — DESIGN.md Layout의 "인접 타깃 간 8px 이상".
+          gap-1(4px)로 두었다가 회귀 검사에서 걸렸다. 예외는 BottomNav 하나뿐
+          이고 그 예외를 헤더로 넓히지 않는다. */}
+      <div className="flex items-center gap-2">
         {isGuest ? (
           <Link
             href="/about"
