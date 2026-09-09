@@ -4057,3 +4057,307 @@ MSG
 ```
 
 ---
+
+---
+
+### Task 13: 화면이 권리 판정을 매번 다시 한다 (사용자 결정)
+
+브랜치 전체 검토가 찾은 구조적 위험이다. 지금 행은 **어떤 규칙으로 통과했는지를 기록하지 않는다.** 화면이 매번 다시 보는 것은 금지 저작자 명단뿐이고(`isListable`), 사망 연도·국적·장르 범위·저작권 태그는 동기화 시점 판정으로 얼어붙는다.
+
+**깨지는 방식:** 누가 `PUBLIC_DOMAIN_DEATH_BEFORE`를 바꾸거나 `SCOPE_GENRES`를 넓히거나 `KOREAN_AUTHOR`를 좁혀 배포한다. 테스트·빌드 통과. 화면은 290편을 그대로 「가져오기」로 내놓는다. `books`에 초안 상태가 없고 `books_select_all using (true)`이므로 **한 번 누르면 즉시 공개**다. 누군가 동기화를 다시 돌릴 때까지 아무도 모른다.
+
+지금 데이터는 정확하다. 이건 이 브랜치의 Critical 결함이 조용히 되돌아올 수 있는 유일한 경로다.
+
+**해결의 모양:** 금지 저작자 명단이 이미 화면에서 매번 확인된다. 사망 연도·국적을 행에 저장해 **같은 토대**로 만든다. 장르와 PD 태그는 이미 행에 있다.
+
+**Files:**
+- Create: `supabase/migrations/20260909000002_wikisource_works_author_facts.sql` — **번호는 작업 시점에 `ls supabase/migrations/ | tail -1`로 확인한다.** master가 `20260909000001`을 가져갔다
+- Modify: `src/lib/wikisource-meta.ts` — 저장한 값으로 규칙을 다시 적용하는 순수 함수
+- Modify: `src/lib/wikisource-meta.test.ts`
+- Modify: `scripts/sync-wikisource-works.mjs` — 새 컬럼을 채운다
+- Modify: `src/lib/wikisource-catalogue.ts` — 행마다 재판정하고 사유를 붙인다
+- Modify: `src/lib/wikisource-catalogue.test.ts`
+- Modify: `src/app/admin/(dashboard)/books/wikisource/page.tsx` — 재판정 실패 행을 「가져오기」 없이 그리고, 하나라도 있으면 배너로 알린다
+
+**Interfaces (Produces):**
+- `type StoredAuthorFacts = { author_born: number | null; author_died: number | null; author_is_korean: boolean | null; author_is_north_korean: boolean | null }`
+- `reverifyRow(row): { ok: true } | { ok: false; reason: string; stale: boolean }` — `stale`은 「규칙이 바뀌었거나 검증값이 없다 → 동기화가 필요하다」와 「이 작품은 원래 안 된다」를 가른다
+
+- [ ] **Step 1: 마이그레이션을 쓴다**
+
+```sql
+-- ============================================================
+-- wikisource_works에 저자 판정의 근거를 남긴다 (결정 기록 §11-66)
+--
+-- 왜: 지금 행은 「어떤 규칙으로 통과했는지」를 기록하지 않는다. 화면이 매번
+-- 다시 보는 것은 금지 저작자 명단뿐이고, 사망 연도·국적은 동기화 시점
+-- 판정으로 얼어붙는다. 그래서 누가 PUBLIC_DOMAIN_DEATH_BEFORE를 바꾸거나
+-- KOREAN_AUTHOR를 좁혀 배포하면, 화면은 낡은 승인으로 「가져오기」를 계속
+-- 내놓는다 — books에 초안 상태가 없어 한 번 누르면 즉시 공개다.
+--
+-- 이 값들을 저장하면 화면이 렌더 시점에 규칙을 다시 적용할 수 있다. 장르와
+-- pd_tag는 이미 행에 있으므로, 저자 쪽 네 값이 더해지면 동기화가 적용한
+-- 모든 조건을 화면에서 재현할 수 있다.
+--
+-- nullable인 이유: 기존 293행에는 이 값이 없다. 화면은 null을 「검증값 없음
+-- — 동기화가 필요하다」로 읽고 「가져오기」를 내주지 않는다. 다음 동기화가
+-- 채운다. 기본값을 주면 검증하지 않은 행이 검증된 척하게 된다.
+-- ============================================================
+
+alter table public.wikisource_works
+  add column author_born            int,
+  add column author_died            int,
+  add column author_is_korean       boolean,
+  add column author_is_north_korean boolean;
+
+comment on column public.wikisource_works.author_died is
+  '저자 문서 분류에서 읽은 사망 연도. PRD §5.11(1962년 이전 사망) 판정의 근거이며 화면이 렌더 시점에 다시 확인한다.';
+comment on column public.wikisource_works.author_is_korean is
+  '저자 문서의 국적 분류. 한국 저자가 아니면 번역자 저작권이 별개다 (PRD §5.11).';
+```
+
+- [ ] **Step 2: 재판정 함수를 쓴다 (실패하는 테스트 먼저)**
+
+`src/lib/wikisource-meta.test.ts`:
+
+```ts
+describe("reverifyStored", () => {
+  const row = (o = {}) => ({
+    genre: "단편소설" as const,
+    pd_tag: "PD-old-70",
+    pub_year: 1936,
+    author_born: 1908,
+    author_died: 1937,
+    author_is_korean: true,
+    author_is_north_korean: false,
+    ...o,
+  });
+
+  it("동기화가 적용한 모든 조건을 다시 만족하면 통과", () => {
+    expect(reverifyStored(row())).toEqual({ ok: true });
+  });
+
+  /**
+   * 이 함수가 있는 이유가 이 테스트다. 기준 연도를 바꿔 배포하면 화면이
+   * 낡은 승인을 그대로 내놓던 것을 막는다.
+   */
+  it("사망 연도가 지금 기준에 미달하면 막고 stale로 표시한다", () => {
+    const r = reverifyStored(row({ author_died: 1990 }));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.stale).toBe(true);
+  });
+
+  it("국적이 한국이 아니면 막는다", () => {
+    expect(reverifyStored(row({ author_is_korean: false })).ok).toBe(false);
+  });
+
+  it("북한 저자면 막는다", () => {
+    expect(reverifyStored(row({ author_is_north_korean: true })).ok).toBe(false);
+  });
+
+  /**
+   * 검증값이 없는 행 — 마이그레이션 직후의 기존 293행이 그렇다.
+   * 「검증하지 않았다」와 「검증했고 통과했다」를 구별해야 한다.
+   */
+  it("검증값이 없으면 막고 동기화가 필요하다고 알린다", () => {
+    const r = reverifyStored(row({ author_died: null, author_is_korean: null }));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.stale).toBe(true);
+    expect(r.ok === false && r.reason).toMatch(/동기화/);
+  });
+
+  it("장르가 지금 범위 밖이면 막는다", () => {
+    expect(reverifyStored(row({ genre: "수필" })).ok).toBe(false);
+  });
+
+  it("PD 태그가 지금 조건 밖이면 막는다", () => {
+    expect(reverifyStored(row({ pd_tag: "PD-공유마당" })).ok).toBe(false);
+  });
+
+  it("발표 연도가 저자 생애 밖이면 막는다", () => {
+    expect(reverifyStored(row({ pub_year: 1800 })).ok).toBe(false);
+  });
+
+  /** 사후 출간은 정상이다 — 윤동주는 1945년 사망, 1979년 출간. */
+  it("사후 출간을 막지 않는다", () => {
+    expect(reverifyStored(row({ author_died: 1945, pub_year: 1979 }))).toEqual({ ok: true });
+  });
+});
+```
+
+- [ ] **Step 3: 실패를 확인하고 구현한다**
+
+```bash
+npm test -- src/lib/wikisource-meta.test.ts
+```
+
+`src/lib/wikisource-meta.ts`:
+
+```ts
+/** 행에 저장된 저자 판정의 근거. 화면이 이것으로 규칙을 다시 적용한다. */
+export type StoredAuthorFacts = {
+  author_born: number | null;
+  author_died: number | null;
+  author_is_korean: boolean | null;
+  author_is_north_korean: boolean | null;
+};
+
+/**
+ * 저장된 행이 **지금의** 규칙을 여전히 만족하는지 다시 판정한다.
+ *
+ * 동기화 시점의 승인을 렌더 시점의 승인으로 바꾸는 함수다. 금지 저작자
+ * 명단은 이미 화면에서 매번 확인되는데(`isListable`) 사망 연도·국적·장르·
+ * 태그는 행에 얼어붙어 있었다 — 기준을 바꿔 배포하면 화면이 낡은 승인으로
+ * 「가져오기」를 계속 내놓고, `books`에 초안 상태가 없어 한 번 누르면 즉시
+ * 공개된다.
+ *
+ * `stale`이 참이면 「이 작품이 원래 안 되는 것」이 아니라 「검증이 지금
+ * 기준과 어긋나거나 아예 없다 — 동기화가 필요하다」는 뜻이다. 관리자가 할
+ * 일이 다르므로 갈라 준다.
+ */
+export function reverifyStored(
+  row: { genre: string; pd_tag: string; pub_year: number | null } & StoredAuthorFacts,
+): { ok: true } | { ok: false; reason: string; stale: boolean } {
+  if (
+    row.author_is_korean === null ||
+    row.author_is_north_korean === null ||
+    row.author_died === null
+  ) {
+    return {
+      ok: false,
+      reason: "저자 검증값이 없습니다 — 동기화를 다시 돌려야 합니다",
+      stale: true,
+    };
+  }
+
+  const info: AuthorInfo = {
+    born: row.author_born,
+    died: row.author_died,
+    isKorean: row.author_is_korean,
+    isNorthKorean: row.author_is_north_korean,
+    missing: false,
+  };
+
+  const verdict = checkAuthor(info);
+  if (!verdict.ok) {
+    return {
+      ok: false,
+      reason: `${verdict.reason} — 규칙이 바뀌었으니 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  if (!eraConsistent(row.pub_year, info)) {
+    return {
+      ok: false,
+      reason: "발표 연도가 저자 생애와 어긋납니다 — 동기화를 다시 돌려야 합니다",
+      stale: true,
+    };
+  }
+
+  if (!(SCOPE_GENRES as readonly string[]).includes(row.genre)) {
+    return {
+      ok: false,
+      reason: `범위 밖 장르(${row.genre}) — 규칙이 바뀌었으니 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  if (!PD_TAG.test(row.pd_tag)) {
+    return {
+      ok: false,
+      reason: `저작권 태그(${row.pd_tag})가 지금 조건에 맞지 않습니다 — 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  return { ok: true };
+}
+```
+
+- [ ] **Step 4: 동기화가 새 컬럼을 채우게 한다**
+
+`scripts/sync-wikisource-works.mjs`의 `registrable` 조립부에서, 저자 판정을 통과한 행에 판정 근거를 함께 넣는다:
+
+```js
+    if (verdict.ok && eraOk) {
+      const info = authorInfo.get(c.author);
+      registrable.push({
+        ...c,
+        // 판정의 근거를 행에 남긴다 — 화면이 렌더 시점에 규칙을 다시
+        // 적용할 수 있어야 한다 (§11-66). 남기지 않으면 기준을 바꿔
+        // 배포했을 때 화면이 낡은 승인을 계속 내놓는다.
+        author_born: info.born,
+        author_died: info.died,
+        author_is_korean: info.isKorean,
+        author_is_north_korean: info.isNorthKorean,
+      });
+    }
+```
+
+- [ ] **Step 5: 화면이 재판정하게 한다 (실패하는 테스트 먼저)**
+
+`src/lib/wikisource-catalogue.ts`의 `WorkRow`에 저장 컬럼을 더하고, `CatalogueRow`에 `staleReason: string | null`을 더한다. `applyCatalogueQuery`가 `reverifyStored`를 불러 채운다.
+
+**중요:** `blockedReason`과 섞지 않는다. 「금지 저작자라 영원히 안 됨」과 「검증이 낡아 동기화가 필요함」은 관리자가 할 일이 다르다. 재판정 실패 행은 `showUnlistable`과 **무관하게** 「가져오기」를 내주지 않는다 — 그것이 이 Task의 요점이다. 다만 목록에서 지우지는 않는다: 지우면 왜 사라졌는지 알 수 없다.
+
+`src/lib/wikisource-catalogue.test.ts`에 더한다:
+
+```ts
+  it("재판정 실패 행에는 가져오기를 내주지 않는다", () => {
+    const rows = [{ ...ROWS[0], author_died: 1990 }];
+    const r = applyCatalogueQuery(rows, { ...parseCatalogueQuery({}) }, new Map());
+    expect(r.rows[0].staleReason).toMatch(/동기화/);
+  });
+
+  /**
+   * 「등록 불가 포함해서 보기」를 꺼도 재판정 실패 행은 목록에 남아야 한다.
+   * 지우면 관리자가 왜 사라졌는지 알 수 없고, 동기화가 필요한 것도 모른다.
+   */
+  it("재판정 실패 행을 목록에서 지우지 않는다", () => {
+    const rows = [{ ...ROWS[0], author_died: 1990 }];
+    const r = applyCatalogueQuery(rows, { ...parseCatalogueQuery({}) }, new Map());
+    expect(r.total).toBe(1);
+  });
+```
+
+- [ ] **Step 6: 화면을 고친다**
+
+`page.tsx`의 select에 새 컬럼 네 개를 더한다. 상태 열에서 `staleReason`이 있으면 「가져오기」 대신 그 사유를 흐리게 보인다 — `blockedReason`과 같은 모양이지만 문구가 다르다.
+
+그리고 하나라도 있으면 표 위에 배너를 띄운다. 사유별 편수가 아니라 **무엇을 해야 하는지**를 적는다:
+
+```tsx
+      {staleCount > 0 && (
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-md border px-3 py-2 text-sm"
+        >
+          {staleCount}편의 저자 검증이 지금 기준과 어긋납니다. `npm run wikisource:sync`를
+          다시 돌려야 목록이 최신 기준을 반영합니다. 그때까지 해당 작품은 가져올 수 없습니다.
+        </p>
+      )}
+```
+
+- [ ] **Step 7: 빌드·테스트**
+
+```bash
+npm test
+npm run build
+```
+
+- [ ] **Step 8: 커밋하고 사용자에게 마이그레이션 적용을 요청한다**
+
+**`supabase db push`를 실행하지 않는다.** 다른 세션의 미적용 마이그레이션을 함께 밀어버린다.
+
+사용자에게 알린다:
+
+> `supabase/migrations/20260909000002_...sql`을 대시보드에서 적용해 주세요. 컬럼 네 개를 더할 뿐 기존 값을 건드리지 않습니다. 적용 뒤 동기화를 다시 돌려야 그 값이 채워지고, 그때까지 목록은 「동기화가 필요합니다」를 보입니다.
+
+적용 뒤 동기화를 다시 돌려 293행에 판정 근거를 채운다. 그러면 배너가 사라진다.
+
+- [ ] **Step 9: 결정 기록 §11-66을 더한다**
+
+번호는 작업 시점에 다시 센다 — 이 저장소에서 다섯 번 충돌했다.
+
+---
