@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { getFeed } from "@/lib/feed";
+import { getFeaturedBooks } from "@/lib/discover";
 import { AboutNav } from "@/components/about/about-nav";
 import { AboutHero } from "@/components/about/about-hero";
 import { AboutLoop } from "@/components/about/about-loop";
+import { BookStrip } from "@/components/about/book-strip";
 import { RightsSection } from "@/components/about/rights-section";
 import { ClosingCta } from "@/components/about/closing-cta";
 import { AboutFooter } from "@/components/about/about-footer";
@@ -29,14 +31,18 @@ export default async function AboutPage() {
   // sessionId에 null을 넘겨도 안전하다. `(main)/page.tsx`가 경고하는 문제는
   // 1페이지와 다음 페이지가 다른 세션 id로 점수를 계산해 같은 게시물이 두
   // 페이지에 겹치는 것인데, 여기는 1건만 받고 페이지네이션을 하지 않는다.
-  const [cardFeed] = await Promise.all([
+  const [cardFeed, featured] = await Promise.all([
     getFeed(seed, null, 1, null, "cards"),
+    getFeaturedBooks(),
   ]);
 
   // 실패를 빈 값으로 삼키지 않는다 (FRONTEND.md §5). 카드를 못 구하면
   // 히어로가 텍스트 단독으로 좁혀 선다 — 히어로가 통째로 사라지면 페이지가
   // 제목 없이 시작한다.
   const samplePost = cardFeed.failed ? null : (cardFeed.posts[0] ?? null);
+  // 조회가 실패했으면 섹션을 접는다 — 빈 목록을 그려 "추천 도서가 없다"고
+  // 말하면 그건 정보가 아니라 거짓말이다.
+  const featuredBooks = featured.failed ? [] : featured.books;
 
   return (
     <div className="bg-background text-foreground min-h-dvh">
@@ -44,6 +50,7 @@ export default async function AboutPage() {
       <main>
         <AboutHero post={samplePost} />
         <AboutLoop />
+        <BookStrip books={featuredBooks} />
         <RightsSection />
         <ClosingCta />
       </main>
