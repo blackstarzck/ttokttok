@@ -3,6 +3,7 @@ import {
   type AuthorInfo,
   authorPageTitle,
   checkAuthor,
+  eraConsistent,
   EXCLUSION_REASONS,
   isCandidate,
   parseAuthorPage,
@@ -473,6 +474,67 @@ describe("checkAuthor", () => {
       .toEqual({ ok: false, reason: "북한 저자" });
     expect(checkAuthor(info({ died: null })))
       .toEqual({ ok: false, reason: "사망 연도 불명" });
+  });
+});
+
+describe("eraConsistent", () => {
+  const info = (born: number | null, died: number | null): AuthorInfo => ({
+    born,
+    died,
+    isKorean: true,
+    isNorthKorean: false,
+    missing: false,
+  });
+
+  it("생존 중 발표는 통과한다", () => {
+    expect(eraConsistent(1935, info(1900, 1951))).toBe(true);
+  });
+
+  /**
+   * 실측: 윤동주(1945년 사망)의 작품은 사후 1948년·1979년에도 발표됐다.
+   * 34년 뒤인 1979년까지 통과해야 이 창이 "생존 중만 허용"으로 좁지
+   * 않다는 것이 확인된다 — 관용 없는(사후 발표는 전부 배제) 틀린 규칙과
+   * 여기서 갈린다.
+   */
+  it("사후 발표라도 50년 이내면 통과한다 — 윤동주 사례", () => {
+    expect(eraConsistent(1979, info(null, 1945))).toBe(true);
+  });
+
+  /**
+   * 경계값을 못박는다. 정확히 50년 뒤(1995)는 통과, 51년째(1996)부터는
+   * 배제해야 "50년"이라는 구체적 수치가 지켜진다 — 창을 더 좁거나 넓게
+   * 잡은 틀린 구현과 이 지점에서 갈린다.
+   */
+  it("사망 50년 뒤까지는 통과, 51년째부터 배제한다", () => {
+    expect(eraConsistent(1995, info(null, 1945))).toBe(true);
+    expect(eraConsistent(1996, info(null, 1945))).toBe(false);
+  });
+
+  it("출생 이전 발표는 배제한다", () => {
+    expect(eraConsistent(1899, info(1900, null))).toBe(false);
+  });
+
+  /** 사망 50년을 크게 넘긴 발표 — 아예 다른 시대의 저자를 짚었다는 신호다. */
+  it("사망 50년을 크게 넘긴 발표는 배제한다", () => {
+    expect(eraConsistent(1954, info(null, 1650))).toBe(false);
+  });
+
+  /**
+   * 발표 연도를 모르면 판단할 근거가 없다. 저자 생몰년을 아주 좁게
+   * (1990~2000) 두어도 통과해야, "모른다"를 "배제"로 잘못 바꾸지 않았다는
+   * 것이 확인된다.
+   */
+  it("발표 연도를 모르면 통과시킨다", () => {
+    expect(eraConsistent(null, info(1990, 2000))).toBe(true);
+  });
+
+  /**
+   * 저자 생몰년을 둘 다 모르면 발표 연도가 무엇이든(여기서는 1500 — 생몰년을
+   * 안다면 명백히 배제될 값) 판단할 근거가 없다. 사망 연도 불명 자체는
+   * `checkAuthor`가 따로 배제한다.
+   */
+  it("생몰년을 둘 다 모르면 통과시킨다", () => {
+    expect(eraConsistent(1500, info(null, null))).toBe(true);
   });
 });
 

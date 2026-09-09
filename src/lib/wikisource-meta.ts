@@ -48,6 +48,7 @@ export const EXCLUSION_REASONS = [
   "북한 저자",
   "1962년 이후 사망",
   "사망 연도 불명",
+  "저자 확인 불가",
 ] as const;
 
 export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
@@ -291,4 +292,39 @@ export function checkAuthor(
     return { ok: false, reason: "1962년 이후 사망" };
   }
   return { ok: true };
+}
+
+/**
+ * 발표 연도가 저자의 생애와 맞물리는지 본다 — **엉뚱한 저자 문서를 물었는지
+ * 걸러내는 마지막 방어선**이다.
+ *
+ * `authorPageTitle`은 이름의 첫 괄호 앞만 잘라 저자 문서 제목을 만들 뿐,
+ * 받아온 문서가 정말 그 사람인지는 아무것도 확인하지 않는다. 문서가 아예
+ * 없으면 `checkAuthor`가 「저자 문서 없음」으로 안전하게 배제하지만, **존재
+ * 하는 다른 사람의 문서**를 잘못 물면 그 문서가 우연히 한국인이고 1962년
+ * 이전 사망이기만 하면 그대로 통과해 버린다. 실측: 머리말은 저자를
+ * 「로버트 스티븐슨」으로 적었는데 실제 저자 문서는 「저자:로버트 루이스
+ * 스티븐슨」이다 — 이번엔 축약형 문서가 아예 없어 안전하게 걸렸지만,
+ * 위키문헌이 동명이인 구분 방식(`이름 (구분)`)으로 바뀌면 다음번엔
+ * 존재하는 다른 사람의 문서를 물게 될 수 있다.
+ *
+ * 발표 연도가 저자의 생애 밖이면 신뢰할 수 없다는 신호로 본다:
+ * - 출생 이전 발표는 불가능하다.
+ * - 사후 발표는 흔하다 — 윤동주(1945년 사망)의 작품은 1948년·1979년에도
+ *   나왔다 — 그래서 넉넉하게 50년을 허용한다. 그보다 멀면 아예 다른
+ *   시대의 저자를 짚었다고 본다.
+ *
+ * 판단할 근거가 없으면(발표 연도 미상이거나 저자 생몰년을 둘 다 모르면)
+ * 통과시킨다 — 「모른다」를 배제로 바꾸지 않는다. 사망 연도를 모르는 경우는
+ * 이미 `checkAuthor`의 「사망 연도 불명」이 따로 배제한다.
+ */
+export function eraConsistent(
+  pubYear: number | null,
+  info: AuthorInfo,
+): boolean {
+  if (pubYear === null) return true;
+  if (info.born === null && info.died === null) return true;
+  if (info.born !== null && pubYear < info.born) return false;
+  if (info.died !== null && pubYear > info.died + 50) return false;
+  return true;
 }

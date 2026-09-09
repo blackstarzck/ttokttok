@@ -22,6 +22,7 @@ import {
   SCOPE_GENRES,
   authorPageTitle,
   checkAuthor,
+  eraConsistent,
   isCandidate,
   parseAuthorPage,
   parseCategories,
@@ -222,7 +223,9 @@ async function run() {
   // .mjs라 타입 검사가 없어 아무도 못 잡는다.
   const excluded = Object.fromEntries(EXCLUSION_REASONS.map((r) => [r, 0]));
   const noAuthorTitles = [];
-  let translated = 0;
+  // 번역물 중 저자 검사(checkAuthor·eraConsistent)에서 걸려 표에도 담기지
+  // 못한 수 — 원저자(해외 저자 등)가 배제된 경우다. 아래 3)에서 채운다.
+  let translatedExcludedByAuthor = 0;
   // "범위 밖 장르"로 집계된 것 중 실제로는 "응답에서 사라진 문서"인 수.
   // 장르로 크롤했으므로 이 사유의 나머지(추정 파싱 오류)는 0이어야 한다.
   let missingFromResponse = 0;
@@ -278,8 +281,6 @@ async function run() {
         continue;
       }
 
-      if (header.translator) translated++;
-
       candidates.push({
         page_title: pageTitle,
         title: header.title ?? title,
@@ -323,30 +324,43 @@ async function run() {
     progress(Math.min(i + BATCH, authors.length), authors.length, `저자 ${authorInfo.size}명`);
   }
 
-  const registrable = [];
+  const authorPassed = [];
   const rejectedAuthors = new Map(); // 저자 → { reason, works }
 
   for (const c of candidates) {
     const verdict = checkAuthor(authorInfo.get(c.author));
     if (verdict.ok) {
-      registrable.push(c);
+      authorPassed.push(c);
       continue;
     }
     excluded[verdict.reason]++;
+    if (c.translator) translatedExcludedByAuthor++;
     const seen = rejectedAuthors.get(c.author) ?? { reason: verdict.reason, works: 0 };
     seen.works++;
     rejectedAuthors.set(c.author, seen);
   }
 
-  // 저자 문서를 잘못 짚었는지 값의 앞뒤로 확인한다. 발표 연도가 사망
-  // 연도보다 뒤면 사후 출간일 수 있으니(윤동주가 그렇다) 넉넉한 한계를 쓴다.
-  for (const c of registrable) {
+  // `checkAuthor`는 저자 문서가 존재하고 한국인·1962년 이전 사망인지만
+  // 본다 — 받아온 문서가 **정말 그 작품의 저자**인지는 아무것도 확인하지
+  // 않는다. `authorPageTitle`이 이름의 첫 괄호 앞만 잘라 저자 문서 제목을
+  // 만들 뿐이라, 존재하는 다른 사람의 문서를 우연히 물면(예: 위키문헌이
+  // 동명이인 구분 괄호로 표기를 바꾸는 경우) 그 문서가 우연히 한국인이고
+  // 1962년 이전 사망이기만 하면 그대로 통과해 버린다. 발표 연도가 그
+  // 저자의 생애 밖이면 다른 사람의 문서를 짚었다는 신호로 보고 표에서
+  // 뺀다 — 경고만 하고 마는 것으로는 긴 로그에 묻혀 아무도 못 본다.
+  const registrable = [];
+  for (const c of authorPassed) {
     const info = authorInfo.get(c.author);
-    if (c.pub_year && info.born && c.pub_year < info.born) {
-      console.error(
-        `  ⚠ ${c.title}: ${c.pub_year}년 발표인데 저자 ${c.author}는 ${info.born}년 출생이다 — 저자 문서를 잘못 짚었을 수 있다`,
-      );
+    if (eraConsistent(c.pub_year, info)) {
+      registrable.push(c);
+      continue;
     }
+    excluded["저자 확인 불가"]++;
+    if (c.translator) translatedExcludedByAuthor++;
+    console.error(
+      `  ⚠ ${c.title} (${c.author}): 발표 ${c.pub_year ?? "?"}년 / 저자 생몰 ` +
+        `${info.born ?? "?"}–${info.died ?? "?"}년 — 저자 확인 불가로 제외`,
+    );
   }
 
   // ---- 4) 보고 ----
@@ -381,7 +395,18 @@ async function run() {
       });
   }
 
-  console.log(`\n  번역물 ${translated}개 — 표에는 담고 목록에서 가린다`);
+  // 번역물이라도 저자 검사(checkAuthor·eraConsistent)를 통과해 registrable에
+  // 남은 것만 "표에 담기고 화면에서 가려진다"고 말할 수 있다 — 원저자가
+  // 해외 저자 등으로 배제되면 애초에 표에 오르지 않는다(「전쟁과 평화」/
+  // 레프 톨스토이가 그 예다).
+  const translatedKept = registrable.filter((c) => c.translator).length;
+  console.log(`\n  번역물 ${translatedKept}개 — 표에 남아 목록에서 가려진다`);
+  if (translatedExcludedByAuthor) {
+    console.log(
+      `  (그 밖에 번역물 ${translatedExcludedByAuthor}개는 저자 검사에서 걸려 ` +
+        `표에도 담기지 못했다 — 원저자가 해외 저자 등으로 배제된 경우다)`,
+    );
+  }
 
   // ---- 5) 기존 행과 비교 ----
   const { data: existing, error: readErr } = await db
