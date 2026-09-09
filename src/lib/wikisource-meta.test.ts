@@ -402,6 +402,27 @@ describe("parseAuthorPage", () => {
       isKorean: true,
     });
   });
+
+  /**
+   * 선사·삼국시대 한국 저자를 인식한다 — 실측에서 최치원(신라)과
+   * 일연(고려)이 이 분류로 나타났다. 조선도 유지해 기존 테스트를
+   * 커버한다. 외국 저자(러시아)는 여전히 한국 저자로 인식되지 않는다.
+   */
+  it("신라 저자를 인식한다", () => {
+    expect(parseAuthorPage(["분류:신라의 저자"], false).isKorean).toBe(true);
+  });
+
+  it("고려 저자를 인식한다", () => {
+    expect(parseAuthorPage(["분류:고려의 저자"], false).isKorean).toBe(true);
+  });
+
+  it("조선 저자를 계속 인식한다", () => {
+    expect(parseAuthorPage(["분류:조선의 저자"], false).isKorean).toBe(true);
+  });
+
+  it("외국 저자는 인식하지 않는다", () => {
+    expect(parseAuthorPage(["분류:러시아의 저자"], false).isKorean).toBe(false);
+  });
 });
 
 describe("checkAuthor", () => {
