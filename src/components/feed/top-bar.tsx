@@ -22,20 +22,35 @@ import { UnreadBadge } from "@/components/feed/unread-badge";
  *
  * 홈 전용이다. 릴스는 전면 피드라 상단 바가 없다(결정 8) — 탐색·프로필은
  * 자체 헤더가 있거나 필요 없다.
+ *
+ * 비로그인일 때만 「소개」(`/about`)가 붙는다 — 이미 쓰고 있는 사람에게
+ * 소개를 권할 이유가 없다. 소개 페이지는 `(main)` 그룹 밖이라 이 바를
+ * 공유하지 않고 자기 상단 바를 갖는다.
  */
 export function TopBar({ isGuest }: { isGuest: boolean }) {
   return (
     <header className="border-border bg-background flex h-14 shrink-0 items-center justify-between border-b px-3">
       <span className="text-base font-bold">똑똑</span>
 
-      <Link
-        href={isGuest ? "/login?next=/notifications" : "/notifications"}
-        aria-label="알림"
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative flex min-h-11 min-w-11 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
-      >
-        <Bell className="size-6" aria-hidden />
-        {isGuest ? null : <UnreadBadge />}
-      </Link>
+      <div className="flex items-center gap-1">
+        {isGuest ? (
+          <Link
+            href="/about"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            소개
+          </Link>
+        ) : null}
+
+        <Link
+          href={isGuest ? "/login?next=/notifications" : "/notifications"}
+          aria-label="알림"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative flex min-h-11 min-w-11 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <Bell className="size-6" aria-hidden />
+          {isGuest ? null : <UnreadBadge />}
+        </Link>
+      </div>
     </header>
   );
 }
