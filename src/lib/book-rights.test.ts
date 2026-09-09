@@ -4,6 +4,7 @@ import {
   isListable,
   normalizeAuthorKey,
 } from "@/lib/book-rights";
+import { authorPageTitle } from "@/lib/wikisource-meta";
 
 describe("normalizeAuthorKey", () => {
   /**
@@ -76,6 +77,29 @@ describe("blockedAuthorReason", () => {
   it("괄호 앞이 금지 명단에 없으면 통과한다", () => {
     expect(blockedAuthorReason("김소월(김정식)")).toBeNull();
   });
+
+  /**
+   * Finding 4 (브랜치 전체 검토, 2026-09-09): 괄호를 떼는 규칙이 이 파일과
+   * `wikisource-meta.ts`의 `authorPageTitle`에 각자 따로 있었다. 한쪽만
+   * 새 괄호 형태를 받도록 넓히고 다른 쪽을 안 넓히면, 저자 문서 조회(→
+   * 기계적으로 등록 통과)와 이 명단 조회(→ 등록 차단)가 같은 저자 이름을
+   * 서로 다르게 읽는다 — 정지용이 실측 사례다. 지금은 `stripAuthorAnnotation`
+   * 하나를 공유하므로, 두 함수가 같은 입력에서 같은 "맨 이름"을 뽑아내는지
+   * 직접 대조한다. 앞으로 한쪽만 괄호 어휘를 넓히면(둘이 다시 갈라지면)
+   * 이 테스트가 실패한다.
+   */
+  it.each([
+    ["정지용(鄭芝溶)", "정지용"],
+    ["백석（白石）", "백석"],
+    ["김소월(김정식)", "김소월"],
+    ["이정호(李定鎬)", "이정호"],
+  ])(
+    "%s → %s — authorPageTitle과 blockedAuthorReason이 같은 이름을 본다",
+    (raw, bare) => {
+      expect(authorPageTitle(raw)).toBe(`저자:${bare}`);
+      expect(blockedAuthorReason(raw)).toBe(blockedAuthorReason(bare));
+    },
+  );
 });
 
 describe("isListable", () => {

@@ -214,6 +214,47 @@ describe("applyCatalogueQuery", () => {
     expect(run({ sort: "author", dir: "desc" }).rows.at(-1)?.author).toBeNull();
   });
 
+  /**
+   * Finding 3 (브랜치 전체 검토, 2026-09-09): `page.tsx`의 Supabase 조회에는
+   * `.order()`가 없어 Postgres가 주는 행 순서는 보장이 없고, 동기화의
+   * upsert가 표를 다시 쓸 때마다 물리적 순서를 바꾼다. 정렬 키가 같은
+   * 행끼리 순서가 안 정해져 있으면, 3쪽을 보던 관리자가 동기화 뒤 같은
+   * 행을 두 번 보거나 어떤 행에도 닿지 못할 수 있다.
+   *
+   * 입력 배열을 일부러 "틀린" 순서(page_title 내림차)로 준다 —
+   * `Array.prototype.sort`는 안정 정렬이라 동률을 그대로 두면(타이브레이커
+   * 없이 0을 반환하면) 입력 순서가 그대로 살아남는다. 그래서 이 테스트는
+   * `compare`에 `page_title` 타이브레이커가 없으면 반드시 실패한다.
+   */
+  it("정렬 키가 같은 행은 page_title 오름차로 갈린다", () => {
+    const tied: WorkRow[] = [
+      {
+        page_title: "마바사",
+        title: "다래",
+        author: "김철수",
+        genre: "시집",
+        pub_year: 1930,
+        translator: null,
+      },
+      {
+        page_title: "가나다",
+        title: "나비",
+        author: "이영희",
+        genre: "시집",
+        pub_year: 1930,
+        translator: null,
+      },
+    ];
+
+    const asc = run({ sort: "genre", dir: "asc" }, tied);
+    expect(asc.rows.map((r) => r.page_title)).toEqual(["가나다", "마바사"]);
+
+    // 방향을 뒤집어도 동률 안의 순서(page_title 오름차)는 바뀌지 않는다 —
+    // 그렇지 않으면 정렬 방향을 바꿀 때마다 "다음 쪽 첫 행"이 흔들린다.
+    const desc = run({ sort: "genre", dir: "desc" }, tied);
+    expect(desc.rows.map((r) => r.page_title)).toEqual(["가나다", "마바사"]);
+  });
+
   it("쪽을 자른다", () => {
     const many: WorkRow[] = Array.from({ length: 120 }, (_, i) => ({
       page_title: `문서 ${i}`,

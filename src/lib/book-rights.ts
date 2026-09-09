@@ -9,6 +9,8 @@
  * 목록 화면이 쓸 수 없었다. 두 벌이 되면 한쪽만 고쳐진다.
  */
 
+import { stripAuthorAnnotation } from "@/lib/wikisource-meta";
+
 /**
  * 저작자 이름을 조회 키로 정규화한다.
  *
@@ -59,6 +61,12 @@ const BLOCKED_AUTHORS = new Map<string, string>(
  * 「이정호(李定鎬)」처럼 괄호가 붙은 형태가 있다. 정규화는 공백과 폭 없는
  * 문자만 걷어내므로, 「정지용(鄭芝溶)」이 들어오면 명단을 통과해 버린다.
  * 놓치는 쪽이 진짜 실패인 관문이라 두 형태를 모두 본다.
+ *
+ * 괄호를 떼는 규칙은 `wikisource-meta.ts`의 `authorPageTitle`과
+ * **반드시 같은 함수**(`stripAuthorAnnotation`)를 거친다. 두 벌로 나뉘어
+ * 있으면 한쪽만 새 괄호 형태를 받도록 넓혔을 때 이 조회가 놓칠 수 있고,
+ * 그러면 저자 문서 조회는 통과하는데 금지 명단만 못 잡는 저자가 생긴다
+ * (`stripAuthorAnnotation`의 문서 주석에 실측 사례가 있다).
  */
 export function blockedAuthorReason(
   author: string | null | undefined,
@@ -68,7 +76,7 @@ export function blockedAuthorReason(
   const direct = BLOCKED_AUTHORS.get(normalizeAuthorKey(author));
   if (direct) return direct;
 
-  const bare = author.replace(/\s*[(（].*$/, "");
+  const bare = stripAuthorAnnotation(author);
   if (bare && bare !== author) {
     return BLOCKED_AUTHORS.get(normalizeAuthorKey(bare)) ?? null;
   }

@@ -9,6 +9,7 @@ import {
   parseAuthorPage,
   parseCategories,
   parseHeader,
+  stripAuthorAnnotation,
   toBookCategory,
 } from "@/lib/wikisource-meta";
 
@@ -348,6 +349,27 @@ describe("parseCategories — PD 태그를 문서대로 좁힌다", () => {
     expect(parseCategories(["분류:PD-공유마당", "분류:단편소설"]).pdTag).toBeNull();
     expect(parseCategories(["분류:PD-old-95-US", "분류:신소설"]).pdTag).toBeNull();
     expect(parseCategories(["분류:PD-self", "분류:소설"]).pdTag).toBeNull();
+  });
+});
+
+describe("stripAuthorAnnotation", () => {
+  /**
+   * `authorPageTitle`(이 파일)과 `blockedAuthorReason`(`book-rights.ts`)이
+   * 이 함수 하나를 공유한다(Finding 4, 브랜치 전체 검토). 두 벌로 나뉘어
+   * 있을 때는 한쪽만 새 괄호 형태를 받도록 넓히면 다른 쪽이 놓쳤다 — 그
+   * 반대 방향의 대조 테스트는 `book-rights.test.ts`에 있다.
+   */
+  it("괄호와 그 뒤를 뗀다", () => {
+    expect(stripAuthorAnnotation("김소월(김정식)")).toBe("김소월");
+    expect(stripAuthorAnnotation("이정호(李定鎬)")).toBe("이정호");
+  });
+
+  it("전각 괄호도 뗀다", () => {
+    expect(stripAuthorAnnotation("백석（白石）")).toBe("백석");
+  });
+
+  it("괄호가 없으면 그대로 돌려준다", () => {
+    expect(stripAuthorAnnotation("현진건")).toBe("현진건");
   });
 });
 

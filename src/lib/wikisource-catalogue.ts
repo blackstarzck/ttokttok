@@ -103,7 +103,7 @@ const collator = new Intl.Collator("ko");
  * 내림차로 정렬했더니 `—`가 위에 몰리면 표가 쓸모없어진다. 그래서 null
  * 판정을 방향 반전 **밖에서** 한다.
  */
-function compare(
+function compareValues(
   a: string | number | null,
   b: string | number | null,
   dir: "asc" | "desc",
@@ -128,6 +128,28 @@ function sortValue(row: WorkRow, key: SortKey): string | number | null {
     case "year":
       return row.pub_year;
   }
+}
+
+/**
+ * 두 행의 정렬 순서를 정한다 — 정렬 키가 같으면 `page_title`로 마저 가른다.
+ *
+ * `page.tsx`의 Supabase 조회에는 `.order()`가 없어 Postgres가 주는 행
+ * 순서는 애초에 보장이 없고, 동기화의 upsert가 표를 다시 쓸 때마다 물리적
+ * 순서가 또 바뀐다. `sort=genre`는 값이 8종류뿐이고 `sort=year`는 동률이
+ * 흔해서(293행 다수가 같은 10년대) 동률 안의 순서가 사실상 화면 순서를
+ * 지배한다 — 동률을 그대로 두면 3쪽을 보던 관리자가 동기화 뒤 「다음」을
+ * 눌렀을 때 같은 행을 두 번 보거나 어떤 행에도 영영 닿지 못할 수 있다.
+ *
+ * `page_title`은 표의 기본 키라 항상 유일하다(마이그레이션 주석) — 그래서
+ * 이 비교자를 거치면 동률이 완전히 사라져 정렬이 데이터베이스가 주는
+ * 순서와 무관하게 결정된다. 방향과 무관하게 항상 오름차로 고정한다:
+ * 동률 안에서까지 방향을 뒤집으면 정렬 방향을 바꿀 때마다 "다음 쪽 첫
+ * 행"이 예측할 수 없이 흔들린다.
+ */
+function compare(a: WorkRow, b: WorkRow, key: SortKey, dir: "asc" | "desc"): number {
+  const primary = compareValues(sortValue(a, key), sortValue(b, key), dir);
+  if (primary !== 0) return primary;
+  return compareValues(a.page_title, b.page_title, "asc");
 }
 
 /**
@@ -176,9 +198,7 @@ export function applyCatalogueQuery(
 
       return true;
     })
-    .sort((a, b) =>
-      compare(sortValue(a, query.sort), sortValue(b, query.sort), query.dir),
-    );
+    .sort((a, b) => compare(a, b, query.sort, query.dir));
 
   const total = matched.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

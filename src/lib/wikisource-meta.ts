@@ -273,6 +273,26 @@ export type AuthorInfo = {
 };
 
 /**
+ * 이름 뒤에 붙은 괄호 주석을 뗀다 — 「김소월(김정식)」→「김소월」,
+ * 「이정호(李定鎬)」→「이정호」.
+ *
+ * **이 파일의 `authorPageTitle`과 `src/lib/book-rights.ts`의
+ * `blockedAuthorReason`이 이 규칙을 각자 따로 갖고 있었다** (브랜치 전체
+ * 검토가 찾은 결함). 실측한 저자 이름에 괄호 형태가 있어(「김소월(김정식)」·
+ * 「이정호(李定鎬)」) 둘 다 이 처리가 필요했는데, 두 벌로 나뉘어 있으면
+ * 한쪽만 새 괄호 형태(예: 「정지용［鄭芝溶］」처럼 전각 대괄호)를 받도록
+ * 넓혔을 때 실패하는 쪽이 **`book-rights.ts`의 금지 명단 조회**다 — 그
+ * 조회가 놓치면 저자 문서 조회는 여전히 통과해 정지용이 그대로 등록
+ * 가능한 것으로 판정된다. 실측: 「저자:정지용」은 1950년 사망·북한 분류
+ * 없음으로 `checkAuthor`를 그대로 통과하고, 그를 막는 지식은 오직
+ * `book-rights.ts`의 손으로 쓴 명단뿐이다. 두 곳이 같은 함수 하나를
+ * 부르면 이 갈라짐이 원천적으로 불가능해진다.
+ */
+export function stripAuthorAnnotation(name: string): string {
+  return name.replace(/\s*[(（].*$/, "").trim();
+}
+
+/**
  * 저자 이름에서 저자 문서 제목을 만든다.
  *
  * 괄호와 그 뒤는 떼낸다 — 실측한 저자 이름에 「김소월(김정식)」·
@@ -280,7 +300,7 @@ export type AuthorInfo = {
  * 이름으로 존재한다.
  */
 export function authorPageTitle(author: string): string {
-  return "저자:" + author.replace(/\s*[(（].*$/, "").trim();
+  return "저자:" + stripAuthorAnnotation(author);
 }
 
 export function parseAuthorPage(
