@@ -9,19 +9,27 @@
  *
  * 레이트 리밋이 이 스크립트의 형태를 정했다. 실측으로 세 번 차단당했다 —
  * 50개 묶음 + 120ms에서 즉시, 20개 + 1초에서 백오프 11회, 20개 + 2초에서도
- * 걸렸다. 순차·2초·20개·백오프를 줄이지 말 것. 총 요청 약 47회로 2분쯤
- * 걸리고, 사람이 드물게 돌리는 스크립트라 그 정도는 무해하다.
+ * 걸렸다. 순차·2초·20개·백오프를 줄이지 말 것. 총 요청 약 51회(작품 47 +
+ * 저자 문서 4)로 2분쯤 걸리고, 사람이 드물게 돌리는 스크립트라 그 정도는
+ * 무해하다.
  *
  * service role 키를 쓰므로 RLS를 우회한다.
  */
 
 import { createClient } from "@supabase/supabase-js";
 import {
+  EXCLUSION_REASONS,
   SCOPE_GENRES,
+  authorPageTitle,
+  checkAuthor,
   isCandidate,
+  parseAuthorPage,
   parseCategories,
   parseHeader,
 } from "../src/lib/wikisource-meta.ts";
+// 문서 제목 정규화의 원천은 하나다 — books.source_ref와 같은 함수를 거쳐야
+// "이미 등록됨" 판정이 성립한다 (PRD §11-51).
+import { toPageTitle } from "../src/lib/wikisource.ts";
 
 const API = "https://ko.wikisource.org/w/api.php";
 const USER_AGENT = "ttokttok/0.1 (https://github.com/ttokttok; content sourcing)";
@@ -118,6 +126,10 @@ async function listCategory(category) {
  * 뿐이다(아래 파싱은 전부 Set/Math.min 기반이라 중복에 영향받지 않는다) —
  * 데이터가 사라지는 방향의 실패는 없다. 합성 다중 라운드 응답으로 오프라인
  * 검증함(스크립트 밖, 위키문헌 요청 없이).
+ *
+ * 작품 문서(`titles=`가 일반 제목)와 저자 문서(`titles=`가 `저자:` 접두
+ * 제목)를 가리지 않는다 — MediaWiki는 이름공간과 무관하게 `query.pages`를
+ * `title` 키로 돌려주므로 이 함수의 이어받기 병합 로직은 그대로 맞는다.
  */
 async function fetchProp(titles, extra) {
   const merged = new Map();
@@ -161,6 +173,10 @@ async function fetchProp(titles, extra) {
  * 주므로 `범위 밖 장르`로 집계되는데, 우리는 장르로 크롤했으니 그 사유가
  * 나오면 안 된다 — 나온다면 이 함수가 "삭제됐다"와 "파싱이 틀렸다"를
  * 구분하는 유일한 단서다.
+ *
+ * 저자 문서에도 그대로 쓴다 — MediaWiki는 없는 문서를 음수 pageid +
+ * `missing: ""`(빈 문자열, `undefined`가 아니다)로 표시하고, `!== undefined`
+ * 비교라 빈 문자열도 "있다"로 잡힌다.
  */
 function isMissingFromResponse(page) {
   return !page || page.missing !== undefined;
@@ -201,15 +217,11 @@ async function run() {
   console.log(`=== 문서별 메타데이터를 받는다 (${BATCH}개씩) ===`);
 
   const candidates = [];
-  // 키는 isCandidate가 돌려주는 사유 문자열 그대로다. 전부 인용해 둔다 —
-  // 하나만 따옴표를 빼면 사유 목록이 아니라 뒤섞인 리터럴로 읽힌다.
-  const excluded = {
-    "범위 밖 장르": 0,
-    "하위 문서": 0,
-    "친일문학": 0,
-    "PD 태그 없음": 0,
-  };
-  let noAuthor = 0;
+  // 사유 목록을 손으로 적지 않는다. 사유가 늘어날 때 이 객체가 따라오지
+  // 않으면 excluded[reason]++가 undefined + 1이 되어 보고가 NaN이 된다 —
+  // .mjs라 타입 검사가 없어 아무도 못 잡는다.
+  const excluded = Object.fromEntries(EXCLUSION_REASONS.map((r) => [r, 0]));
+  const noAuthorTitles = [];
   let translated = 0;
   // "범위 밖 장르"로 집계된 것 중 실제로는 "응답에서 사라진 문서"인 수.
   // 장르로 크롤했으므로 이 사유의 나머지(추정 파싱 오류)는 0이어야 한다.
@@ -235,15 +247,41 @@ async function run() {
         continue;
       }
 
+      // books.source_ref와 **같은 함수**를 거쳐야 두 값이 짝지어진다.
+      // 실측으로 지금 329행은 전부 이미 일치하지만(MediaWiki의 title이
+      // 이미 정규형이다) 보장이 아니다. seed.mjs가 과거에 정확히 이
+      // 버그를 겪었다 — 원문 제목을 source_ref에 넣어 "임포트 경로가
+      // 절대 만들지 않을 문자열"을 만들었고 unique 인덱스가 무력해졌다
+      // (PRD §11-51). 그 교훈이 이 스크립트에 이어지지 않았다.
+      //
+      // 제목 하나가 정규화에 실패해도(toPageTitle은 빈 값에 던진다) 동기화
+      // 전체를 멈추지 않는다 — 그 작품 하나만 건너뛴다.
+      let pageTitle;
+      try {
+        pageTitle = toPageTitle(title);
+      } catch (err) {
+        console.error(`  ✗ 제목을 정규화할 수 없다: ${title} — ${err.message}`);
+        continue;
+      }
+
       const wikitext =
         revs.get(title)?.revisions?.[0]?.slots?.main?.["*"] ?? "";
       const header = parseHeader(wikitext);
 
-      if (!header.author) noAuthor++;
+      // 저자를 모르면 권리 검사를 하나도 할 수 없다 — 기계가 아무것도
+      // 보증하지 못하는 행을 「가져올 수 있는 목록」에 둘 수 없다.
+      // 주소 입력 화면이 그 경로다: 거기서는 사람이 저자를 타이핑하고
+      // 금지 명단 검사가 그 입력에 걸린다.
+      if (!header.author) {
+        excluded["저자 불명"]++;
+        noAuthorTitles.push(title);
+        continue;
+      }
+
       if (header.translator) translated++;
 
       candidates.push({
-        page_title: title,
+        page_title: pageTitle,
         title: header.title ?? title,
         author: header.author,
         genre: meta.genre,
@@ -257,36 +295,107 @@ async function run() {
     progress(Math.min(i + BATCH, allTitles.length), allTitles.length, `후보 ${candidates.length}개`);
   }
 
-  // ---- 3) 보고 ----
+  // ---- 3) 저자 문서로 권리를 판정한다 (요청 약 4회) ----
+  //
+  // 이것이 PRD §5.11을 **그대로** 구현하는 지점이다. 그동안은 위키문헌의
+  // PD-old-* 태그를 대신 믿었다 — 문서 세 곳에 "그건 우리 기준이 아니다"라고
+  // 적어 놓고도. 저자 문서 분류에 사망 연도와 국적이 있어서 우리 기준
+  // (1962년 이전 사망)을 직접 적용할 수 있다.
+  //
+  // 서로 다른 저자마다 한 번만 조회한다 — 작품마다 받으면 김동인 하나를
+  // 61번 조회한다.
+  console.log(`\n=== 저자 문서로 권리를 판정한다 ===`);
+
+  const authors = [...new Set(candidates.map((c) => c.author))];
+  const authorInfo = new Map();
+
+  for (let i = 0; i < authors.length; i += BATCH) {
+    const chunk = authors.slice(i, i + BATCH);
+    const pages = await fetchProp(
+      chunk.map(authorPageTitle),
+      "&prop=categories&cllimit=500",
+    );
+    for (const author of chunk) {
+      const page = pages.get(authorPageTitle(author));
+      const authorCats = (page?.categories ?? []).map((c) => c.title);
+      authorInfo.set(author, parseAuthorPage(authorCats, isMissingFromResponse(page)));
+    }
+    progress(Math.min(i + BATCH, authors.length), authors.length, `저자 ${authorInfo.size}명`);
+  }
+
+  const registrable = [];
+  const rejectedAuthors = new Map(); // 저자 → { reason, works }
+
+  for (const c of candidates) {
+    const verdict = checkAuthor(authorInfo.get(c.author));
+    if (verdict.ok) {
+      registrable.push(c);
+      continue;
+    }
+    excluded[verdict.reason]++;
+    const seen = rejectedAuthors.get(c.author) ?? { reason: verdict.reason, works: 0 };
+    seen.works++;
+    rejectedAuthors.set(c.author, seen);
+  }
+
+  // 저자 문서를 잘못 짚었는지 값의 앞뒤로 확인한다. 발표 연도가 사망
+  // 연도보다 뒤면 사후 출간일 수 있으니(윤동주가 그렇다) 넉넉한 한계를 쓴다.
+  for (const c of registrable) {
+    const info = authorInfo.get(c.author);
+    if (c.pub_year && info.born && c.pub_year < info.born) {
+      console.error(
+        `  ⚠ ${c.title}: ${c.pub_year}년 발표인데 저자 ${c.author}는 ${info.born}년 출생이다 — 저자 문서를 잘못 짚었을 수 있다`,
+      );
+    }
+  }
+
+  // ---- 4) 보고 ----
   console.log(`\n=== 제외 ===`);
-  for (const [reason, n] of Object.entries(excluded)) {
-    console.log(`  ${String(n).padStart(4)}  ${reason}`);
-    if (reason === "범위 밖 장르" && n > 0) {
+  for (const reason of EXCLUSION_REASONS) {
+    if (!excluded[reason]) continue;
+    console.log(`  ${String(excluded[reason]).padStart(4)}  ${reason}`);
+    if (reason === "범위 밖 장르") {
       console.log(
         `        (그중 응답에서 "없는 문서"로 표시된 것 ${missingFromResponse}개 — ` +
-          `두 호출 사이 삭제된 것으로 보인다. 나머지 ${n - missingFromResponse}개는 ` +
+          `두 호출 사이 삭제된 것으로 보인다. 나머지 ${excluded[reason] - missingFromResponse}개는 ` +
           `장르로 크롤했는데도 장르가 없다는 뜻이라 parseCategories를 의심해야 한다)`,
       );
     }
   }
   console.log(`  ────────────────`);
-  console.log(`  ${String(candidates.length).padStart(4)}  표에 담을 것`);
-  console.log(`\n  저자 파싱 실패 ${noAuthor}개 — 목록에 남고 가져올 때 입력받는다`);
-  console.log(`  번역물 ${translated}개 — 표에는 담고 목록에서 가린다`);
+  console.log(`  ${String(registrable.length).padStart(4)}  표에 담을 것`);
 
-  // ---- 4) 기존 행과 비교 ----
+  if (noAuthorTitles.length) {
+    console.log(`\n  저자를 못 읽어 제외: ${noAuthorTitles.length}편`);
+    console.log(`    ${noAuthorTitles.join(" · ")}`);
+    console.log(`    (어휘를 고친 뒤 기대값은 「모비딕」 1편이다. 늘어났다면`);
+    console.log(`     위키문헌이 틀을 바꿨거나 파서가 또 어휘를 놓치고 있다)`);
+  }
+
+  if (rejectedAuthors.size) {
+    console.log(`\n  저자 사유로 제외한 ${rejectedAuthors.size}명:`);
+    [...rejectedAuthors]
+      .sort((a, b) => b[1].works - a[1].works)
+      .forEach(([author, v]) => {
+        console.log(`    ${author.padEnd(24)} ${v.reason.padEnd(16)} ${v.works}편`);
+      });
+  }
+
+  console.log(`\n  번역물 ${translated}개 — 표에는 담고 목록에서 가린다`);
+
+  // ---- 5) 기존 행과 비교 ----
   const { data: existing, error: readErr } = await db
     .from("wikisource_works")
     .select("page_title");
   if (readErr) throw new Error(`wikisource_works 조회: ${readErr.message}`);
 
   const had = new Set(existing.map((r) => r.page_title));
-  const nextTitles = new Set(candidates.map((c) => c.page_title));
-  const added = candidates.filter((c) => !had.has(c.page_title));
+  const nextTitles = new Set(registrable.map((c) => c.page_title));
+  const added = registrable.filter((c) => !had.has(c.page_title));
   const removed = [...had].filter((t) => !nextTitles.has(t));
 
   console.log(`\n=== 변경 ===`);
-  console.log(`  신규 ${added.length} · 갱신 ${candidates.length - added.length} · 삭제 ${removed.length}`);
+  console.log(`  신규 ${added.length} · 갱신 ${registrable.length - added.length} · 삭제 ${removed.length}`);
   if (added.length) console.log(`  신규 예: ${added.slice(0, 5).map((c) => c.title).join(", ")}`);
   if (removed.length) console.log(`  삭제 예: ${removed.slice(0, 5).join(", ")}`);
 
@@ -303,18 +412,18 @@ async function run() {
    * 오인해 표를 대량 삭제한다. 다음 동기화가 되돌리기는 하지만 그 사이의
    * 목록은 텅 비어 있다.
    */
-  if (had.size > 0 && candidates.length < had.size * 0.7 && !force) {
+  if (had.size > 0 && registrable.length < had.size * 0.7 && !force) {
     throw new Error(
-      `후보가 기존 ${had.size}개의 70% 미만(${candidates.length}개)이다. ` +
+      `후보가 기존 ${had.size}개의 70% 미만(${registrable.length}개)이다. ` +
         `크롤이 중간에 실패했을 가능성이 높아 멈춘다. ` +
         `의도한 축소라면 --force를 붙인다.`,
     );
   }
 
-  // ---- 5) upsert + 사라진 행 삭제 ----
+  // ---- 6) upsert + 사라진 행 삭제 ----
   const { error: upErr } = await db
     .from("wikisource_works")
-    .upsert(candidates, { onConflict: "page_title" });
+    .upsert(registrable, { onConflict: "page_title" });
   if (upErr) throw new Error(`upsert: ${upErr.message}`);
 
   if (removed.length) {
@@ -325,7 +434,7 @@ async function run() {
     if (delErr) throw new Error(`삭제: ${delErr.message}`);
   }
 
-  console.log(`\n✓ ${candidates.length}개 반영 완료 (삭제 ${removed.length})`);
+  console.log(`\n✓ ${registrable.length}개 반영 완료 (삭제 ${removed.length})`);
 }
 
 run().catch((err) => {
