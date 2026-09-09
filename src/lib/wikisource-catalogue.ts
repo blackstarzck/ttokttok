@@ -1,7 +1,8 @@
 /**
  * @file 위키문헌 목록 화면의 질의 계층 — 검색·필터·정렬·페이지 (설계: 2026-09-08).
  *
- * **행을 전부 받아 메모리에서 거른다** (실측 329행). SQL로 밀지 않는 이유:
+ * **행을 전부 받아 메모리에서 거른다** (실측 293행, 2026-09-09 — 저작권
+ * 태그만으로 걸렀던 최초 설계 시점은 329행이었다). SQL로 밀지 않는 이유:
  * ① `sort` 파라미터를 `.order()`에 넣으면 주입면이 되고, 공백·괄호가 든
  * 제목(「진달래꽃 (시집)」)을 `.not(…,"in",…)`에 넣으려면 인용 규칙과
  * 씨름해야 한다 ② 이 저장소의 테스트 정책은 순수 함수만이라 SQL로 밀면
@@ -15,7 +16,7 @@
 import { isListable } from "@/lib/book-rights";
 import { SCOPE_GENRES, type WorkGenre } from "@/lib/wikisource-meta";
 
-/** 한 쪽에 담는 수. 329개면 7쪽이다. */
+/** 한 쪽에 담는 수. 293개면 6쪽이다. */
 export const PAGE_SIZE = 50;
 
 export const SORT_KEYS = ["title", "author", "genre", "year"] as const;
@@ -132,7 +133,7 @@ function sortValue(row: WorkRow, key: SortKey): string | number | null {
 /**
  * 후보 행을 걸러 정렬하고 한 쪽을 잘라 준다.
  *
- * @param rows `wikisource_works` 전체 (실측 329행)
+ * @param rows `wikisource_works` 전체 (실측 293행, 2026-09-09)
  * @param registered `page_title` → `books.id`. `books.source_ref`로 짝지어 만든다
  */
 export function applyCatalogueQuery(
@@ -165,7 +166,10 @@ export function applyCatalogueQuery(
       }
 
       if (needle) {
-        // 저자는 null일 수 있다 — 「강촌 (두보)」처럼 다른 틀을 쓰는 문서.
+        // 저자는 타입상 null일 수 있다(스키마가 허용한다). 실제로는 지금
+        // 어떤 행도 null이 아니다 — 저자를 못 읽은 문서는 동기화가 표에
+        // 담지 않는다(어휘 정정 뒤 유일한 예였던 「모비딕」도 이제 표에
+        // 없다). 그래도 검색이 이 값에 기대 죽지 않도록 방어한다.
         const haystack = `${row.title} ${row.author ?? ""}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
@@ -179,7 +183,7 @@ export function applyCatalogueQuery(
   const total = matched.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // 7쪽을 보다가 필터를 걸면 결과가 1쪽으로 줄 수 있다. 그때 빈 표를
+  // 6쪽을 보다가 필터를 걸면 결과가 1쪽으로 줄 수 있다. 그때 빈 표를
   // 보여주면 관리자는 "필터에 걸리는 게 없다"로 읽는다 — 실제로는 있다.
   const page = Math.min(query.page, pageCount);
   const from = (page - 1) * PAGE_SIZE;
@@ -217,7 +221,7 @@ const CATALOGUE_PATH = "/admin/books/wikisource";
  * 기본값인 항목은 넣지 않는다 — 주소가 사람이 읽을 수 있게 남고, 같은
  * 화면이 여러 주소를 갖지 않는다.
  *
- * **필터가 바뀌면 쪽 번호를 1로 되돌린다.** 7쪽을 보다가 장르를 고르면
+ * **필터가 바뀌면 쪽 번호를 1로 되돌린다.** 6쪽을 보다가 장르를 고르면
  * 결과가 1쪽뿐일 수 있고, 쪽 번호를 물고 가면 빈 표가 뜬다.
  */
 export function buildCatalogueHref(

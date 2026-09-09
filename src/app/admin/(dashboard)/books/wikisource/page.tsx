@@ -88,7 +88,7 @@ export default async function WikisourceCataloguePage({
   const query = parseCatalogueQuery(sp);
   const db = await createClient();
 
-  // 후보 전체(실측 329행)와 등록된 위키문헌 도서를 함께 받는다. 검색·필터·
+  // 후보 전체(실측 293행, 2026-09-09)와 등록된 위키문헌 도서를 함께 받는다. 검색·필터·
   // 정렬·페이지는 wikisource-catalogue.ts의 순수 함수가 처리한다 — 그 파일
   // 머리말에 SQL로 밀지 않은 이유가 있다.
   const [works, books] = await Promise.all([
@@ -354,9 +354,12 @@ export default async function WikisourceCataloguePage({
                       </form>
                     ) : (
                       /*
-                        저자가 없는 행은 숨기지 않는다 (실측 99개 중 1개,
-                        「강촌 (두보)」처럼 다른 틀을 쓰는 문서). 가져오기를
-                        누르면 임포트 화면으로 보내 저자를 입력받는다.
+                        이 분기는 스키마가 author를 nullable로 두어서
+                        남겨 둔 방어 코드다 — 지금 293개 표에는 저자가
+                        빈 행이 실제로 없다(동기화가 저자를 못 읽은 문서를
+                        아예 담지 않는다, 개정 2026-09-09). 혹시라도
+                        이런 행이 나타나면 임포트 화면으로 보내 저자를
+                        입력받는다.
                       */
                       <Button asChild variant="secondary" size="sm" className="min-h-11">
                         <Link
@@ -385,7 +388,7 @@ export default async function WikisourceCataloguePage({
       </Table>
 
       {/*
-        329행이 50개씩 7쪽으로 잘린다(applyCatalogueQuery의 PAGE_SIZE). 이전/
+        293행이 50개씩 6쪽으로 잘린다(applyCatalogueQuery의 PAGE_SIZE). 이전/
         다음만 두고 쪽 번호 목록은 두지 않는다 — Task 7이 필터 UI를 얹으면
         쪽 이동은 대개 필터를 좁힌 뒤라 몇 쪽 안 남는다. `buildCatalogueHref`로
         만들어 현재 검색·필터·정렬을 유지한 채 쪽만 바꾼다.
