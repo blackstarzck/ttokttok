@@ -5,6 +5,8 @@ import { AboutNav } from "@/components/about/about-nav";
 import { AboutHero } from "@/components/about/about-hero";
 import { AboutLoop } from "@/components/about/about-loop";
 import { BookStrip } from "@/components/about/book-strip";
+import { ReaderSection } from "@/components/about/reader-section";
+import { ReelsSection } from "@/components/about/reels-section";
 import { RightsSection } from "@/components/about/rights-section";
 import { ClosingCta } from "@/components/about/closing-cta";
 import { AboutFooter } from "@/components/about/about-footer";
@@ -31,9 +33,10 @@ export default async function AboutPage() {
   // sessionId에 null을 넘겨도 안전하다. `(main)/page.tsx`가 경고하는 문제는
   // 1페이지와 다음 페이지가 다른 세션 id로 점수를 계산해 같은 게시물이 두
   // 페이지에 겹치는 것인데, 여기는 1건만 받고 페이지네이션을 하지 않는다.
-  const [cardFeed, featured] = await Promise.all([
+  const [cardFeed, featured, videoFeed] = await Promise.all([
     getFeed(seed, null, 1, null, "cards"),
     getFeaturedBooks(),
+    getFeed(seed, null, 4, null, "video"),
   ]);
 
   // 실패를 빈 값으로 삼키지 않는다 (FRONTEND.md §5). 카드를 못 구하면
@@ -43,6 +46,7 @@ export default async function AboutPage() {
   // 조회가 실패했으면 섹션을 접는다 — 빈 목록을 그려 "추천 도서가 없다"고
   // 말하면 그건 정보가 아니라 거짓말이다.
   const featuredBooks = featured.failed ? [] : featured.books;
+  const videoPosts = videoFeed.failed ? [] : videoFeed.posts;
 
   return (
     <div className="bg-background text-foreground min-h-dvh">
@@ -51,6 +55,14 @@ export default async function AboutPage() {
         <AboutHero post={samplePost} />
         <AboutLoop />
         <BookStrip books={featuredBooks} />
+        {/* 캡처는 375x812 뷰포트를 2배 밀도로 찍어 750x1624다. */}
+        <ReaderSection src="/about/reader.png" width={750} height={1624} />
+        <ReelsSection
+          src="/about/reels.png"
+          width={750}
+          height={1624}
+          posts={videoPosts}
+        />
         <RightsSection />
         <ClosingCta />
       </main>
