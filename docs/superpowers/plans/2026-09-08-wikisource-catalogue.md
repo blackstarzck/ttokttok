@@ -3722,3 +3722,293 @@ MSG
 ```
 
 ---
+
+### Task 10: 동기화 스크립트를 새 권리 판정에 배선한다
+
+Task 9가 순수 함수를 만들었지만 **아무도 부르지 않는다.** 표는 여전히 옛 규칙으로 채워져 있고, 목록에는 제외돼야 할 26편이 그대로 보인다. 이 Task가 그것을 잇고 표를 다시 채운다.
+
+**Files:**
+- Modify: `scripts/sync-wikisource-works.mjs`
+
+**Interfaces:**
+- Consumes: `src/lib/wikisource-meta.ts`의 `EXCLUSION_REASONS`·`authorPageTitle`·`parseAuthorPage`·`checkAuthor`·`isCandidate`·`parseCategories`·`parseHeader`·`SCOPE_GENRES` (Task 9), `src/lib/wikisource.ts`의 `toPageTitle`
+- Produces: 새 규칙으로 채워진 `wikisource_works`
+
+- [ ] **Step 1: 사유 집계를 손으로 적지 않는다**
+
+지금 스크립트는 사유 네 개를 손으로 적은 객체로 센다:
+
+```js
+  const excluded = {
+    "범위 밖 장르": 0,
+    "하위 문서": 0,
+    "친일문학": 0,
+    "PD 태그 없음": 0,
+  };
+```
+
+Task 9가 사유를 열 개로 늘렸다. **이 객체를 그대로 두면 새 사유가 처음 발생하는 순간 `excluded[reason]++`가 `undefined + 1`이 되어 보고가 조용히 `NaN`이 된다.** `.mjs`라 타입 검사가 없어 아무도 못 잡는다. `EXCLUSION_REASONS`를 export한 이유가 이것이다:
+
+```js
+import {
+  EXCLUSION_REASONS,
+  SCOPE_GENRES,
+  authorPageTitle,
+  checkAuthor,
+  isCandidate,
+  parseAuthorPage,
+  parseCategories,
+  parseHeader,
+} from "../src/lib/wikisource-meta.ts";
+// 문서 제목 정규화의 원천은 하나다 — books.source_ref와 같은 함수를 거쳐야
+// "이미 등록됨" 판정이 성립한다 (PRD §11-51).
+import { toPageTitle } from "../src/lib/wikisource.ts";
+```
+
+```js
+  // 사유 목록을 손으로 적지 않는다. 사유가 늘어날 때 이 객체가 따라오지
+  // 않으면 excluded[reason]++가 undefined + 1이 되어 보고가 NaN이 된다 —
+  // .mjs라 타입 검사가 없어 아무도 못 잡는다.
+  const excluded = Object.fromEntries(EXCLUSION_REASONS.map((r) => [r, 0]));
+```
+
+보고 쪽도 0인 사유는 건너뛰게 한다 — 열 줄 중 여덟이 0이면 읽히지 않는다:
+
+```js
+  console.log(`\n=== 제외 ===`);
+  for (const reason of EXCLUSION_REASONS) {
+    if (excluded[reason]) console.log(`  ${String(excluded[reason]).padStart(4)}  ${reason}`);
+  }
+```
+
+- [ ] **Step 2: 문서 제목을 정규화 함수에 통과시킨다**
+
+지금은 MediaWiki 응답의 `title`을 그대로 쓴다:
+
+```js
+        page_title: title,
+```
+
+바꾼 뒤:
+
+```js
+        // books.source_ref와 **같은 함수**를 거쳐야 두 값이 짝지어진다.
+        // 실측으로 지금 329행은 전부 이미 일치하지만(MediaWiki의 title이
+        // 이미 정규형이다) 보장이 아니다. seed.mjs가 과거에 정확히 이
+        // 버그를 겪었다 — 원문 제목을 source_ref에 넣어 "임포트 경로가
+        // 절대 만들지 않을 문자열"을 만들었고 unique 인덱스가 무력해졌다
+        // (PRD §11-51). 그 교훈이 이 스크립트에 이어지지 않았다.
+        page_title: toPageTitle(title),
+```
+
+`toPageTitle`은 빈 값에 던진다. 분류 목록에서 온 제목은 비지 않지만, 던지면 그 작품 하나가 아니라 동기화 전체가 멈춘다. 제목 하나 때문에 전체가 멈추지 않게 감싼다:
+
+```js
+      let pageTitle;
+      try {
+        pageTitle = toPageTitle(title);
+      } catch (err) {
+        console.error(`  ✗ 제목을 정규화할 수 없다: ${title} — ${err.message}`);
+        continue;
+      }
+```
+
+- [ ] **Step 3: 저자를 못 읽은 작품을 제외한다**
+
+지금은 저자가 null이어도 후보에 넣고 `noAuthor`만 센다. **판단이 바뀌었다** (계획의 「결정: 저자를 확인할 수 없는 작품은 목록에 두지 않는다」 참고): 저자는 사망 연도·국적·금지 명단 세 검사의 입구이고, 모르면 셋을 하나도 못 한다. 어휘를 고친 뒤 이 경우는 329편 중 1편(「모비딕」, 머리말 틀이 없다)이다.
+
+`isCandidate` 통과 뒤, 위키텍스트를 파싱한 직후에:
+
+```js
+      const header = parseHeader(wikitext);
+
+      // 저자를 모르면 권리 검사를 하나도 할 수 없다 — 기계가 아무것도
+      // 보증하지 못하는 행을 「가져올 수 있는 목록」에 둘 수 없다.
+      // 주소 입력 화면이 그 경로다: 거기서는 사람이 저자를 타이핑하고
+      // 금지 명단 검사가 그 입력에 걸린다.
+      if (!header.author) {
+        excluded["저자 불명"]++;
+        noAuthorTitles.push(title);
+        continue;
+      }
+```
+
+`noAuthorTitles`는 보고에 쓴다 — 몇 편인지가 아니라 **어느 작품인지** 알아야 위키문헌이 바뀐 것인지 우리 파서가 또 틀린 것인지 가릴 수 있다:
+
+```js
+  if (noAuthorTitles.length) {
+    console.log(`\n  저자를 못 읽어 제외: ${noAuthorTitles.length}편`);
+    console.log(`    ${noAuthorTitles.join(" · ")}`);
+    console.log(`    (어휘를 고친 뒤 기대값은 「모비딕」 1편이다. 늘어났다면`);
+    console.log(`     위키문헌이 틀을 바꿨거나 파서가 또 어휘를 놓치고 있다)`);
+  }
+```
+
+- [ ] **Step 4: 저자 문서를 받아 권리를 판정한다**
+
+후보를 모은 뒤, **서로 다른 저자마다 한 번씩** 저자 문서 분류를 받는다. 작품마다 받으면 같은 저자를 61번 조회한다(김동인).
+
+```js
+  // ---- 저자 문서로 권리를 판정한다 (요청 약 4회) ----
+  //
+  // 이것이 PRD §5.11을 **그대로** 구현하는 지점이다. 그동안은 위키문헌의
+  // PD-old-* 태그를 대신 믿었다 — 문서 세 곳에 "그건 우리 기준이 아니다"라고
+  // 적어 놓고도. 저자 문서 분류에 사망 연도와 국적이 있어서 우리 기준
+  // (1962년 이전 사망)을 직접 적용할 수 있다.
+  //
+  // 서로 다른 저자마다 한 번만 조회한다 — 작품마다 받으면 김동인 하나를
+  // 61번 조회한다.
+  console.log(`\n=== 저자 문서로 권리를 판정한다 ===`);
+
+  const authors = [...new Set(candidates.map((c) => c.author))];
+  const authorInfo = new Map();
+
+  for (let i = 0; i < authors.length; i += BATCH) {
+    const chunk = authors.slice(i, i + BATCH);
+    const pages = await fetchProp(
+      chunk.map(authorPageTitle),
+      "&prop=categories&cllimit=500",
+    );
+    for (const author of chunk) {
+      const page = pages.get(authorPageTitle(author));
+      const cats = (page?.categories ?? []).map((c) => c.title);
+      authorInfo.set(author, parseAuthorPage(cats, !page || page.missing !== undefined));
+    }
+    progress(Math.min(i + BATCH, authors.length), authors.length, `저자 ${authorInfo.size}명`);
+  }
+
+  const registrable = [];
+  const rejectedAuthors = new Map(); // 저자 → { reason, works }
+
+  for (const c of candidates) {
+    const verdict = checkAuthor(authorInfo.get(c.author));
+    if (verdict.ok) {
+      registrable.push(c);
+      continue;
+    }
+    excluded[verdict.reason]++;
+    const seen = rejectedAuthors.get(c.author) ?? { reason: verdict.reason, works: 0 };
+    seen.works++;
+    rejectedAuthors.set(c.author, seen);
+  }
+```
+
+`fetchProp`은 `titles=`를 받아 `continue`까지 처리하므로 그대로 쓴다.
+
+보고에 **저자별로** 적는다. 사유별 편수만으로는 「누가 왜 빠졌는지」를 사람이 확인할 수 없다:
+
+```js
+  if (rejectedAuthors.size) {
+    console.log(`\n  저자 사유로 제외한 ${rejectedAuthors.size}명:`);
+    [...rejectedAuthors]
+      .sort((a, b) => b[1].works - a[1].works)
+      .forEach(([author, v]) => {
+        console.log(`    ${author.padEnd(24)} ${v.reason.padEnd(16)} ${v.works}편`);
+      });
+  }
+```
+
+**저자 문서 조회가 그럴듯하지 않은 결과를 내면 의심한다.** `authorPageTitle`은 괄호 앞만 떼어 문서 제목을 만든다. 실측한 괄호 형태는 「김소월(김정식)」처럼 「필명(본명)」이라 같은 문서를 가리키지만, 위키문헌이 「이름 (동명이인 구분)」 식으로 쓰기 시작하면 **다른 사람의 문서를 조용히 가져온다.** 지금 데이터(저자 65명)에서는 충돌이 없음을 확인했다. 방어로, 작품 발표 연도와 저자 사망 연도가 어긋나면 경고한다:
+
+```js
+  // 저자 문서를 잘못 짚었는지 값의 앞뒤로 확인한다. 발표 연도가 사망
+  // 연도보다 뒤면 사후 출간일 수 있으니(윤동주가 그렇다) 넉넉한 한계를 쓴다.
+  for (const c of registrable) {
+    const info = authorInfo.get(c.author);
+    if (c.pub_year && info.born && c.pub_year < info.born) {
+      console.error(
+        `  ⚠ ${c.title}: ${c.pub_year}년 발표인데 저자 ${c.author}는 ${info.born}년 출생이다 — 저자 문서를 잘못 짚었을 수 있다`,
+      );
+    }
+  }
+```
+
+`candidates` 대신 `registrable`을 upsert하고, 70% 관문·삭제 판정도 `registrable` 기준으로 바꾼다.
+
+- [ ] **Step 5: `--dry-run`으로 돌린다**
+
+요청이 약 51회(기존 47 + 저자 4)로 늘어 2분쯤 걸린다. DB에는 쓰지 않는다.
+
+```bash
+npm run wikisource:sync -- --dry-run
+```
+
+**기대값** (실측으로 미리 계산한 것 — 다르면 멈추고 원인을 찾는다):
+
+```
+365  중복 제거 합계
+=== 제외 ===
+   8  하위 문서
+   2  친일문학
+  28  PD 태그 없음     ← 26 + 파초(PD-공유마당) + 자유종(PD-old-95-US)
+   1  저자 불명         ← 모비딕
+   1  저자 문서 없음     ← 김규택
+   4  해외 저자
+  20  북한 저자         ← 김남천 8 · 오장환 5 · 김사량 2 · 지하련 2 · 정인택 1 · 김억 1 · 김동환 1
+   1  1962년 이후 사망   ← 김동명
+표에 담을 것: 300
+```
+
+`365 − 8 − 2 − 28 − 1 − 1 − 4 − 20 − 1 = 300`.
+
+**주의:** 앞서 화면에 보이던 수는 319편이었다. 그것은 표 329행에서 번역물 7편과 금지 저작자 작품 3편을 화면이 가린 결과다. 이제 제외가 표 단계로 옮겨가므로 표 자체가 300행이 되고, 화면은 거기서 번역물 7편을 더 가려 **293편**을 보인다. 두 숫자를 혼동하지 말 것.
+
+- [ ] **Step 6: 사용자 동의를 받아 실제로 돌린다**
+
+`--dry-run` 결과를 사용자에게 보고하고 동의를 받은 뒤:
+
+```bash
+npm run wikisource:sync
+```
+
+기대: `✓ 300개 반영 완료 (삭제 29)` — 329행 중 29행이 새 규칙에 걸려 지워진다.
+
+70% 관문이 여기서 발동하지 않는지 확인한다: `300 / 329 = 91%`로 70%를 넘으므로 통과해야 한다. 만약 걸렸다면 계산이 틀린 것이니 멈추고 보고한다.
+
+- [ ] **Step 7: 표를 확인한다**
+
+```bash
+node --env-file=.env scripts/check-table.mjs wikisource_works --sample
+```
+
+확인할 것:
+- 행 수가 `--dry-run` 보고와 같다
+- `author`가 **전부** 채워져 있다 (null이 하나도 없어야 한다 — 저자 불명은 이제 표에 안 들어간다)
+- 「파초」·「자유종」·「전쟁과 평화」·「모비딕」이 없다
+
+```bash
+node --env-file=.env -e "const{createClient}=require('@supabase/supabase-js');const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});(async()=>{const{data,count}=await db.from('wikisource_works').select('page_title,author',{count:'exact'});console.log('행',count);console.log('저자 null:',data.filter(r=>!r.author).length,'(0이어야 정상)');['파초','자유종','전쟁과 평화','모비딕','삼국지 (요시카와 에이지)'].forEach(t=>console.log(' ',t,'→',data.some(r=>r.page_title===t)?'남아 있다 ✗':'제외됨 ✓'))})()"
+```
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add scripts/sync-wikisource-works.mjs
+git commit -F- <<'MSG'
+fix(sync): 저자 문서로 PRD §5.11을 직접 판정한다
+
+Task 9가 만든 판정 함수를 아무도 부르지 않아 표는 옛 규칙으로 남아
+있었다. 이제 서로 다른 저자마다 저자 문서 분류를 한 번씩 받아 국적과
+사망 연도를 읽고 우리 기준(1962년 이전 사망)을 직접 적용한다. 작품마다
+받으면 김동인 하나를 61번 조회하게 된다.
+
+사유 집계 객체를 손으로 적지 않고 EXCLUSION_REASONS에서 만든다. 사유가
+4개에서 10개로 늘었는데 손으로 적은 객체를 그대로 두면 새 사유가 처음
+발생하는 순간 보고가 조용히 NaN이 된다 — .mjs라 타입 검사가 없다.
+
+문서 제목을 toPageTitle에 통과시킨다. 지금 329행은 전부 이미 일치하지만
+보장이 아니었다. seed.mjs가 과거에 정확히 이 버그를 겪었고(PRD §11-51)
+그 교훈이 이 스크립트에 이어지지 않았다.
+
+저자를 못 읽은 작품은 표에 담지 않는다. 저자는 사망 연도·국적·금지 명단
+세 검사의 입구이고, 모르면 셋을 하나도 못 한다 — 기계가 아무것도 보증하지
+못하는 행을 「가져올 수 있는 목록」에 둘 수 없다. 어휘를 고친 뒤 이 경우는
+「모비딕」 하나다. 주소 입력 화면이 그 경로다.
+
+저자 문서를 잘못 짚었을 때를 대비해 발표 연도와 출생 연도가 어긋나면
+경고한다. 괄호 앞만 떼어 문서를 찾으므로, 위키문헌이 동명이인 구분에
+괄호를 쓰기 시작하면 다른 사람의 문서를 가져올 수 있다.
+MSG
+```
+
+---
