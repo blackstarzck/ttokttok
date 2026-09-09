@@ -63,7 +63,7 @@ export function readSessionId(cookieHeader: string): string | null {
  * 쿠키가 없을 때만 폴백한다.
  */
 /** 쿠키를 못 쓸 때의 폴백을 이 탭 안에서 고정한다. 호출마다 새로 만들면
- *  record_view의 (게시물, 세션) 10분 중복 제거가 리마운트마다 깨진다. */
+ *  record_view의 (게시물, 세션) 24시간 중복 제거가 리마운트마다 깨진다. */
 let fallbackId: string | null = null;
 
 export function getSessionId(): string {
