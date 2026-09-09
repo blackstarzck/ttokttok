@@ -424,11 +424,6 @@ async function run() {
   if (added.length) console.log(`  신규 예: ${added.slice(0, 5).map((c) => c.title).join(", ")}`);
   if (removed.length) console.log(`  삭제 예: ${removed.slice(0, 5).join(", ")}`);
 
-  if (dryRun) {
-    console.log(`\n· --dry-run이라 아무것도 쓰지 않았다.`);
-    return;
-  }
-
   /**
    * 부분 실패로 표를 비우지 않기 위한 관문.
    *
@@ -436,13 +431,37 @@ async function run() {
    * 후보가 적게 모이는데, 그걸 그대로 반영하면 "위키문헌에서 사라진 문서"로
    * 오인해 표를 대량 삭제한다. 다음 동기화가 되돌리기는 하지만 그 사이의
    * 목록은 텅 비어 있다.
+   *
+   * **판정과 보고를 `--dry-run` 이른 반환보다 먼저 한다.** 이 파일 머리말이
+   * "--dry-run은 선택이 아니라 전제"라고 적어 놓고도, 정작 실제 동기화를
+   * 멈추는 이 관문만은 dry-run이 평가조차 하지 않고 지나갔다 — dry-run이
+   * 깨끗해 보여도 그대로 돌리면 여기서 막히는 경우를 dry-run이 미리 보여줄
+   * 수 없었던 이유다. 판정 자체는 `dryRun` 여부와 무관하게 항상 계산하고
+   * 보고하되, **적용**(throw로 멈추는 것)은 실제로 쓸 때만 한다 — dry-run은
+   * 아무것도 막지 않고 무엇이 바뀔지만 보여주는 모드이기 때문이다.
    */
-  if (had.size > 0 && registrable.length < had.size * 0.7 && !force) {
-    throw new Error(
-      `후보가 기존 ${had.size}개의 70% 미만(${registrable.length}개)이다. ` +
-        `크롤이 중간에 실패했을 가능성이 높아 멈춘다. ` +
-        `의도한 축소라면 --force를 붙인다.`,
+  const guardMessage =
+    `후보가 기존 ${had.size}개의 70% 미만(${registrable.length}개)이다. ` +
+    `크롤이 중간에 실패했을 가능성이 높다. 의도한 축소라면 --force를 붙인다.`;
+  const guardTripped = had.size > 0 && registrable.length < had.size * 0.7 && !force;
+
+  if (guardTripped) {
+    console.log(
+      `\n! 70% 관문: ${guardMessage}` +
+        (dryRun ? " (dry-run이라 지금은 멈추지 않지만, 실제로 돌리면 여기서 멈춘다)" : ""),
     );
+  } else if (had.size > 0) {
+    const pct = ((registrable.length / had.size) * 100).toFixed(0);
+    console.log(`\n· 70% 관문 통과: ${registrable.length}/${had.size} (${pct}%)`);
+  }
+
+  if (dryRun) {
+    console.log(`\n· --dry-run이라 아무것도 쓰지 않았다.`);
+    return;
+  }
+
+  if (guardTripped) {
+    throw new Error(`${guardMessage} 멈춘다.`);
   }
 
   // ---- 6) upsert + 사라진 행 삭제 ----
