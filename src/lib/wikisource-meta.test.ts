@@ -9,6 +9,7 @@ import {
   parseAuthorPage,
   parseCategories,
   parseHeader,
+  reverifyStored,
   stripAuthorAnnotation,
   toBookCategory,
 } from "@/lib/wikisource-meta";
@@ -557,6 +558,80 @@ describe("eraConsistent", () => {
    */
   it("생몰년을 둘 다 모르면 통과시킨다", () => {
     expect(eraConsistent(1500, info(null, null))).toBe(true);
+  });
+});
+
+describe("reverifyStored", () => {
+  const row = (o = {}) => ({
+    genre: "단편소설" as const,
+    pd_tag: "PD-old-70",
+    pub_year: 1936,
+    author_born: 1908,
+    author_died: 1937,
+    author_is_korean: true,
+    author_is_north_korean: false,
+    ...o,
+  });
+
+  it("동기화가 적용한 모든 조건을 다시 만족하면 통과", () => {
+    expect(reverifyStored(row())).toEqual({ ok: true });
+  });
+
+  /**
+   * 이 함수가 있는 이유가 이 테스트다. 기준 연도를 바꿔 배포하면 화면이
+   * 낡은 승인을 그대로 내놓던 것을 막는다.
+   */
+  it("사망 연도가 지금 기준에 미달하면 막고 stale로 표시한다", () => {
+    const r = reverifyStored(row({ author_died: 1990 }));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.stale).toBe(true);
+  });
+
+  it("국적이 한국이 아니면 막는다", () => {
+    expect(reverifyStored(row({ author_is_korean: false })).ok).toBe(false);
+  });
+
+  it("북한 저자면 막는다", () => {
+    expect(reverifyStored(row({ author_is_north_korean: true })).ok).toBe(false);
+  });
+
+  /**
+   * 검증값이 없는 행 — 마이그레이션 직후의 기존 293행이 그렇다.
+   * 「검증하지 않았다」와 「검증했고 통과했다」를 구별해야 한다.
+   */
+  it("검증값이 없으면 막고 동기화가 필요하다고 알린다", () => {
+    const r = reverifyStored(row({ author_died: null, author_is_korean: null }));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.stale).toBe(true);
+    expect(r.ok === false && r.reason).toMatch(/동기화/);
+  });
+
+  /**
+   * `author_born`만 없는 경우는 검증 미비가 아니다 — `eraConsistent`가
+   * 이미 생몰년 미상을 허용하고(발표 연도만으로는 판단할 근거가 없으면
+   * 통과시킨다), `checkAuthor`는 애초에 `born`을 보지 않는다. 이 값까지
+   * null 가드에 넣으면 실제로는 멀쩡히 검증된 행(사망 연도만 알려진 경우)을
+   * 「동기화가 필요하다」로 잘못 분류한다.
+   */
+  it("author_born만 없으면 검증 미비로 보지 않는다", () => {
+    expect(reverifyStored(row({ author_born: null }))).toEqual({ ok: true });
+  });
+
+  it("장르가 지금 범위 밖이면 막는다", () => {
+    expect(reverifyStored(row({ genre: "수필" })).ok).toBe(false);
+  });
+
+  it("PD 태그가 지금 조건 밖이면 막는다", () => {
+    expect(reverifyStored(row({ pd_tag: "PD-공유마당" })).ok).toBe(false);
+  });
+
+  it("발표 연도가 저자 생애 밖이면 막는다", () => {
+    expect(reverifyStored(row({ pub_year: 1800 })).ok).toBe(false);
+  });
+
+  /** 사후 출간은 정상이다 — 윤동주는 1945년 사망, 1979년 출간. */
+  it("사후 출간을 막지 않는다", () => {
+    expect(reverifyStored(row({ author_died: 1945, pub_year: 1979 }))).toEqual({ ok: true });
   });
 });
 

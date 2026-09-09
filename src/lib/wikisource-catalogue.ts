@@ -14,7 +14,12 @@
  */
 
 import { isListable } from "@/lib/book-rights";
-import { SCOPE_GENRES, type WorkGenre } from "@/lib/wikisource-meta";
+import {
+  reverifyStored,
+  SCOPE_GENRES,
+  type StoredAuthorFacts,
+  type WorkGenre,
+} from "@/lib/wikisource-meta";
 
 /** 한 쪽에 담는 수. 293개면 6쪽이다. */
 export const PAGE_SIZE = 50;
@@ -22,15 +27,24 @@ export const PAGE_SIZE = 50;
 export const SORT_KEYS = ["title", "author", "genre", "year"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
-/** `wikisource_works`에서 화면이 읽는 컬럼. */
+/**
+ * `wikisource_works`에서 화면이 읽는 컬럼.
+ *
+ * `pd_tag`와 저자 판정의 근거(`StoredAuthorFacts`)는 §11-66 전에는 화면이
+ * 읽지 않았다 — 장르·PD 태그·사망 연도·국적은 동기화 시점 판정으로 얼어
+ * 붙어 있었고, 화면이 매번 다시 확인하는 것은 금지 저작자 명단뿐이었다.
+ * `reverifyStored`가 렌더 시점에 이 값들로 지금 규칙을 다시 적용하므로,
+ * 화면이 원재료를 직접 들고 있어야 한다.
+ */
 export type WorkRow = {
   page_title: string;
   title: string;
   author: string | null;
   genre: WorkGenre;
   pub_year: number | null;
+  pd_tag: string;
   translator: string | null;
-};
+} & StoredAuthorFacts;
 
 export type CatalogueQuery = {
   q: string;
@@ -92,6 +106,16 @@ export type CatalogueRow = WorkRow & {
   bookId: string | null;
   /** 등록 불가 사유. 채워진 행은 `showUnlistable`을 켰을 때만 보인다. */
   blockedReason: string | null;
+  /**
+   * 재판정(`reverifyStored`) 실패 사유. `blockedReason`과 **의도적으로
+   * 분리**한다 — 「이 저작자는 영원히 등록 금지」와 「이 행의 검증이 지금
+   * 기준과 어긋나거나 애초에 없다, 동기화가 필요하다」는 관리자가 할 일이
+   * 다르다. 이 값이 있으면 `showUnlistable`과 **무관하게** 「가져오기」를
+   * 내주지 않는다 — 그게 이 필드가 있는 이유다. 다만 행 자체는 지우지
+   * 않는다: 지우면 관리자가 왜 사라졌는지, 동기화가 필요하다는 사실조차
+   * 알 수 없다.
+   */
+  staleReason: string | null;
 };
 
 /** 한국어 정렬. Postgres 기본 콜레이션에 맡기지 않는 이유가 이것이다. */
@@ -168,10 +192,15 @@ export function applyCatalogueQuery(
   const matched = rows
     .map((row): CatalogueRow => {
       const listable = isListable(row);
+      // 사망 연도·국적·장르·PD 태그를 렌더 시점 규칙으로 다시 확인한다
+      // (§11-66) — 동기화 시점 판정에 얼어붙어 있던 것을 금지 저작자
+      // 명단(`isListable`)과 같은 토대로 만든다.
+      const reverified = reverifyStored(row);
       return {
         ...row,
         bookId: registered.get(row.page_title) ?? null,
         blockedReason: listable.ok ? null : listable.reason,
+        staleReason: reverified.ok ? null : reverified.reason,
       };
     })
     .filter((row) => {

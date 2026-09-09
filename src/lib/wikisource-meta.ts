@@ -379,3 +379,95 @@ export function eraConsistent(
   if (info.died !== null && pubYear > info.died + 50) return false;
   return true;
 }
+
+/** 행에 저장된 저자 판정의 근거. 화면이 이것으로 규칙을 다시 적용한다. */
+export type StoredAuthorFacts = {
+  author_born: number | null;
+  author_died: number | null;
+  author_is_korean: boolean | null;
+  author_is_north_korean: boolean | null;
+};
+
+/**
+ * 저장된 행이 **지금의** 규칙을 여전히 만족하는지 다시 판정한다.
+ *
+ * 동기화 시점의 승인을 렌더 시점의 승인으로 바꾸는 함수다. 금지 저작자
+ * 명단은 이미 화면에서 매번 확인되는데(`isListable`) 사망 연도·국적·장르·
+ * 태그는 행에 얼어붙어 있었다 — 기준을 바꿔 배포하면 화면이 낡은 승인으로
+ * 「가져오기」를 계속 내놓고, `books`에 초안 상태가 없어 한 번 누르면 즉시
+ * 공개된다.
+ *
+ * `stale`이 참이면 「이 작품이 원래 안 되는 것」이 아니라 「검증이 지금
+ * 기준과 어긋나거나 아예 없다 — 동기화가 필요하다」는 뜻이다. 관리자가 할
+ * 일이 다르므로 갈라 준다. (지금 구현에서는 실패 경로가 전부 이 뜻이라
+ * `stale`이 항상 참이다 — 저장된 사실이 지금 규칙에 못 미치는 경우와 애초에
+ * 검증한 적 없는 경우, 둘 다 답은 "동기화를 다시 돌려라"이기 때문이다.)
+ *
+ * **`author_born`은 null 가드에 넣지 않는다.** `checkAuthor`는 `born`을
+ * 아예 보지 않고, `eraConsistent`는 생몰년이 둘 다 없을 때만 무조건
+ * 통과시킬 뿐 `died`만 있어도 그것으로 판단한다 — 즉 `born`이 없는 것은
+ * "검증 안 됨"이 아니라 저자 문서에 원래 생년 분류가 없는, 흔한 정상
+ * 상태다. 이걸 가드에 넣으면 사망 연도까지 멀쩡히 확인된 행을 "동기화가
+ * 필요하다"로 잘못 분류한다. 반대로 `author_died`·`author_is_korean`·
+ * `author_is_north_korean`은 `checkAuthor`가 판정에 반드시 써야 하는
+ * 값이라 하나라도 없으면 판정 자체가 불가능하다 — 그게 바로 마이그레이션
+ * 직후 기존 293행의 상태다.
+ */
+export function reverifyStored(
+  row: { genre: string; pd_tag: string; pub_year: number | null } & StoredAuthorFacts,
+): { ok: true } | { ok: false; reason: string; stale: boolean } {
+  if (
+    row.author_died === null ||
+    row.author_is_korean === null ||
+    row.author_is_north_korean === null
+  ) {
+    return {
+      ok: false,
+      reason: "저자 검증값이 없습니다 — 동기화를 다시 돌려야 합니다",
+      stale: true,
+    };
+  }
+
+  const info: AuthorInfo = {
+    born: row.author_born,
+    died: row.author_died,
+    isKorean: row.author_is_korean,
+    isNorthKorean: row.author_is_north_korean,
+    missing: false,
+  };
+
+  const verdict = checkAuthor(info);
+  if (!verdict.ok) {
+    return {
+      ok: false,
+      reason: `${verdict.reason} — 규칙이 바뀌었으니 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  if (!eraConsistent(row.pub_year, info)) {
+    return {
+      ok: false,
+      reason: "발표 연도가 저자 생애와 어긋납니다 — 동기화를 다시 돌려야 합니다",
+      stale: true,
+    };
+  }
+
+  if (!(SCOPE_GENRES as readonly string[]).includes(row.genre)) {
+    return {
+      ok: false,
+      reason: `범위 밖 장르(${row.genre}) — 규칙이 바뀌었으니 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  if (!PD_TAG.test(row.pd_tag)) {
+    return {
+      ok: false,
+      reason: `저작권 태그(${row.pd_tag})가 지금 조건에 맞지 않습니다 — 동기화를 다시 돌려야 합니다`,
+      stale: true,
+    };
+  }
+
+  return { ok: true };
+}

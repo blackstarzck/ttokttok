@@ -352,7 +352,16 @@ async function run() {
   for (const c of authorPassed) {
     const info = authorInfo.get(c.author);
     if (eraConsistent(c.pub_year, info)) {
-      registrable.push(c);
+      registrable.push({
+        ...c,
+        // 판정의 근거를 행에 남긴다 — 화면이 렌더 시점에 규칙을 다시
+        // 적용할 수 있어야 한다 (§11-66). 남기지 않으면 기준을 바꿔
+        // 배포했을 때 화면이 낡은 승인을 계속 내놓는다.
+        author_born: info.born,
+        author_died: info.died,
+        author_is_korean: info.isKorean,
+        author_is_north_korean: info.isNorthKorean,
+      });
       continue;
     }
     excluded["저자 확인 불가"]++;

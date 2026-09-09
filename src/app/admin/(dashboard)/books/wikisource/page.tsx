@@ -27,7 +27,7 @@ import {
   type SortKey,
   type WorkRow,
 } from "@/lib/wikisource-catalogue";
-import { SCOPE_GENRES, toBookCategory } from "@/lib/wikisource-meta";
+import { reverifyStored, SCOPE_GENRES, toBookCategory } from "@/lib/wikisource-meta";
 import { importFromWikisource } from "../import/actions";
 
 export const metadata: Metadata = { title: "위키문헌 작품 목록" };
@@ -104,7 +104,10 @@ export default async function WikisourceCataloguePage({
   const [works, books] = await Promise.all([
     db
       .from("wikisource_works")
-      .select("page_title, title, author, genre, pub_year, translator, synced_at"),
+      .select(
+        "page_title, title, author, genre, pub_year, pd_tag, translator, synced_at, " +
+          "author_born, author_died, author_is_korean, author_is_north_korean",
+      ),
     db
       .from("books")
       .select("id, source_ref")
@@ -153,6 +156,13 @@ export default async function WikisourceCataloguePage({
         : latest,
     null,
   );
+
+  // 필터 전 전체 행에서 센다(decadeOptions와 같은 이유) — 관리자가 「시집」만
+  // 걸러 보고 있어도 목록 전체에 재판정 실패가 몇 편 있는지는 알아야 한다.
+  // `applyCatalogueQuery`가 이미 각 행에 `staleReason`을 붙이지만 그 결과는
+  // 페이지네이션 이후라 전체 편수를 셀 수 없다 — 그래서 `reverifyStored`를
+  // 직접 다시 부른다. 순수 함수라 두 번 불러도 결과가 갈리지 않는다.
+  const staleCount = rows.filter((r) => !reverifyStored(r).ok).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -306,6 +316,22 @@ export default async function WikisourceCataloguePage({
         {" 가져옵니다."}
       </p>
 
+      {/*
+        §11-66: 사망 연도·국적·장르·PD 태그는 동기화 시점 판정으로 얼어붙어
+        있었다 — 기준을 바꿔 배포해도 화면은 낡은 승인을 계속 내놓고, books에
+        초안 상태가 없어 「가져오기」 한 번이 즉시 공개다. 사유별 편수가
+        아니라 "무엇을 해야 하는지"를 적는다 — 관리자가 할 일은 하나뿐이다.
+      */}
+      <AdminNotice
+        error={
+          staleCount > 0
+            ? `${staleCount}편의 저자 검증이 지금 기준과 어긋납니다. ` +
+              "`npm run wikisource:sync`를 다시 돌려야 목록이 최신 기준을 " +
+              "반영합니다. 그때까지 해당 작품은 가져올 수 없습니다."
+            : undefined
+        }
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -321,7 +347,7 @@ export default async function WikisourceCataloguePage({
             result.rows.map((row) => (
               <TableRow
                 key={row.page_title}
-                className={row.blockedReason ? "opacity-60" : undefined}
+                className={row.blockedReason || row.staleReason ? "opacity-60" : undefined}
               >
                 <TableCell className="font-medium break-keep">
                   {row.title}
@@ -360,6 +386,19 @@ export default async function WikisourceCataloguePage({
                       <Button asChild variant="ghost" size="sm" className="min-h-11">
                         <Link href={`/admin/books/${row.bookId}`}>✓ 등록됨</Link>
                       </Button>
+                    ) : row.staleReason ? (
+                      /*
+                        §11-66: 재판정 실패 행은 `showUnlistable`(「등록
+                        불가 포함해서 보기」)과 무관하게 「가져오기」를 내주지
+                        않는다 — 이 분기가 `row.author` 분기보다 먼저 와야
+                        한다. blockedReason과 모양은 같지만(흐린 텍스트)
+                        사유가 다르다: 저작자가 영원히 금지된 게 아니라
+                        검증이 지금 기준과 어긋나거나 아예 없다는 뜻이라,
+                        `npm run wikisource:sync`를 다시 돌리면 풀릴 수 있다.
+                      */
+                      <span className="text-muted-foreground text-xs break-keep">
+                        {row.staleReason}
+                      </span>
                     ) : row.author ? (
                       <form action={importFromWikisource}>
                         <input type="hidden" name="source" value={row.page_title} />

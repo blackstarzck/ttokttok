@@ -92,19 +92,43 @@ describe("parseCatalogueQuery", () => {
   });
 });
 
-/** 실측 데이터의 모양을 따른 표본. 금지 저작자와 번역물을 일부러 섞었다. */
+/**
+ * 실측 데이터의 모양을 따른 표본. 금지 저작자와 번역물을 일부러 섞었다.
+ *
+ * 저자 판정의 근거(`author_born` 등)는 각 행의 실제 사정을 반영한다 —
+ * 「토지」(박경리, 2008년 사망)와 「가던 길 멈춰서」(원저자가 외국인)는
+ * `blockedReason`뿐 아니라 재판정으로도 막힌다는 사실이 실제와 맞는다.
+ * 그 둘을 뺀 나머지는 지금 규칙을 그대로 통과하는 값으로 채워 `staleReason`이
+ * `blockedReason`과 뒤섞이지 않는지 구별해서 볼 수 있게 한다.
+ */
 const ROWS: WorkRow[] = [
-  { page_title: "운수 좋은 날", title: "운수 좋은 날", author: "현진건", genre: "단편소설", pub_year: 1924, translator: null },
-  { page_title: "날개", title: "날개", author: "이상", genre: "단편소설", pub_year: 1936, translator: null },
-  { page_title: "태평천하", title: "태평천하", author: "채만식", genre: "장편소설", pub_year: 1938, translator: null },
-  { page_title: "진달래꽃 (시집)", title: "진달래꽃", author: "김소월", genre: "시집", pub_year: 1925, translator: null },
-  { page_title: "강촌 (두보)", title: "강촌", author: null, genre: "단편소설", pub_year: null, translator: null },
-  { page_title: "토지", title: "토지", author: "박경리", genre: "장편소설", pub_year: 1969, translator: null },
-  { page_title: "가던 길 멈춰서", title: "가던 길 멈춰서", author: "윌리엄 데이비스", genre: "시집", pub_year: 1911, translator: "pk0001" },
+  { page_title: "운수 좋은 날", title: "운수 좋은 날", author: "현진건", genre: "단편소설", pub_year: 1924, pd_tag: "PD-old-70", author_born: 1900, author_died: 1943, author_is_korean: true, author_is_north_korean: false, translator: null },
+  { page_title: "날개", title: "날개", author: "이상", genre: "단편소설", pub_year: 1936, pd_tag: "PD-old-70", author_born: 1910, author_died: 1937, author_is_korean: true, author_is_north_korean: false, translator: null },
+  { page_title: "태평천하", title: "태평천하", author: "채만식", genre: "장편소설", pub_year: 1938, pd_tag: "PD-old-70", author_born: 1902, author_died: 1950, author_is_korean: true, author_is_north_korean: false, translator: null },
+  { page_title: "진달래꽃 (시집)", title: "진달래꽃", author: "김소월", genre: "시집", pub_year: 1925, pd_tag: "PD-old-90", author_born: 1902, author_died: 1934, author_is_korean: true, author_is_north_korean: false, translator: null },
+  { page_title: "강촌 (두보)", title: "강촌", author: null, genre: "단편소설", pub_year: null, pd_tag: "PD-old", author_born: null, author_died: null, author_is_korean: null, author_is_north_korean: null, translator: null },
+  { page_title: "토지", title: "토지", author: "박경리", genre: "장편소설", pub_year: 1969, pd_tag: "PD-old-50", author_born: 1926, author_died: 2008, author_is_korean: true, author_is_north_korean: false, translator: null },
+  { page_title: "가던 길 멈춰서", title: "가던 길 멈춰서", author: "윌리엄 데이비스", genre: "시집", pub_year: 1911, pd_tag: "PD-old-80", author_born: 1871, author_died: 1940, author_is_korean: false, author_is_north_korean: false, translator: "pk0001" },
 ];
 
 /** page_title → books.id. 실제로는 books.source_ref로 짝지어 만든다. */
 const REGISTERED = new Map([["운수 좋은 날", "book-1"]]);
+
+/**
+ * 재판정을 항상 통과하는 저자 근거. 정렬·페이지네이션처럼 재판정과 무관한
+ * 테스트에서 fixture를 간단히 채울 때 쓴다 — 그런 테스트까지 매번 실제
+ * 저자의 생몰년을 조사해 채우게 하면 테스트의 의도가 흐려진다.
+ */
+const VERIFIED: Pick<
+  WorkRow,
+  "pd_tag" | "author_born" | "author_died" | "author_is_korean" | "author_is_north_korean"
+> = {
+  pd_tag: "PD-old-70",
+  author_born: 1900,
+  author_died: 1950,
+  author_is_korean: true,
+  author_is_north_korean: false,
+};
 
 const run = (patch: Partial<CatalogueQuery> = {}, rows: WorkRow[] = ROWS) =>
   applyCatalogueQuery(rows, { ...parseCatalogueQuery({}), ...patch }, REGISTERED);
@@ -235,6 +259,7 @@ describe("applyCatalogueQuery", () => {
         genre: "시집",
         pub_year: 1930,
         translator: null,
+        ...VERIFIED,
       },
       {
         page_title: "가나다",
@@ -243,6 +268,7 @@ describe("applyCatalogueQuery", () => {
         genre: "시집",
         pub_year: 1930,
         translator: null,
+        ...VERIFIED,
       },
     ];
 
@@ -263,6 +289,7 @@ describe("applyCatalogueQuery", () => {
       genre: "단편소설" as const,
       pub_year: 1930,
       translator: null,
+      ...VERIFIED,
     }));
 
     const first = applyCatalogueQuery(many, parseCatalogueQuery({}), REGISTERED);
@@ -292,6 +319,58 @@ describe("applyCatalogueQuery", () => {
     expect(r.pageCount).toBe(1);
     expect(r.page).toBe(1);
     expect(r.rows).toEqual([]);
+  });
+
+  /**
+   * §11-66: 사망 연도·국적·장르·PD 태그는 동기화 시점 판정으로 얼어붙어
+   * 있었다. `applyCatalogueQuery`가 `reverifyStored`를 불러 매 렌더마다
+   * 다시 확인하지 않으면 이 테스트는 통과할 수 없다 — `staleReason`이
+   * 항상 null인 구현으로도 나머지 필터·정렬 테스트는 그대로 통과하기
+   * 때문에, 재판정이 실제로 배선돼 있는지는 이 테스트들만이 가른다.
+   */
+  it("재판정을 통과한 행은 staleReason이 없다", () => {
+    const row = run().rows.find((r) => r.title === "운수 좋은 날");
+    expect(row?.staleReason).toBeNull();
+  });
+
+  /**
+   * 기준 연도(PUBLIC_DOMAIN_DEATH_BEFORE)를 바꿔 배포한 상황을 흉내낸다.
+   * 이 함수가 있는 이유가 이 테스트다 — 저장된 값은 동기화 시점엔
+   * 통과했지만 지금 기준으로는 아니다.
+   */
+  it("재판정 실패 행에는 가져오기를 내주지 않는다", () => {
+    const rows = [{ ...ROWS[0], author_died: 1990 }];
+    const r = applyCatalogueQuery(rows, { ...parseCatalogueQuery({}) }, new Map());
+    expect(r.rows[0].staleReason).toMatch(/동기화/);
+  });
+
+  /**
+   * 마이그레이션 직후의 기존 293행 — 저자 판정 근거를 아예 저장한 적이
+   * 없는 경우다. 「검증하지 않았다」와 「검증했고 통과했다」를 구별해야
+   * 하므로, 이때도 같은 「동기화가 필요하다」로 막힌다.
+   */
+  it("검증값이 없는 행(마이그레이션 직후)도 가져오기를 내주지 않는다", () => {
+    const rows = [
+      {
+        ...ROWS[0],
+        author_born: null,
+        author_died: null,
+        author_is_korean: null,
+        author_is_north_korean: null,
+      },
+    ];
+    const r = applyCatalogueQuery(rows, { ...parseCatalogueQuery({}) }, new Map());
+    expect(r.rows[0].staleReason).toMatch(/동기화/);
+  });
+
+  /**
+   * 「등록 불가 포함해서 보기」를 꺼도 재판정 실패 행은 목록에 남아야 한다.
+   * 지우면 관리자가 왜 사라졌는지 알 수 없고, 동기화가 필요한 것도 모른다.
+   */
+  it("재판정 실패 행을 목록에서 지우지 않는다", () => {
+    const rows = [{ ...ROWS[0], author_died: 1990 }];
+    const r = applyCatalogueQuery(rows, { ...parseCatalogueQuery({}) }, new Map());
+    expect(r.total).toBe(1);
   });
 });
 
