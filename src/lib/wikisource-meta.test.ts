@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AuthorInfo,
+  authorPageTitle,
+  checkAuthor,
+  EXCLUSION_REASONS,
   isCandidate,
+  parseAuthorPage,
   parseCategories,
   parseHeader,
   toBookCategory,
@@ -254,5 +259,208 @@ describe("toBookCategory", () => {
 
   it("시집은 시", () => {
     expect(toBookCategory("시집")).toBe("시");
+  });
+});
+
+/** 실측: 「동백꽃」 — 영어 이름 틀. 329편 중 13편이 이 모양이고, 우리 파서가 못 읽었다. */
+const 영어틀 = `{{머리말
+ | title    =동백꽃
+ | author   =[[글쓴이:김유정|김유정]]
+ | section  =
+ | previous =
+ | next     =
+ | notes    =
+}}
+
+오늘도 또 우리 수탉이 막 쫓기었다.`;
+
+/** 실측: 「구운몽」 — `글쓴이` 항목. 329편 중 1편. */
+const 글쓴이틀 = `{{머리말
+|제목 = 구운몽
+|글쓴이 = [[글쓴이:김만중|김만중]]
+|설명 = 김만중이 남해 유배 시절 지었다고 전해지는 작품이다.
+}}`;
+
+/** 실측: 「소년의 비애」 — 영어 이름 + `저자:` 이름공간 + 항목마다 들쭉날쭉한 공백. */
+const 영어틀_저자링크 = `{{머리말
+ | title    = 소년의 비애
+| author   = [[저자:이광수|이광수]]
+ | section  =
+ | notes    = 1917년 잡지 《청춘》에 실린 데뷔작.
+}}`;
+
+describe("parseHeader — 실측한 항목 이름 전부", () => {
+  it("영어 이름 틀의 author를 읽는다 (13편)", () => {
+    expect(parseHeader(영어틀)).toEqual({
+      title: "동백꽃",
+      author: "김유정",
+      translator: null,
+    });
+  });
+
+  it("글쓴이 항목을 읽는다 (1편)", () => {
+    expect(parseHeader(글쓴이틀).author).toBe("김만중");
+  });
+
+  it("영어 이름 틀에서도 저자: 이름공간을 처리한다", () => {
+    expect(parseHeader(영어틀_저자링크)).toEqual({
+      title: "소년의 비애",
+      author: "이광수",
+      translator: null,
+    });
+  });
+
+  /**
+   * 링크에 표시명이 없으면 이름공간 접두사가 값에 남는다. `저자:`만 떼던
+   * 정규식으로는 `글쓴이:김만중`이 저자 이름이 된다. 실측 링크 이름공간은
+   * `저자:`(308)와 `글쓴이:`(28) 둘이다.
+   */
+  it("표시명이 없는 링크에서 두 이름공간을 모두 떼낸다", () => {
+    expect(parseHeader(`{{머리말\n|저자 = [[글쓴이:김만중]]\n}}`).author).toBe("김만중");
+    expect(parseHeader(`{{머리말\n|저자 = [[저자:이상]]\n}}`).author).toBe("이상");
+  });
+
+  /**
+   * 영어 이름 틀에는 역자 항목이 아예 없다(실측). 그러니 그 13편은 머리말로
+   * 번역물 여부를 판정할 수 없고 — null이 「번역물 아님」의 증거가 될 수 없다 —
+   * 이것이 저자 쪽 검사를 반드시 거쳐야 하는 이유다.
+   */
+  it("영어 이름 틀은 역자를 알 수 없어 null이다", () => {
+    expect(parseHeader(영어틀).translator).toBeNull();
+  });
+});
+
+describe("parseCategories — PD 태그를 문서대로 좁힌다", () => {
+  /**
+   * 처음 정규식은 `/^PD-/`였고 문서·주석·PRD §11-64는 모두 `PD-old-*`라고
+   * 적어 놓았다. 실측으로 두 건이 그 틈으로 들어왔다:
+   * 「파초」는 `PD-공유마당`(나이 만료가 아니라 이용 허락 기반),
+   * 「자유종」은 `PD-old-95-US`(미국 기준이라 한국법에 대해 말하는 바가 없다).
+   */
+  it("PD-old 계열만 받는다", () => {
+    expect(parseCategories(["분류:PD-old-50"]).pdTag).toBe("PD-old-50");
+    expect(parseCategories(["분류:PD-old-100"]).pdTag).toBe("PD-old-100");
+    expect(parseCategories(["분류:PD-old"]).pdTag).toBe("PD-old");
+  });
+
+  it("공유마당·미국 기준·자체 배포 태그는 받지 않는다", () => {
+    expect(parseCategories(["분류:PD-공유마당", "분류:단편소설"]).pdTag).toBeNull();
+    expect(parseCategories(["분류:PD-old-95-US", "분류:신소설"]).pdTag).toBeNull();
+    expect(parseCategories(["분류:PD-self", "분류:소설"]).pdTag).toBeNull();
+  });
+});
+
+describe("authorPageTitle", () => {
+  it("저자 문서 제목을 만든다", () => {
+    expect(authorPageTitle("김유정")).toBe("저자:김유정");
+  });
+
+  /** 실측: 「김소월(김정식)」·「이정호(李定鎬)」처럼 괄호가 붙은 이름이 있다. */
+  it("괄호와 그 뒤를 떼낸다", () => {
+    expect(authorPageTitle("김소월(김정식)")).toBe("저자:김소월");
+    expect(authorPageTitle("이정호(李定鎬)")).toBe("저자:이정호");
+    expect(authorPageTitle("요시카와 에이지(吉川英治)")).toBe("저자:요시카와 에이지");
+  });
+});
+
+describe("parseAuthorPage", () => {
+  /** 실측한 실제 분류. `년년`은 위키문헌 틀의 오타이고 분류 이름이 그렇다. */
+  const 김동인 = ["분류:1900년년 태어남", "분류:1951년년 죽음", "분류:대한민국의 저자", "분류:일제 강점기의 저자"];
+  const 톨스토이 = ["분류:1828년년 태어남", "분류:1910년년 죽음", "분류:러시아의 저자"];
+  const 김억 = ["분류:1896년년 태어남", "분류:일제 강점기의 저자", "분류:조선민주주의인민공화국의 저자"];
+
+  it("사망·출생 연도를 읽는다 — 분류 이름의 `년년`을 그대로 받는다", () => {
+    expect(parseAuthorPage(김동인, false)).toMatchObject({ born: 1900, died: 1951 });
+  });
+
+  it("국적을 판정한다", () => {
+    expect(parseAuthorPage(김동인, false).isKorean).toBe(true);
+    expect(parseAuthorPage(톨스토이, false).isKorean).toBe(false);
+  });
+
+  it("북한 저자 분류를 표시한다", () => {
+    expect(parseAuthorPage(김억, false).isNorthKorean).toBe(true);
+    expect(parseAuthorPage(김동인, false).isNorthKorean).toBe(false);
+  });
+
+  it("사망 연도가 없으면 null", () => {
+    expect(parseAuthorPage(김억, false).died).toBeNull();
+  });
+
+  it("문서가 없으면 missing", () => {
+    expect(parseAuthorPage([], true).missing).toBe(true);
+  });
+
+  /** 「일제 강점기의 저자」만 있어도 한국 저자다 — 실측에서 가장 흔한 형태다. */
+  it("일제 강점기 분류만 있어도 한국 저자로 본다", () => {
+    expect(parseAuthorPage(["분류:일제 강점기의 저자"], false).isKorean).toBe(true);
+  });
+
+  it("`분류:` 접두사가 없는 값도 견딘다", () => {
+    expect(parseAuthorPage(["1951년년 죽음", "대한민국의 저자"], false)).toMatchObject({
+      died: 1951,
+      isKorean: true,
+    });
+  });
+});
+
+describe("checkAuthor", () => {
+  const info = (o: Partial<AuthorInfo> = {}): AuthorInfo => ({
+    born: null, died: 1950, isKorean: true, isNorthKorean: false, missing: false, ...o,
+  });
+
+  it("한국 저자이고 1962년 이전 사망이면 통과", () => {
+    expect(checkAuthor(info({ died: 1951 }))).toEqual({ ok: true });
+  });
+
+  it("해외 저자를 제외한다 — 번역자 저작권이 별개다 (PRD §5.11)", () => {
+    expect(checkAuthor(info({ isKorean: false }))).toEqual({ ok: false, reason: "해외 저자" });
+  });
+
+  /** PRD §5.11의 기준을 그대로 구현한다 — 위키문헌의 PD 태그가 아니라. */
+  it("1962년 이후 사망을 제외한다", () => {
+    expect(checkAuthor(info({ died: 1968 }))).toEqual({ ok: false, reason: "1962년 이후 사망" });
+    expect(checkAuthor(info({ died: 1962 }))).toEqual({ ok: false, reason: "1962년 이후 사망" });
+    expect(checkAuthor(info({ died: 1961 }))).toEqual({ ok: true });
+  });
+
+  it("사망 연도를 모르면 제외한다 — 기준을 적용할 수 없다", () => {
+    expect(checkAuthor(info({ died: null }))).toEqual({ ok: false, reason: "사망 연도 불명" });
+  });
+
+  it("북한 저자를 제외한다 — 사망 연도가 있어도", () => {
+    expect(checkAuthor(info({ died: 1960, isNorthKorean: true }))).toEqual({
+      ok: false, reason: "북한 저자",
+    });
+  });
+
+  it("저자 문서가 없으면 제외한다", () => {
+    expect(checkAuthor(info({ missing: true }))).toEqual({ ok: false, reason: "저자 문서 없음" });
+  });
+
+  /**
+   * 사유 우선순위를 못박는다. 동기화 보고의 사유별 집계가 이 순서로
+   * 세어지므로 바뀌면 문서의 숫자와 어긋난다. 각 단정은 **한 가지 사유만**
+   * 참인 경우와 구별되어야 뜻이 있으므로, 겹치는 조합으로 확인한다.
+   */
+  it("사유가 겹치면 문서없음 → 해외 → 북한 → 사망연도 순으로 보고한다", () => {
+    expect(checkAuthor(info({ missing: true, isKorean: false, isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "저자 문서 없음" });
+    expect(checkAuthor(info({ isKorean: false, isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "해외 저자" });
+    expect(checkAuthor(info({ isNorthKorean: true, died: null })))
+      .toEqual({ ok: false, reason: "북한 저자" });
+    expect(checkAuthor(info({ died: null })))
+      .toEqual({ ok: false, reason: "사망 연도 불명" });
+  });
+});
+
+describe("EXCLUSION_REASONS", () => {
+  /** 동기화 스크립트가 이것으로 집계 객체를 만든다 — 손으로 적은 거울을 없앤다. */
+  it("모든 사유를 담고 중복이 없다", () => {
+    expect(EXCLUSION_REASONS).toContain("범위 밖 장르");
+    expect(EXCLUSION_REASONS).toContain("해외 저자");
+    expect(EXCLUSION_REASONS).toContain("저자 불명");
+    expect(new Set(EXCLUSION_REASONS).size).toBe(EXCLUSION_REASONS.length);
   });
 });

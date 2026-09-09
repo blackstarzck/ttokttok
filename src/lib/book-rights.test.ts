@@ -66,6 +66,16 @@ describe("blockedAuthorReason", () => {
     expect(blockedAuthorReason("__proto__")).toBeNull();
     expect(blockedAuthorReason("toString")).toBeNull();
   });
+
+  /** 실측한 저자 이름에 괄호형이 있다 — 「김소월(김정식)」·「이정호(李定鎬)」. */
+  it("괄호 붙은 이름도 잡는다", () => {
+    expect(blockedAuthorReason("정지용(鄭芝溶)")).toMatch(/월북·납북/);
+    expect(blockedAuthorReason("백석（白石）")).toMatch(/1996년/);
+  });
+
+  it("괄호 앞이 금지 명단에 없으면 통과한다", () => {
+    expect(blockedAuthorReason("김소월(김정식)")).toBeNull();
+  });
 });
 
 describe("isListable", () => {

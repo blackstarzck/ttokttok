@@ -52,12 +52,27 @@ const BLOCKED_AUTHORS = new Map<string, string>(
   ).map(([name, reason]) => [normalizeAuthorKey(name), reason] as const),
 );
 
-/** 금지 저작자면 사유를, 아니면 null. */
+/**
+ * 금지 저작자면 사유를, 아니면 null.
+ *
+ * **괄호 앞의 이름으로도 조회한다.** 실측한 저자 이름에 「김소월(김정식)」·
+ * 「이정호(李定鎬)」처럼 괄호가 붙은 형태가 있다. 정규화는 공백과 폭 없는
+ * 문자만 걷어내므로, 「정지용(鄭芝溶)」이 들어오면 명단을 통과해 버린다.
+ * 놓치는 쪽이 진짜 실패인 관문이라 두 형태를 모두 본다.
+ */
 export function blockedAuthorReason(
   author: string | null | undefined,
 ): string | null {
   if (!author) return null;
-  return BLOCKED_AUTHORS.get(normalizeAuthorKey(author)) ?? null;
+
+  const direct = BLOCKED_AUTHORS.get(normalizeAuthorKey(author));
+  if (direct) return direct;
+
+  const bare = author.replace(/\s*[(（].*$/, "");
+  if (bare && bare !== author) {
+    return BLOCKED_AUTHORS.get(normalizeAuthorKey(bare)) ?? null;
+  }
+  return null;
 }
 
 /**
