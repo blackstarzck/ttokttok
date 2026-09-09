@@ -4,6 +4,7 @@ import {
   buildCatalogueHref,
   decadeOptions,
   nextSortDir,
+  pageTitlesToDisambiguate,
   parseCatalogueQuery,
   type CatalogueQuery,
   type WorkRow,
@@ -250,6 +251,69 @@ describe("applyCatalogueQuery", () => {
     expect(r.pageCount).toBe(1);
     expect(r.page).toBe(1);
     expect(r.rows).toEqual([]);
+  });
+});
+
+describe("pageTitlesToDisambiguate", () => {
+  /**
+   * 실측: 표시 제목에 한자 병기가 이미 붙어 있는 행이 대부분이다. 겹치는
+   * 행이 없으면 `page_title`을 보여줘도 「(詩歌隨筆) 그날이 오면(그날이
+   * 오면)」처럼 잡음만 된다.
+   */
+  it("겹치는 표시 제목이 없으면 아무것도 보여주지 않는다", () => {
+    const rows = [
+      { title: "(詩歌隨筆) 그날이 오면", page_title: "그날이 오면" },
+      { title: "12월 12일(十二月 十二日)", page_title: "12월 12일" },
+      { title: "가애자(可愛者)", page_title: "가애자" },
+    ];
+    expect(pageTitlesToDisambiguate(rows).size).toBe(0);
+  });
+
+  /** 「진달래꽃」(낱편 시)과 「진달래꽃 (시집)」이 실측한 진짜 충돌 사례다. */
+  it("같은 표시 제목을 가진 두 행은 둘 다 보여준다", () => {
+    const rows = [
+      { title: "진달래꽃", page_title: "진달래꽃" },
+      { title: "진달래꽃", page_title: "진달래꽃 (시집)" },
+    ];
+    const shown = pageTitlesToDisambiguate(rows);
+    expect(shown.has("진달래꽃 (시집)")).toBe(true);
+  });
+
+  /**
+   * `page_title === title`인 행은 겹치더라도 제외한다 — 자기 자신과 똑같은
+   * 문자열을 괄호로 또 보여주는 것은 그 자체로 잡음이다.
+   */
+  it("page_title이 title과 같으면 겹쳐도 보여주지 않는다", () => {
+    const rows = [
+      { title: "진달래꽃", page_title: "진달래꽃" },
+      { title: "진달래꽃", page_title: "진달래꽃 (시집)" },
+    ];
+    const shown = pageTitlesToDisambiguate(rows);
+    expect(shown.has("진달래꽃")).toBe(false);
+  });
+
+  /**
+   * 다른 쪽에 있는 동명 작품과는 같은 화면에 없으므로 구별할 필요가 없다
+   * — 호출자는 반드시 페이지네이션 이후의 행을 넘겨야 한다는 계약을,
+   * 함수가 넘겨받은 배열만 본다는 사실로 확인한다.
+   */
+  it("넘겨받은 배열 안에서만 겹침을 판정한다", () => {
+    const onlyOnThisPage = [{ title: "진달래꽃", page_title: "진달래꽃 (시집)" }];
+    expect(pageTitlesToDisambiguate(onlyOnThisPage).size).toBe(0);
+  });
+
+  it("세 개 이상 겹쳐도 전부 담는다", () => {
+    const rows = [
+      { title: "봄", page_title: "봄 (김소월)" },
+      { title: "봄", page_title: "봄 (이상화)" },
+      { title: "봄", page_title: "봄 (변영로)" },
+    ];
+    const shown = pageTitlesToDisambiguate(rows);
+    expect(shown.size).toBe(3);
+  });
+
+  it("빈 배열을 견딘다", () => {
+    expect(pageTitlesToDisambiguate([]).size).toBe(0);
   });
 });
 

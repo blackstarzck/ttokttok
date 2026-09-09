@@ -191,6 +191,42 @@ export function applyCatalogueQuery(
   return { rows: matched.slice(from, from + PAGE_SIZE), total, pageCount, page };
 }
 
+/**
+ * `page_title`을 제목 옆 괄호로 보여줄 행의 `page_title` 집합을 계산한다.
+ *
+ * 괄호를 붙이는 이유는 「진달래꽃」(낱편 시)과 「진달래꽃 (시집)」처럼 같은
+ * 표시 제목(`title`)을 가진 두 행을 구별하기 위해서다. 그런데 표시 제목에는
+ * 대개 한자 병기가 이미 붙어 있어(예: 「그날이 오면」 → 「(詩歌隨筆)
+ * 그날이 오면」), 겹치는 행이 하나도 없을 때도 `page_title`을 무조건
+ * 붙이면 「(詩歌隨筆) 그날이 오면(그날이 오면)」·「12월 12일(十二月
+ * 十二日)(12월 12일)」·「가애자(可愛者)(가애자)」처럼 잡음만 된다.
+ *
+ * 그래서 **같은 화면에 실제로 보이는 다른 행과 표시 제목이 겹칠 때만**
+ * `page_title`을 보여준다. 반드시 페이지네이션 **이후**, 즉 실제로
+ * 그려지는 행(`applyCatalogueQuery`가 돌려주는 `result.rows`)을 넘겨야
+ * 한다 — 다른 쪽에 있는 동명 작품과는 같은 화면에 없으므로 구별할 필요가
+ * 없다.
+ *
+ * `page_title === title`인 행(원문 그대로가 표시 제목인 경우)은 겹치더라도
+ * 제외한다 — 자기 자신과 똑같은 문자열을 괄호로 또 보여주는 것은 그
+ * 자체로 잡음이다.
+ */
+export function pageTitlesToDisambiguate(
+  rows: readonly Pick<WorkRow, "title" | "page_title">[],
+): ReadonlySet<string> {
+  const titleCounts = new Map<string, number>();
+  for (const row of rows) {
+    titleCounts.set(row.title, (titleCounts.get(row.title) ?? 0) + 1);
+  }
+
+  const show = new Set<string>();
+  for (const row of rows) {
+    if (row.page_title === row.title) continue;
+    if ((titleCounts.get(row.title) ?? 0) > 1) show.add(row.page_title);
+  }
+  return show;
+}
+
 /** 필터 선택지를 실제 데이터에서 만든다 — 손으로 적은 목록은 데이터와 어긋난다. */
 export function decadeOptions(rows: readonly WorkRow[]): {
   decades: number[];

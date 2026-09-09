@@ -15,11 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
 import {
   applyCatalogueQuery,
   buildCatalogueHref,
   decadeOptions,
   nextSortDir,
+  pageTitlesToDisambiguate,
   parseCatalogueQuery,
   type CatalogueQuery,
   type SortKey,
@@ -40,6 +42,14 @@ type Row = WorkRow & { synced_at: string };
  *
  * 현재 정렬 중인 컬럼에만 방향 화살표를 붙인다. 모든 컬럼에 붙이면
  * 무엇이 적용된 정렬인지 안 보인다.
+ *
+ * **탭 타깃은 헤더 칸 전체다** (2026-09-09 수정 — 예전엔 `inline-flex`
+ * `Link`가 자기 줄상자만 차지해 「저자」·「장르」·「출간」이 26×20px밖에
+ * 안 됐다). `TableHead`를 `p-0`으로 비우고 `Link`에 `flex h-11`을 줘서
+ * 블록 레벨 박스가 되게 한다 — 표 셀 안의 블록 자식은 너비가 셀 전체로
+ * 자동으로 채워지므로 별도로 `w-full`을 줄 필요가 없다. `h-11`(44px)이
+ * `docs/DESIGN.md`의 터치 타깃 최소치를 채운다 — 그 문서가 명시한 예외는
+ * `BottomNav` 하나뿐이고 다른 곳으로 넓히지 말라고 못박혀 있다.
  */
 function SortableHead({
   label,
@@ -58,7 +68,7 @@ function SortableHead({
 
   return (
     <TableHead
-      className={className}
+      className={cn("h-11 p-0", className)}
       aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : "none"}
     >
       <Link
@@ -66,7 +76,7 @@ function SortableHead({
           sort: sortKey,
           dir: nextDir,
         })}
-        className="hover:text-foreground inline-flex items-center whitespace-nowrap underline-offset-4 hover:underline"
+        className="hover:text-foreground flex h-11 items-center whitespace-nowrap px-2 underline-offset-4 hover:underline"
         aria-label={
           (active
             ? `${label}, 현재 ${query.dir === "asc" ? "오름차" : "내림차"} 정렬. `
@@ -123,6 +133,10 @@ export default async function WikisourceCataloguePage({
   );
 
   const result = applyCatalogueQuery(rows, query, registered);
+
+  // 페이지네이션 **이후**의 행만 넘긴다 — 다른 쪽에 있는 동명 작품과는
+  // 같은 화면에 없으므로 괄호로 구별할 필요가 없다.
+  const pageTitlesShown = pageTitlesToDisambiguate(result.rows);
 
   // 필터 전 전체 행에서 만든다 — 필터를 걸면 선택지가 사라져 되돌릴 수
   // 없게 되는 것을 막는다.
@@ -313,10 +327,17 @@ export default async function WikisourceCataloguePage({
                   {row.title}
                   {/*
                     표시 제목과 문서 제목이 다른 경우가 있다 —
-                    「진달래꽃」의 문서는 「진달래꽃 (시집)」이다. 무엇을
-                    가져오는지 보이지 않으면 동명 작품을 구별할 수 없다.
+                    「진달래꽃」의 문서는 「진달래꽃 (시집)」이다. 하지만
+                    표시 제목에는 대개 한자 병기가 이미 붙어 있어서
+                    (「그날이 오면」 → 「(詩歌隨筆) 그날이 오면」), 겹치는
+                    행이 없을 때도 무조건 붙이면 「(詩歌隨筆) 그날이
+                    오면(그날이 오면)」처럼 잡음만 된다. 그래서 같은 쪽에
+                    보이는 다른 행과 표시 제목이 겹칠 때만 보여준다
+                    (pageTitlesToDisambiguate, wikisource-catalogue.ts) —
+                    그래야 「진달래꽃」처럼 정말 동명 작품을 구별해야 하는
+                    경우에만 나타난다.
                   */}
-                  {row.page_title !== row.title && (
+                  {pageTitlesShown.has(row.page_title) && (
                     <span className="text-muted-foreground ml-1 text-xs">
                       ({row.page_title})
                     </span>
