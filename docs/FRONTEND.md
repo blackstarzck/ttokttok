@@ -7,28 +7,26 @@
 ## 1. 디렉터리 규칙
 
 ```
-src/
-├─ app/
-│  ├─ (main)/          # GNB(홈/릴스/탐색/프로필)가 붙는 화면
-│  ├─ read/[bookId]/   # EPUB 뷰어 — GNB 없음, 풀스크린
-│  ├─ admin/           # 어드민 CMS — GNB 없음, admin role 전용
-│  └─ login/
-├─ components/
-│  ├─ ui/              # shadcn 원본. 직접 수정 최소화(스타일 변형은 variant 추가로)
-│  ├─ layout/          # 셸 부품 (BottomNav 등)
-│  ├─ feed/            # 피드 도메인 (스냅 스크롤, 액션 바, 캐러셀)
-│  ├─ cards/           # 카드 템플릿 레지스트리 (§3)
-│  ├─ book/            # 도서 상세 시트 — 피드·탐색·프로필이 공유 (PRD §5.12)
-│  ├─ reader/          # 뷰어 도메인
-│  └─ admin/           # 어드민 전용 조각
-├─ lib/
-│  ├─ supabase/        # client.ts(브라우저) / server.ts(서버)
-│  └─ …                # 도메인 로직, 유틸
-└─ hooks/              # 공용 커스텀 훅
+apps/
+├─ client/src/
+│  ├─ app/             # (main), read/[bookId], login, auth
+│  ├─ components/      # 사용자 데이터·동작이 필요한 피드·도서 시트·뷰어
+│  ├─ hooks/
+│  └─ lib/             # 사용자 데이터 접근과 앱별 Supabase 설정
+└─ admin/src/
+   ├─ app/admin/       # 관리자 CMS, admin role 전용
+   ├─ components/admin/
+   └─ lib/             # 관리자 권한·데이터 접근과 앱별 Supabase 설정
+packages/
+├─ shared/src/         # 순수 타입·검증·카드 입력 정의 (React/Next/DOM 금지)
+├─ database/src/       # Supabase 접속 팩토리와 생성 타입
+├─ ui/src/             # 공용 기본 UI·카드·셸·테마 (앱 데이터 접근 금지)
+└─ content/src/        # 관리자·루트 스크립트용 외부 EPUB 수집
 ```
 
 - 화면 전용 조각은 도메인 폴더에, 두 도메인 이상에서 쓰이면 그때 승격한다. **미리 일반화하지 않는다.**
 - 파일명 kebab-case, 컴포넌트는 named export. `export default`는 Next가 요구하는 곳(page/layout)만.
+- 앱끼리 직접 참조하지 않는다. 관리자의 비활성 미리보기는 공용 화면을 조합하며 링크 사전 요청도 끈다.
 
 ## 2. 컴포넌트 규칙
 
@@ -42,7 +40,7 @@ src/
 
 카드 게시물 본문은 페이지네이션 없는 한 장이고, 데이터는 `{ template: "a", regions: { "hook": { "variant": "a", "text": "..." }, ... } }` 형태의 1:1 상세 행이다 (PRD §5.2).
 
-- 레지스트리는 `src/components/cards/registry.ts` **한 곳**: `POST_TEMPLATES`(템플릿 → 영역 구성·순서, **순서는 템플릿이 고정**)와 `REGION_REGISTRY`(영역 → 입력 종류·필수 여부·글자 수 상한·UI 유형들). 영역 컴포넌트는 `regions.tsx`에 산다.
+- 카드 입력 정의는 `packages/shared/src/cards.ts` **한 곳**: `POST_TEMPLATES`가 구성·순서를 고정하고 `REGION_SCHEMA`가 입력 종류·필수 여부·글자 수 상한·유형 라벨을 정의한다. React 영역 레지스트리와 실제 화면은 `packages/ui/src/cards/registry.ts`와 `regions.tsx`에 있다. 서버 검증은 React를 import하지 않는다.
 - 렌더 폴백 3규칙 (`template-card.tsx`):
   - 알 수 없는 **템플릿** → 그 게시물만 스킵 — 피드 전체를 죽이지 않는다.
   - 필수 입력(훅)이 빈 카드 → 스킵 + `console.error`. 어드민 미리보기(`preview`)에서는 자리표시를 대신 그리고 로그를 남기지 않는다 — 편집 중에는 타건마다 실패한다.
@@ -62,7 +60,7 @@ src/
 | URL 상태 | `searchParams` / 동적 세그먼트 | 검색어, 장르 필터, 게시물 딥링크 |
 
 - **전역 클라이언트 스토어(Zustand 등)는 도입 금지** — 위 3분류로 풀리지 않는 사례가 실제로 나왔을 때 재논의한다.
-- 서버 상태를 `useState`+`useEffect`로 수동 fetch하지 않는다. 서버 컴포넌트에서 읽을 수 있으면 그게 우선이다. **이 규칙을 어긴 자리에서 실제로 버그가 났다**: `FeedScroller`가 진행 중 플래그를 가드이자 deps로 함께 써서, `setLoadingMore(true)`가 곧바로 effect를 cleanup→재실행시키고 그 cleanup이 세운 취소 플래그가 원래 요청의 결과를 버렸다 — 다음 페이지가 영영 안 붙고 스피너만 남았다. 지금은 홈(`CardFeed`)·릴스(`FeedScroller`) 둘 다 `useInfiniteQuery`를 쓰고, 요청 수명을 직접 들지 않으므로 프리페치 effect에 **cleanup이 아예 없다**. 두 화면이 공유하는 순수 규칙(페이지 경계 중복 제거, 프리페치 시점)은 `lib/feed-pagination.ts`에 있고 테스트로 고정돼 있다.
+- 서버 상태를 `useState`+`useEffect`로 수동 fetch하지 않는다. 서버 컴포넌트에서 읽을 수 있으면 그게 우선이다. **이 규칙을 어긴 자리에서 실제로 버그가 났다**: `FeedScroller`가 진행 중 플래그를 가드이자 deps로 함께 써서, `setLoadingMore(true)`가 곧바로 effect를 cleanup→재실행시키고 그 cleanup이 세운 취소 플래그가 원래 요청의 결과를 버렸다 — 다음 페이지가 영영 안 붙고 스피너만 남았다. 지금은 홈(`CardFeed`)·릴스(`FeedScroller`) 둘 다 `useInfiniteQuery`를 쓰고, 요청 수명을 직접 들지 않으므로 프리페치 effect에 **cleanup이 아예 없다**. 두 화면이 공유하는 순수 규칙(페이지 경계 중복 제거, 프리페치 시점)은 `packages/shared/src/feed-pagination.ts`에 있고 테스트로 고정돼 있다.
 - 좋아요·찜처럼 즉각 반응이 필요한 토글은 optimistic update + 실패 시 롤백·토스트.
 - **셸 컨텍스트는 지금 하나뿐이다** — `components/overlay-presence.tsx`(화면을 덮는 바텀시트가 열려 있는지). 영상 게시물이 시트에 덮일 때 재생을 멈추려고 두었고, 열린 개수를 센다(시트 위에 시트가 겹치므로). **등록은 `components/ui/drawer.tsx` 한 곳에서만 한다** — 시트마다 배선하면 새 시트를 만드는 사람이 규약을 기억해야 하고, 잊으면 조용히 안 지켜진다. 컨텍스트를 새로 만들 때도 같은 기준을 쓴다: 소비자가 트리 여러 곳에 흩어져 있고, 생산 지점을 한 곳으로 모을 수 있을 때만.
 
@@ -77,8 +75,10 @@ src/
   - **어드민 화면**: `if (error) throw new Error(error.message)`. 내부 화면이라 별도 에러 UI를 만들지 않고 Next 기본 에러 화면으로 보낸다(`admin/reports/page.tsx`가 선례).
   - **예외**: 실패해도 화면이 이미 "모른다"고 말하고 있으면 그대로 둔다 — 어드민 대시보드의 카운트는 `null`일 때 `–`를 그리므로 0으로 위장하지 않는다.
   - 전제: supabase-js는 **빈 결과에 `error`를 세우지 않는다**(`.maybeSingle()`의 없는 행 포함). 실측으로 확인한 사실이라, 이 규약이 멀쩡한 빈 목록을 실패로 오인하지 않는다.
-- **도서 시트가 읽는 필드는 `lib/book-fields.ts`의 `BOOK_SELECT` 하나뿐이다.** 화면마다 자기 SELECT 목록을 적지 않는다 — 피드·탐색·보관함·어드민 미리보기가 각자 목록을 들고 있다가 `quote`·`quote_source`가 피드에만 추가돼, **같은 책인데 피드에서 열면 인용구가 보이고 보관함에서 열면 사라졌다**(PRD §11-41 위반, §11-60). 조회 결과를 `as unknown as FeedBook`으로 캐스팅하므로 타입 검사가 이 어긋남을 못 본다. 그래서 그 파일이 목록을 `keyof FeedBook`에 양방향으로 묶어 둔다 — `FeedBook`에 필드를 더하고 목록에 안 더하면 컴파일이 깨진다. **커버 썸네일처럼 시트를 열지 않는 좁은 목록은 예외**이고(`activity.ts`: RSC 페이로드에 최대 50건이 실린다), 그런 곳은 `Pick<FeedBook, …>`로 타입을 좁혀 짝을 맞춘다.
-- 조회 로깅: 게시물이 뷰포트에 1초 이상 → `record_view(post_id, session_id)`. session_id는 **쿠키**(`ttokttok.session-id`)의 랜덤 UUID이고 미들웨어가 심는다. localStorage가 아닌 이유: 피드 1페이지는 서버 컴포넌트가 랭킹하는데 localStorage는 서버가 못 읽어, 1페이지만 `p_session_id = null`로 계산되고 다음 페이지는 실제 id로 계산돼 **점수 함수가 페이지마다 갈렸다** — 같은 게시물이 두 페이지에 모두 랭크된다(시청 이력이 있는 세션 실측: 겹침 3 → 0). **이것만으로는 중복이 다 없어지지 않았다** — 첫 방문자는 1페이지를 보는 동안 seen_penalty가 붙어 점수가 커서 아래로 떨어지므로 여전히 겹쳤다. 남은 원인은 세션 id가 아니라 점수 함수가 시간에 따라 변한다는 것이었고, 이는 점수를 페이지네이션 시작 시각에 고정해 별건으로 해결했다(§11-59, 마이그레이션 20260907000001). 피드 seed와 같은 처방이며, 다만 seed는 방문마다 새로 뽑는 세션 쿠키인 반면 이 값은 `seen_penalty`가 3일을 돌아보므로 maxAge를 준다. 자세한 근거는 `src/lib/session-id.ts` 주석.
+- **도서 시트가 읽는 필드는 `packages/shared/src/book-fields.ts`의 `BOOK_SELECT` 하나뿐이다.** 화면마다 자기 SELECT 목록을 적지 않는다 — 피드·탐색·보관함·어드민 미리보기가 각자 목록을 들고 있다가 `quote`·`quote_source`가 피드에만 추가돼, **같은 책인데 피드에서 열면 인용구가 보이고 보관함에서 열면 사라졌다**(PRD §11-41 위반, §11-60). 조회 결과를 `as unknown as FeedBook`으로 캐스팅하므로 타입 검사가 이 어긋남을 못 본다. 그래서 그 파일이 목록을 `keyof FeedBook`에 양방향으로 묶어 둔다 — `FeedBook`에 필드를 더하고 목록에 안 더하면 컴파일이 깨진다. **커버 썸네일처럼 시트를 열지 않는 좁은 목록은 예외**이고(`activity.ts`: RSC 페이로드에 최대 50건이 실린다), 그런 곳은 `Pick<FeedBook, …>`로 타입을 좁혀 짝을 맞춘다.
+- 조회 로깅: 게시물이 뷰포트에 1초 이상 → `record_view(post_id, session_id)`. session_id는 **쿠키**(`ttokttok.session-id`)의 랜덤 UUID이고 미들웨어가 심는다. localStorage가 아닌 이유: 피드 1페이지는 서버 컴포넌트가 랭킹하는데 localStorage는 서버가 못 읽어, 1페이지만 `p_session_id = null`로 계산되고 다음 페이지는 실제 id로 계산돼 **점수 함수가 페이지마다 갈렸다** — 같은 게시물이 두 페이지에 모두 랭크된다(시청 이력이 있는 세션 실측: 겹침 3 → 0). **이것만으로는 중복이 다 없어지지 않았다** — 첫 방문자는 1페이지를 보는 동안 seen_penalty가 붙어 점수가 커서 아래로 떨어지므로 여전히 겹쳤다. 남은 원인은 세션 id가 아니라 점수 함수가 시간에 따라 변한다는 것이었고, 이는 점수를 페이지네이션 시작 시각에 고정해 별건으로 해결했다(§11-59, 마이그레이션 20260907000001). 피드 seed와 같은 처방이며, 다만 seed는 방문마다 새로 뽑는 세션 쿠키인 반면 이 값은 `seen_penalty`가 3일을 돌아보므로 maxAge를 준다. 자세한 근거는 `apps/client/src/lib/session-id.ts` 주석.
+
+관리자 쿠키는 사용자 쿠키와 다른 이름을 쓴다. DB 서버 팩토리는 `no-store`로 조회하므로 관리자 저장 후 별도 사용자 앱의 다음 요청에서 변경을 읽는다. 다른 앱의 `revalidatePath`로 배포 간 캐시가 무효화된다고 가정하지 않는다.
 
 ## 6. 성능 (PRD §7의 실행 규칙)
 
@@ -104,7 +104,7 @@ npm test
 ```
 
 - 빌드(타입체크 포함)가 통과해야 한다. 화면 작업이면 브라우저에서 375px 뷰포트로 실제 렌더를 확인한다.
-- 테스트 경계: 순수 함수만 대상이다. Supabase 쿼리 빌더는 모킹하지 않는다 — PostgREST 체인을 모킹한 테스트는 그 모킹 모양을 검증할 뿐 동작을 검증하지 않는다. 네트워크 경로와 렌더는 `npm run build` + 375px 확인이 맡는다.
+- 테스트는 순수 함수·패키지 경계, 실제 로컬 DB 인테그레이션, 각 앱의 브라우저 E2E와 디자인 회귀를 포함한다. Supabase 쿼리 빌더를 모킹해 실제 연동 검증을 대체하지 않는다. [실행 절차](./monorepo-testing.md)에 따라 격리된 로컬 DB를 사용하고 운영 데이터를 테스트로 변경하지 않는다.
 - 토큰·템플릿·상태 규칙을 새로 만들었거나 바꿨다면 이 문서/DESIGN.md/PRD 중 해당 문서를 같은 커밋에서 갱신한다.
 
 ## 8. 참조 스킬 (Claude Code)

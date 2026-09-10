@@ -26,7 +26,7 @@ Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 라이트 기본(�
 
 ## 불변 규칙 (요약 — 상세는 각 문서)
 
-- 스타일: 시맨틱 토큰만 (`bg-background`). 원시 hex·px·Tailwind 팔레트 직접 참조 금지. 토큰 추가는 `globals.css` + DESIGN.md 동시 수정.
+- 스타일: 시맨틱 토큰만 (`bg-background`). 원시 hex·px·Tailwind 팔레트 직접 참조 금지. 토큰 추가는 `packages/ui/src/theme.css` + DESIGN.md 동시 수정.
 - 상태: 서버 상태=TanStack Query / UI 상태=useState / URL 상태=searchParams. 전역 스토어 도입 금지.
 - 데이터: 보안은 RLS가 담당. service role 키는 서버 전용. 카운터는 트리거·RPC로만 증감.
 - MVP 비목표 (만들지 말 것): UGC, 결제, ML 개인화, 포인트·레벨류 게이미피케이션, 다국어, PWA.
@@ -42,6 +42,13 @@ Next.js 16 (App Router) + Tailwind v4 + shadcn/ui + Supabase. 라이트 기본(�
 | 문서 | 역할 |
 |---|---|
 | [prd-ttokttok.md](./docs/prd-ttokttok.md) | 제품 요구사항 — 기능 명세, 데이터 모델, 로드맵, 결정 기록 |
-| [DESIGN.md](./docs/DESIGN.md) | 디자인 시스템 — 토큰(YAML) + 사용 규칙. 토큰 원천은 `src/app/globals.css` |
+| [DESIGN.md](./docs/DESIGN.md) | 디자인 시스템 — 토큰(YAML) + 사용 규칙. 토큰 원천은 `packages/ui/src/theme.css` |
 | [FRONTEND.md](./docs/FRONTEND.md) | 프론트 구조 규칙 — 디렉터리, 컴포넌트, 상태, 데이터 접근, 성능, 완료 기준 |
 | `supabase/migrations/` | DB의 진실 — 스키마·RLS·RPC는 마이그레이션 파일로만 변경 |
+
+## 모노레포 경계
+
+- `apps/client`(:3000)와 `apps/admin`(:3001)은 서로 import하지 않는다.
+- `packages/shared`는 React·Next·DOM·네트워크에 의존하지 않는다. 공용 UI는 `packages/ui`, DB 팩토리·생성 타입은 `packages/database`, 외부 콘텐츠 수집은 `packages/content`에 둔다.
+- 앱은 자신의 인증·데이터 로직을 소유하며 공용 화면에 동작을 조합한다. 관리자 미리보기는 저장·집계를 실행하지 않는다.
+- 앱 분리·인증·공용 UI 변경 시 두 앱의 E2E·실제 로컬 DB 인테그레이션·디자인 회귀를 모두 실행한다. [검증 절차](./docs/monorepo-testing.md)와 [배포 영향](./docs/monorepo-deployment.md)을 따른다.

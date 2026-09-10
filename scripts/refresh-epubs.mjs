@@ -5,7 +5,7 @@
  *   node --env-file=.env scripts/refresh-epubs.mjs 진달래꽃 날개  (제목으로 골라서)
  *   node --env-file=.env scripts/refresh-epubs.mjs --dry-run   (받아서 검사만, 업로드 안 함)
  *
- * 왜 필요한가: 본문은 `src/lib/wikisource.ts`를 거쳐 들어온다 — 폰트를 걷어내고
+ * 왜 필요한가: 본문은 `packages/content/src/wikisource.ts 및 packages/shared/src/wikisource.ts`를 거쳐 들어온다 — 폰트를 걷어내고
  * 위키문헌 껍데기(표지·기여자 목록·라이선스 상자)를 떼어낸다. 그 파이프라인이
  * 바뀌면 **이미 올라간 파일은 옛 상태로 남는다**. seed.mjs는 스토리지에 파일이
  * 있으면 재사용하고 넘어가므로 시드를 다시 돌려도 갱신되지 않는다.
@@ -14,8 +14,9 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-// 수급·정리·검사의 원천은 src/lib/wikisource.ts 하나다 (Task 3 개정 참고).
-import { assertClean, fetchEpub } from "../src/lib/wikisource.ts";
+// 수급·정리·검사의 원천은 packages/content/src/wikisource.ts 및 packages/shared/src/wikisource.ts 하나다 (Task 3 개정 참고).
+import { fetchEpub } from '@ttokttok/content/wikisource';
+import { assertClean } from '@ttokttok/shared/wikisource';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

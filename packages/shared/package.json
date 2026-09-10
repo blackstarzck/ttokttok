@@ -1,0 +1,13 @@
+{
+  "name": "@ttokttok/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "zod": "^4.4.3"
+  }
+}

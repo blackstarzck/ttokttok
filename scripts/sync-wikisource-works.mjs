@@ -27,10 +27,10 @@ import {
   parseAuthorPage,
   parseCategories,
   parseHeader,
-} from "../src/lib/wikisource-meta.ts";
+} from "@ttokttok/shared/wikisource-meta";
 // 문서 제목 정규화의 원천은 하나다 — books.source_ref와 같은 함수를 거쳐야
 // "이미 등록됨" 판정이 성립한다 (PRD §11-51).
-import { toPageTitle } from "../src/lib/wikisource.ts";
+import { toPageTitle } from "@ttokttok/shared/wikisource";
 
 const API = "https://ko.wikisource.org/w/api.php";
 const USER_AGENT = "ttokttok/0.1 (https://github.com/ttokttok; content sourcing)";

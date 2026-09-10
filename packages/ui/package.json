@@ -1,0 +1,41 @@
+{
+  "name": "@ttokttok/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./cards/regions": "./src/cards/regions.tsx",
+    "./cards/template-card": "./src/cards/template-card.tsx",
+    "./cards/card-placeholder": "./src/cards/card-placeholder.tsx",
+    "./feed/book-cover": "./src/feed/book-cover.tsx",
+    "./layout/bottom-nav": "./src/layout/bottom-nav.tsx",
+    "./book/book-fan-icon": "./src/book/book-fan-icon.tsx",
+    "./brand-logo": "./src/brand-logo.tsx",
+    "./overlay-presence": "./src/overlay-presence.tsx",
+    "./theme.css": "./src/theme.css",
+    "./feed/post-book-info": "./src/feed/post-book-info.tsx",
+    "./feed/post-card-view": "./src/feed/post-card-view.tsx",
+    "./feed/top-bar-view": "./src/feed/top-bar-view.tsx",
+    "./feed/card-actions-view": "./src/feed/card-actions-view.tsx"
+  },
+  "dependencies": {
+    "@ttokttok/shared": "*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0",
+    "lucide-react": "^1.34.0",
+    "radix-ui": "^1.6.7",
+    "next-themes": "^0.4.6",
+    "sonner": "^2.0.8",
+    "vaul": "^1.1.2",
+    "tw-animate-css": "^1.4.0",
+    "shadcn": "^4.19.0"
+  },
+  "peerDependencies": {
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

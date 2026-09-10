@@ -18,37 +18,37 @@ colors:
   ring: "oklch(0.708 0 0)"
 typography:
   body:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "16px"
     fontWeight: 400
     lineHeight: 1.6
   bodySmall:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
   caption:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.4
   titleScreen:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "24px"
     fontWeight: 700
     lineHeight: 1.35
   titleSection:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "18px"
     fontWeight: 700
     lineHeight: 1.4
   titleCard:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "16px"
     fontWeight: 500
     lineHeight: 1.45
   quote:
-    fontFamily: "Noto Sans KR, sans-serif"
+    fontFamily: "Pretendard Variable, sans-serif"
     fontSize: "20px"
     fontWeight: 500
     lineHeight: 1.7
@@ -108,7 +108,7 @@ components:
 2. **라이트 기본, 다크 선택** — 기본은 라이트이고 사용자가 프로필에서 라이트·다크·시스템을 고른다 (결정 기록 §11-34). 모든 색이 시맨틱 토큰을 거치므로 테마 전환은 `globals.css`의 `:root`·`.dark` 변수 블록만으로 끝난다 — 컴포넌트는 손대지 않는다. **어드민(/admin)만 라이트 고정**이다 — 데이터 입력 화면이라 테마 선택지를 주지 않는다 (§11-35).
 3. **읽기가 최종 목적** — 모든 화면의 시각적 위계는 "바로 읽기" CTA로 수렴한다. 장식적 애니메이션보다 전환(피드→뷰어)의 매끄러움에 투자한다.
 
-**토큰의 유일한 원천은 `src/app/globals.css`다.** 이 문서의 YAML은 그 사본이며, 사람이 읽는 사양서다. 토큰을 바꿀 때는 globals.css와 이 문서를 **같은 커밋에서** 함께 수정한다.
+**토큰의 유일한 원천은 `packages/ui/src/theme.css`다.** 이 문서의 YAML은 그 사본이며, 사람이 읽는 사양서다. 토큰을 바꿀 때는 theme.css와 이 문서를 **같은 커밋에서** 함께 수정한다.
 
 ## Colors
 
@@ -130,7 +130,7 @@ components:
 사용 규칙:
 
 - 컴포넌트에서는 **시맨틱 유틸리티만** 사용한다: `bg-background`, `text-muted-foreground`, `border-border`. `bg-neutral-900`, `text-white`, `#hex` 금지.
-- **피드 크롬은 테마 면제 구역이다.** 액션 레일과 도서 정보 바는 게시물 유형·테마와 무관하게 흰색 고정(`#ffffff`, 보조 텍스트 `rgb(255 255 255 / 0.9)`)이고, 컨텐츠 영역 하단의 검정 이징 스크림 120px(`rgb(0 0 0 / 0.45)` → 투명, 전 구간 단조 감소 — 정확한 스톱은 설계 문서 "스크림")가 대비를 만든다. **상단 스크림은 없다** — 한때 96px가 있었지만 그건 홈이 전면 피드이던 시절 흰색 고정 상단 바를 위한 것이었고, 그 바가 구조적 헤더로 옮겨가며(§11-53) 지킬 대상이 사라져 걷어냈다(§11-57). 상단에 남은 유일한 크롬인 음소거 버튼은 자기 `bg-black/50`을 갖는다. 시맨틱 토큰을 쓰지 않는 두 예외 중 하나이며, 범위는 **피드 게시물 위에 얹히는 크롬**으로 한정한다 — 구체적으로 `src/components/feed/chrome.ts`의 상수들, `BookCover`의 `overlay` 변형, `post-item.tsx`의 크롬 부분(도서 정보 바 텍스트·채널 아바타·하단 스크림), `video-player.tsx`의 음소거 버튼이다. `BookCover`는 탐색 그리드에서도 쓰이므로 `chrome.ts`를 import하지 않는다. 기본 변형은 지금처럼 시맨틱 토큰을 쓰고, 면제는 `overlay` 분기 안에만 존재한다. 근거와 실측은 `docs/superpowers/specs/2026-09-01-home-feed-overlay-design.md`. **이 면제는 홈 카드(`post-card.tsx`, `card-actions.tsx`)에는 적용되지 않는다** — 카드는 밑에 깔리는 것이 `card` 표면(불투명 배경)이지 임의의 콘텐츠 픽셀이 아니라서, 판독성을 걱정할 이유가 애초에 없다. `LikeButton`이 `surface` prop으로 크롬 스타일과 카드 스타일을 가르는 것도 같은 이유다 — 카드 쪽은 항상 시맨틱 토큰(`text-muted-foreground` 등)만 쓴다. **`top-bar.tsx`·`unread-badge.tsx`(홈 상단 바와 알림 배지)는 여기 속하지 않는다** — 예전에는 이 예외 목록에 있었지만, 홈 상단 바가 오버레이에서 구조적 헤더로 바뀌며(IA 결정 기록 §11-53) 밑에 깔리는 것이 `background` 표면(페이지·셸 배경)이 됐다. 그 상태로 흰색 고정을 남겨 두면 라이트 테마에서 로고·배지가 배경과 거의 같은 명도가 되어 안 보인다 — 그래서 시맨틱 토큰(`bg-background`, `text-foreground`, 배지는 `bg-destructive`)으로 옮겼다.
+- **피드 크롬은 테마 면제 구역이다.** 액션 레일과 도서 정보 바는 게시물 유형·테마와 무관하게 흰색 고정(`#ffffff`, 보조 텍스트 `rgb(255 255 255 / 0.9)`)이고, 컨텐츠 영역 하단의 검정 이징 스크림 120px(`rgb(0 0 0 / 0.45)` → 투명, 전 구간 단조 감소 — 정확한 스톱은 설계 문서 "스크림")가 대비를 만든다. **상단 스크림은 없다** — 한때 96px가 있었지만 그건 홈이 전면 피드이던 시절 흰색 고정 상단 바를 위한 것이었고, 그 바가 구조적 헤더로 옮겨가며(§11-53) 지킬 대상이 사라져 걷어냈다(§11-57). 상단에 남은 유일한 크롬인 음소거 버튼은 자기 `bg-black/50`을 갖는다. 시맨틱 토큰을 쓰지 않는 두 예외 중 하나이며, 범위는 **피드 게시물 위에 얹히는 크롬**으로 한정한다 — 구체적으로 `packages/ui/src/feed/chrome.ts`의 상수들, `BookCover`의 `overlay` 변형, `post-item.tsx`의 크롬 부분(도서 정보 바 텍스트·채널 아바타·하단 스크림), `video-player.tsx`의 음소거 버튼이다. `BookCover`는 탐색 그리드에서도 쓰이므로 `chrome.ts`를 import하지 않는다. 기본 변형은 지금처럼 시맨틱 토큰을 쓰고, 면제는 `overlay` 분기 안에만 존재한다. 근거와 실측은 `docs/superpowers/specs/2026-09-01-home-feed-overlay-design.md`. **이 면제는 홈 카드(`post-card.tsx`, `card-actions.tsx`)에는 적용되지 않는다** — 카드는 밑에 깔리는 것이 `card` 표면(불투명 배경)이지 임의의 콘텐츠 픽셀이 아니라서, 판독성을 걱정할 이유가 애초에 없다. `LikeButton`이 `surface` prop으로 크롬 스타일과 카드 스타일을 가르는 것도 같은 이유다 — 카드 쪽은 항상 시맨틱 토큰(`text-muted-foreground` 등)만 쓴다. **`top-bar.tsx`·`unread-badge.tsx`(홈 상단 바와 알림 배지)는 여기 속하지 않는다** — 예전에는 이 예외 목록에 있었지만, 홈 상단 바가 오버레이에서 구조적 헤더로 바뀌며(IA 결정 기록 §11-53) 밑에 깔리는 것이 `background` 표면(페이지·셸 배경)이 됐다. 그 상태로 흰색 고정을 남겨 두면 라이트 테마에서 로고·배지가 배경과 거의 같은 명도가 되어 안 보인다 — 그래서 시맨틱 토큰(`bg-background`, `text-foreground`, 배지는 `bg-destructive`)으로 옮겼다.
 - **외부 브랜드 자산**도 예외다. 소셜로그인 버튼의 카카오 노란색(`#FEE500`)처럼 제공사가 색을 규정한 경우는 원시 값을 쓴다 — 토큰으로 바꾸면 브랜드 가이드 위반이다. 이 예외는 `components/auth/` 안에만 둔다.
 - 상태를 색으로만 말하지 않는다. 좋아요한 하트는 빨강이 아니라 **채움**으로 구분한다 — 유채색은 도서 표지의 몫이고, 색맹 사용자에게도 형태가 더 확실하다.
 - 텍스트 대비: `mutedForeground`가 `background` 위에서 **4.5:1**을 만족하는 하한선이다 (측정값 — 라이트 4.94, 다크 7.66). 이보다 흐린 텍스트를 본문에 쓰지 않는다. 토큰을 조정하면 두 테마 모두 다시 재보아야 한다.
@@ -138,9 +138,9 @@ components:
 ## Typography
 
 - **브랜드 로고**: `BrandLogo`가 더블 t 심볼 + Gasoek One ‘똑똑’ PNG를 원본 비율로 표시한다. 높이는 `h-8`, 라이트는 검정·다크는 흰색이며 앱의 테마 클래스를 따른다. 글꼴은 이미지에 포함되어 별도 로딩하지 않는다. 소개 상·하단, 홈 상단, 관리자 브랜드 위치에서 공유한다. 슬로건·저작권·페이지 제목의 서비스명은 텍스트를 유지한다.
-- **파비콘**: 더블 t 심볼 단독. `src/app/icon.svg`는 브라우저 색상 설정에 대응하며, `favicon.ico`는 밝은 바탕의 호환용 아이콘이다.
+- **파비콘**: 더블 t 심볼 단독. `apps/*/src/app/icon.svg`는 브라우저 색상 설정에 대응하며, `favicon.ico`는 밝은 바탕의 호환용 아이콘이다.
 
-- **본문/UI: Noto Sans KR** (400/500/700). `--font-sans`에 바인딩되어 있고 `font-sans`가 기본이다.
+- **본문/UI: Pretendard Variable** (가변 45~920, 자체 호스팅 `apps/*/src/app/fonts/`). `next/font/local`로 `--font-sans`에 바인딩되어 있고 `font-sans`가 기본이다. 앱 화면은 400/500/700만 쓰고, 소개 랜딩(`/about`)은 600을 더 쓴다.
 - **모노: Geist Mono** — ISBN, 코드성 메타데이터 전용.
 - 스케일은 front matter의 7단계가 전부다. 임의 크기(`text-[13px]`)를 만들지 않는다.
 - 본문 최소 크기 14px, 캡션(메타 정보) 최소 12px. 12px 미만 텍스트 금지.
@@ -182,7 +182,7 @@ components:
 
 ## Components
 
-- **shadcn/ui가 컴포넌트 기반**이다 (radix base, nova preset). `src/components/ui/`의 변형을 우선 사용하고, 없으면 shadcn 레지스트리에서 추가한다.
+- **shadcn/ui가 컴포넌트 기반**이다 (radix base, nova preset). `packages/ui/src/components/`의 변형을 우선 사용하고, 없으면 shadcn 레지스트리에서 추가한다.
 - 버튼 위계: 화면당 `primary` 버튼은 **하나**("바로 읽기" 등 핵심 전환). 나머지는 `secondary`/`ghost`.
 - 모바일 인터랙션 표면은 Dialog가 아니라 **Drawer(바텀시트)** 가 기본이다: 댓글, 도서 상세(더보기), 로그인 유도.
 - 기본 아이콘은 lucide-react를 쓴다. 읽기·바로 읽기에는 사용자 지정 플랫 책 아이콘을 사용한다. 하단 메뉴는 이름을 화면에 표시하지 않고 24px 아이콘만 표시하며, 비활성은 윤곽선·활성은 같은 의미의 단색 채움 아이콘으로 구분한다. 메뉴 이름은 `aria-label`, 현재 메뉴는 `aria-current="page"`로 전달한다. 하단 메뉴의 기존 높이와 터치 영역은 유지한다. 이모지를 아이콘으로 쓰지 않는다.
@@ -206,3 +206,4 @@ components:
 - 그림자로 위계 표현 금지 (Elevation 규칙 참조).
 - 화면당 두 개 이상의 primary 버튼 금지.
 - `width`/`height` 애니메이션, 데코레이션 목적의 무한 애니메이션 금지.
+  - **예외: 소개 랜딩(`/about`)** — 참고 사이트를 복제하라는 요구(PRD §11-67)로 회전 강조어·마퀴·쉐브론 펄스·스토리 진행 막대를 돈다. 토큰은 `globals.css` `@theme`의 `--animate-*` 소개 전용 블록 하나에 모여 있고, 쓰는 쪽은 전부 `motion-safe:` 변형이라 감속 설정에서는 멈춰 있다. 아코디언의 250ms 높이 전이(`.details-animate`)도 같은 예외다. 앱 화면으로 가져오지 않는다.

@@ -123,19 +123,27 @@
 
 ```bash
 npm install
-cp .env.example .env.local   # Supabase 값을 채운다
+cp apps/client/.env.example apps/client/.env.local
+cp apps/admin/.env.example apps/admin/.env.local
+# 두 앱의 Supabase 값과 서로 연결할 주소를 채운다
 npm run dev
 ```
 
 | 명령 | 역할 |
 |---|---|
-| `npm run dev` / `npm run build` | 개발 서버 / 프로덕션 빌드(타입체크 포함) |
+| `npm run dev` / `npm run build` | 사용자(:3000)·관리자(:3001) 동시 개발 / 개별 프로덕션 빌드 |
+| `npm run dev:client` / `npm run dev:admin` | 앱 하나만 실행 |
+| `npm run test:db` / `npm run test:seed` | 격리된 로컬 테스트 DB 준비 / 테스트 데이터 |
+| `npm run test:e2e` / `npm run test:visual` | 각 앱 런타임 / 기존 화면 대비 회귀 검증 |
+| `npm run test:integration` | 실제 로컬 DB·앱 연동 검증 |
 | `npm run admin:create` | 관리자 계정 생성. 공개 가입 경로는 없습니다 |
 | `npm run seed` | 개발용 시드 데이터(채널·도서·게시물) |
 | `npm run covers` | 전문 도서 표지 생성 후 업로드 |
 | `npm run epubs:refresh` | 위키문헌 EPUB을 다시 받아 교체 |
 
 > **주의**: 현재 개발용과 운영용 Supabase 프로젝트가 분리되어 있지 않습니다. `seed`·`covers`·`epubs:refresh`는 service role 키로 실행되므로, 로컬에서 돌려도 **운영 데이터가 즉시 바뀝니다**. 실행 전에 확인하세요.
+
+앱 코드는 `apps/client`·`apps/admin`, 공용 코드는 `packages/shared`·`database`·`ui`·`content`에 있다. 루트 `.env`는 기존 운영 스크립트용이고, 앱은 각 디렉터리의 `.env.local`을 읽는다. [구조와 배포 전환](docs/monorepo-deployment.md), [테스트 실행](docs/monorepo-testing.md)을 먼저 확인한다.
 
 자세한 내용은 아래 문서를 참고합니다.
 

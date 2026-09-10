@@ -14,10 +14,11 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-// 수급 로직의 원천은 src/lib/wikisource.ts 하나다 — 어드민 임포트도 같은 모듈을
+// 수급 로직의 원천은 packages/content/src/wikisource.ts 및 packages/shared/src/wikisource.ts 하나다 — 어드민 임포트도 같은 모듈을
 // 쓴다. Node의 타입 스트리핑이 불러오는 쪽 확장자와 무관하게 동작하므로 .mjs가
 // .ts를 그대로 import한다. `@/` 별칭은 node가 모르니 상대경로여야 한다.
-import { assertClean, fetchEpub, toPageTitle } from "../src/lib/wikisource.ts";
+import { fetchEpub } from '@ttokttok/content/wikisource';
+import { assertClean, toPageTitle } from '@ttokttok/shared/wikisource';
 import { hasFfmpeg, makePlaceholderVideo } from "./lib/placeholder-video.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -274,7 +275,7 @@ const videoPosts = [
 /**
  * 카드 문구 길이 상한.
  *
- * **원천은 `src/components/cards/registry.ts`의 `REGION_REGISTRY`**이고
+ * **원천은 `packages/shared/src/cards.ts`의 `REGION_SCHEMA`**이고
  * (`hookRegion.maxLength` / `descRegion.maxLength`), 여기 값은 그 사본이다.
  * 이 스크립트는 node가 바로 실행하는 .mjs라 TSX 레지스트리를 import할 수
  * 없어서 어쩔 수 없이 복제한다 — 레지스트리를 고치면 여기도 고쳐야 한다.
@@ -310,7 +311,7 @@ function assertWithinTextLimits(cards, books) {
   if (over.length > 0) {
     throw new Error(
       `카드 문구가 상한을 넘었습니다 (${over.length}건):\n${over.join("\n")}\n\n` +
-        `상한을 바꾸려면 src/components/cards/registry.ts의 REGION_REGISTRY를 먼저 고치고, ` +
+        `상한을 바꾸려면 packages/shared/src/cards.ts의 REGION_SCHEMA를 먼저 고치고, ` +
         `이 파일의 TEXT_LIMITS도 같이 맞추세요.`,
     );
   }
