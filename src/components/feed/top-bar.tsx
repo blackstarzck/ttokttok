@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { Bell } from "lucide-react";
 import { UnreadBadge } from "@/components/feed/unread-badge";
 
@@ -30,7 +31,7 @@ import { UnreadBadge } from "@/components/feed/unread-badge";
 export function TopBar({ isGuest }: { isGuest: boolean }) {
   return (
     <header className="border-border bg-background flex h-14 shrink-0 items-center justify-between border-b px-3">
-      <span className="text-base font-bold">똑똑</span>
+      <BrandLogo priority />
 
       {/* gap-2(8px)여야 한다 — DESIGN.md Layout의 "인접 타깃 간 8px 이상".
           gap-1(4px)로 두었다가 회귀 검사에서 걸렸다. 예외는 BottomNav 하나뿐

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 
 const LINKS = [
   { href: "/", label: "홈" },
@@ -11,7 +12,7 @@ export function AboutFooter() {
     <footer className="border-border border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-12 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-base font-bold">똑똑</p>
+          <BrandLogo />
           <p className="text-muted-foreground mt-1 text-sm">
             지식이 똑똑 노크해요
           </p>
