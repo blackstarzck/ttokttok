@@ -15,7 +15,7 @@ export function AboutNav() {
           href="/about"
           className="focus-visible:ring-ring rounded-md text-lg font-bold tracking-tight focus-visible:ring-2 focus-visible:outline-none"
         >
-          <BrandLogo />
+          <BrandLogo priority />
         </Link>
         <Link
           href="/"

@@ -33,7 +33,7 @@ export default async function AdminLoginPage({
     <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-bold">
-          <BrandLogo />
+          <BrandLogo priority />
           <span>관리자</span>
         </h1>
         <p className="text-muted-foreground text-sm">

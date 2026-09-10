@@ -55,7 +55,7 @@ export default async function AdminLayout({
       <header className="border-border bg-background sticky top-0 z-40 border-b">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           <Link href="/admin" className="flex shrink-0 items-center gap-2 text-sm font-bold">
-            <BrandLogo />
+            <BrandLogo priority />
             <span>관리자</span>
           </Link>
 
