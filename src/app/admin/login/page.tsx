@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BrandLogo } from "@/components/brand-logo";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,10 @@ export default async function AdminLoginPage({
   return (
     <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-bold">똑똑 관리자</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold">
+          <BrandLogo />
+          <span>관리자</span>
+        </h1>
         <p className="text-muted-foreground text-sm">
           콘텐츠를 등록하려면 로그인하세요.
         </p>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 
 /**
  * 소개 페이지 상단 바. 앱의 `TopBar`(홈 전용, 56px)와 별개다 — 이 페이지는
@@ -14,7 +15,7 @@ export function AboutNav() {
           href="/about"
           className="focus-visible:ring-ring rounded-md text-lg font-bold tracking-tight focus-visible:ring-2 focus-visible:outline-none"
         >
-          똑똑
+          <BrandLogo />
         </Link>
         <Link
           href="/"
