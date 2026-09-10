@@ -12,6 +12,12 @@ import { SESSION_ID_COOKIE, SESSION_ID_MAX_AGE } from "@/lib/session-id";
  * 여기서 role까지 확인하지는 않는다 — 미들웨어는 DB를 때리지 않고
  * "로그인했는가"만 본다. role=admin 확인은 어드민 레이아웃이 한다.
  * 최종 방어선은 어차피 RLS다 (FRONTEND.md §5).
+ *
+ * 그래서 **로그인 화면을 건너뛰는 판단은 여기서 하지 않는다**. 예전에는
+ * "로그인했으면 /admin으로 보낸다"를 여기 두었는데, role을 모르는 층이
+ * 권한 판단을 내린 셈이라 권한 없는 로그인 사용자가
+ * /admin → (레이아웃) /admin/login → (여기) /admin 으로 무한히 튕겼다.
+ * 그 판단은 role을 아는 로그인 페이지가 한다 (admin/login/page.tsx).
  */
 export async function updateSession(request: NextRequest) {
   // 피드 seed는 응답보다 먼저 요청에 심어야 한다 — NextResponse.next는
@@ -64,13 +70,6 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  if (isLoginPage && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/admin";
-    url.search = "";
     return NextResponse.redirect(url);
   }
 
