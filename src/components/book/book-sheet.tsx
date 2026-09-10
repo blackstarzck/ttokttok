@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Bookmark, ExternalLink } from "lucide-react";
+import { Bookmark, ExternalLink } from "lucide-react";
+import { BookFanIcon } from "@/components/book/book-fan-icon";
 import { toast } from "sonner";
 import {
   Drawer,
@@ -159,7 +160,7 @@ export function BookSheet({
           {isFullBook ? (
             <Button asChild size="lg" className="min-h-11 w-full">
               <Link href={`/read/${book.id}`}>
-                <BookOpen aria-hidden />
+                <BookFanIcon className="size-6" aria-hidden />
                 바로 읽기
               </Link>
             </Button>

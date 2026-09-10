@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Info, MessageCircle, Share2 } from "lucide-react";
+import { Info, MessageCircle, Share2 } from "lucide-react";
+import { BookFanIcon } from "@/components/book/book-fan-icon";
 import { toast } from "sonner";
 import { BookSheet } from "@/components/book/book-sheet";
 import { LoginSheet } from "@/components/auth/login-sheet";
@@ -120,7 +121,7 @@ export function ActionBar({
           className={CHROME_CTA}
         >
           <span className={CHROME_CTA_ICON}>
-            <BookOpen className="size-5" aria-hidden />
+            <BookFanIcon className="size-7 shrink-0" aria-hidden />
           </span>
           <span className={CHROME_COUNT}>읽기</span>
         </Link>

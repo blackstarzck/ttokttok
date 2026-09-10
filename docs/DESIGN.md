@@ -185,7 +185,7 @@ components:
 - **shadcn/ui가 컴포넌트 기반**이다 (radix base, nova preset). `src/components/ui/`의 변형을 우선 사용하고, 없으면 shadcn 레지스트리에서 추가한다.
 - 버튼 위계: 화면당 `primary` 버튼은 **하나**("바로 읽기" 등 핵심 전환). 나머지는 `secondary`/`ghost`.
 - 모바일 인터랙션 표면은 Dialog가 아니라 **Drawer(바텀시트)** 가 기본이다: 댓글, 도서 상세(더보기), 로그인 유도.
-- 아이콘은 lucide-react만. 이모지를 아이콘으로 쓰지 않는다.
+- 기본 아이콘은 lucide-react를 쓴다. 읽기·바로 읽기에는 사용자 지정 플랫 책 아이콘을 사용한다. 하단 메뉴는 이름을 화면에 표시하지 않고 24px 아이콘만 표시하며, 비활성은 윤곽선·활성은 같은 의미의 단색 채움 아이콘으로 구분한다. 메뉴 이름은 `aria-label`, 현재 메뉴는 `aria-current="page"`로 전달한다. 하단 메뉴의 기존 높이와 터치 영역은 유지한다. 이모지를 아이콘으로 쓰지 않는다.
 - 로딩은 스피너 대신 **Skeleton** — 실제 콘텐츠와 같은 크기로 그려 CLS를 막는다.
 - 피드백(찜 완료, 링크 복사)은 Sonner 토스트, `position: top-center`.
 

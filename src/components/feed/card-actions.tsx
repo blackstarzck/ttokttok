@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Info, MessageCircle, Share2 } from "lucide-react";
+import { Info, MessageCircle, Share2 } from "lucide-react";
+import { BookFanIcon } from "@/components/book/book-fan-icon";
 import { toast } from "sonner";
 import { BookSheet } from "@/components/book/book-sheet";
 import { LoginSheet } from "@/components/auth/login-sheet";
@@ -119,7 +120,7 @@ export function CardActions({
           aria-label={`${post.books.title} 바로 읽기`}
           className="bg-foreground text-background focus-visible:ring-ring ml-auto flex min-h-11 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
         >
-          <BookOpen className="size-4" aria-hidden />
+          <BookFanIcon className="size-6 shrink-0" aria-hidden />
           읽기
         </Link>
       ) : (
