@@ -315,3 +315,25 @@
     }
   }
 }
+
+/* 게시글 콘텐츠 배경. 앱 테마와 무관하며 사용자 선택 색은 콘텐츠 데이터다. */
+:root {
+  --post-paper: #efe9df;
+  --post-peach: #f2d6c4;
+  --post-lavender: #e3ddef;
+  --post-forest: #274d43;
+  --post-navy: #263b53;
+  --post-ink-light: #ffffff;
+  --post-ink-dark: #222222;
+  --post-dim: #000000;
+}
+.card-background {
+  background-color: var(--post-background-color, var(--post-paper));
+  color: var(--post-ink-dark);
+  --muted-foreground: var(--post-ink-dark);
+}
+.card-background[data-card-ink="light"] {
+  color: var(--post-ink-light);
+  --muted-foreground: var(--post-ink-light);
+}
+.card-background-dim { background-color: var(--post-dim); }

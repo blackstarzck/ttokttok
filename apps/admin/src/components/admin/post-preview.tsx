@@ -12,18 +12,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { FeedBook, FeedCardLayout, FeedPost } from "@ttokttok/shared/feed";
 import { BOOK_SELECT } from "@ttokttok/shared/book-fields";
 
-/**
- * 카드 미리보기 프레임 폭.
- *
- * 홈 카드는 풀블리드라 `(main)` 레이아웃의 `max-w-frame`(globals.css,
- * 480px)을 그대로 받는다 — 좌우 패딩이 없으니 프레임 폭 = 카드 폭이다.
- * 어드민은 보통 데스크톱 브라우저에서 쓰므로, 그 화면에서 홈을 열면
- * 뷰포트가 480px보다 넓어 카드가 이 상한(480px)을 그대로 받는다. 예전
- * 375px(전면 피드용 폰 실측 폭)를 그대로 물려 쓰면 어드민이 보는 폭과
- * 사용자 다수가 실제로 받는 폭이 달라, 375px에서는 안 넘치던 텍스트가
- * 480px에서 여백을 만들거나 그 반대로 보일 수 있다.
- */
-const CARD_FRAME_WIDTH = 480;
+/** 모바일 홈과 같은 375px 폭으로 문구와 이미지 잘림을 확인한다. */
+const CARD_FRAME_WIDTH = 375;
 
 /**
  * 미리보기가 쓸 도서 한 권.
@@ -92,7 +82,7 @@ function Frame({
     <div className="border-border w-fit overflow-hidden rounded-xl border shadow-sm">
       {/*
         높이 812px, 폭은 게시물 유형이 실제로 받는 폭을 그대로 써야 한다
-        (카드 480px·전면 375px — 아래 CARD_FRAME_WIDTH/FULLSCREEN_FRAME_WIDTH).
+        (카드 375px·전면 375px — 아래 CARD_FRAME_WIDTH/FULLSCREEN_FRAME_WIDTH).
         테두리를 이 박스에 걸면 box-sizing이 border-box라 내용 폭이 2px
         줄어 미리보기가 거짓말을 한다 — 그래서 테두리는 바깥 래퍼가 갖는다.
 

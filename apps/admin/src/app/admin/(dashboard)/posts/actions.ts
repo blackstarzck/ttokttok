@@ -8,6 +8,7 @@ import { POST_TEMPLATES, REGION_SCHEMA } from "@ttokttok/shared/cards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseYoutubeId } from "@ttokttok/shared/youtube";
 import { removeUploaded } from "@/lib/admin-storage";
+import { preparePostBackground, backgroundFile } from "@/lib/post-background";
 import { pathFromPublicUrl } from "@ttokttok/shared/storage-path";
 import type { TablesInsert } from "@ttokttok/database/types";
 
@@ -129,6 +130,18 @@ export async function savePost(formData: FormData) {
 
   const db = await createClient();
 
+  const { data: previous, error: previousError } = id
+    ? await db.from("post_cards").select("background").eq("post_id", id).maybeSingle()
+    : { data: null, error: null };
+  if (previousError) redirect(`/admin/posts?error=${encodeURIComponent(previousError.message)}`);
+  const newPostId = id || crypto.randomUUID();
+  let prepared: Awaited<ReturnType<typeof preparePostBackground>>;
+  try {
+    prepared = await preparePostBackground(formData, previous?.background, newPostId);
+  } catch (error) {
+    redirect(`/admin/posts?error=${encodeURIComponent(error instanceof Error ? error.message : "배경 저장에 실패했습니다.")}`);
+  }
+
   const values = await buildPostValues(db, {
     id,
     channelId,
@@ -140,14 +153,20 @@ export async function savePost(formData: FormData) {
   let postId = id;
   if (postId) {
     const { error } = await db.from("posts").update(values).eq("id", postId);
-    if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+    if (error) {
+      await removeUploaded(prepared.uploaded ? [prepared.uploaded] : []);
+      redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+    }
   } else {
     const { data, error } = await db
       .from("posts")
-      .insert(values)
+      .insert({ id: newPostId, ...values })
       .select("id")
       .single();
-    if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+    if (error) {
+      await removeUploaded(prepared.uploaded ? [prepared.uploaded] : []);
+      redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+    }
     postId = data!.id;
   }
 
@@ -156,14 +175,19 @@ export async function savePost(formData: FormData) {
     post_id: postId,
     template: layout.template,
     regions: layout.regions,
+    background: prepared.background,
   });
 
   if (cardErr) {
     // 카드 없는 게시물이 남으면 피드에 빈 화면이 뜬다 — 방금 만든 건 되돌린다.
     if (!id) await db.from("posts").delete().eq("id", postId);
+    await removeUploaded(prepared.uploaded ? [prepared.uploaded] : []);
     redirect(`/admin/posts?error=${encodeURIComponent(cardErr.message)}`);
   }
 
+  const oldFile = backgroundFile(previous?.background, postId);
+  const currentFile = backgroundFile(prepared.background, postId);
+  if (oldFile && oldFile.path !== currentFile?.path) await removeUploaded([oldFile]);
   revalidatePath("/admin/posts");
   redirect("/admin/posts?saved=1");
 }
@@ -182,6 +206,11 @@ export async function deletePost(formData: FormData) {
     .eq("post_id", id)
     .maybeSingle();
 
+  const { data: card, error: backgroundError } = await db.from("post_cards")
+    .select("background").eq("post_id", id).maybeSingle();
+  if (backgroundError) redirect(`/admin/posts?error=${encodeURIComponent(backgroundError.message)}`);
+  const oldBackground = backgroundFile(card?.background, id);
+
   const { error } = await db.from("posts").delete().eq("id", id);
 
   if (error) {
@@ -198,7 +227,10 @@ export async function deletePost(formData: FormData) {
       ? pathFromPublicUrl(video.video_path, "videos")
       : null;
 
-  await removeUploaded(videoPath ? [{ bucket: "videos", path: videoPath }] : []);
+  await removeUploaded([
+    ...(videoPath ? [{ bucket: "videos", path: videoPath }] : []),
+    ...(oldBackground ? [oldBackground] : []),
+  ]);
 
   revalidatePath("/admin/posts");
   redirect("/admin/posts?deleted=1");

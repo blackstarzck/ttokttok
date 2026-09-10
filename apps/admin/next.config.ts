@@ -24,6 +24,7 @@ if (supabaseHost) {
 }
 
 const nextConfig: NextConfig = {
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   turbopack: { root: path.resolve(__dirname, "../..") },
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
   images: {

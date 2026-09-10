@@ -41,7 +41,7 @@ export function CardPlaceholder({
     // TemplateCard의 카드 패딩(p-4)을 그대로 따른다.
     <div
       className={cn(
-        "flex h-full flex-col items-center justify-center",
+        "flex grow flex-col items-center justify-center",
         variant === "card" ? "p-4" : CHROME_SAFE_AREA,
       )}
     >

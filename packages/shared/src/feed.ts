@@ -11,6 +11,7 @@ export type FeedRegionValue = {
  * 담긴다 — 도서에서 오는 값은 렌더 시점에 books에서 읽는다.
  */
 export type FeedCardLayout = {
+  background?: import('./card-background').CardBackground | null;
   template: string;
   regions: Record<string, FeedRegionValue>;
 };

@@ -463,16 +463,19 @@ export type Database = {
       }
       post_cards: {
         Row: {
+          background: Json | null
           post_id: string
           regions: Json
           template: string
         }
         Insert: {
+          background?: Json | null
           post_id: string
           regions?: Json
           template: string
         }
         Update: {
+          background?: Json | null
           post_id?: string
           regions?: Json
           template?: string

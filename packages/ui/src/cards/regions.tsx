@@ -127,7 +127,7 @@ export const hookRegion: RegionEntry = {
     a: {
       ...REGION_SCHEMA.hook.variants.a,
       component: ({ text }) => (
-        <p className="self-center text-center text-xl leading-snug font-bold break-keep">
+        <p className="self-center text-center text-2xl leading-snug font-bold break-keep">
           {text}
         </p>
       ),
@@ -135,7 +135,7 @@ export const hookRegion: RegionEntry = {
     b: {
       ...REGION_SCHEMA.hook.variants.b,
       component: ({ text }) => (
-        <p className="text-xl leading-snug font-bold break-keep">{text}</p>
+        <p className="text-2xl leading-snug font-bold break-keep">{text}</p>
       ),
     },
   },

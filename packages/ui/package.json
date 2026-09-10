@@ -9,6 +9,7 @@
     "./cards/regions": "./src/cards/regions.tsx",
     "./cards/template-card": "./src/cards/template-card.tsx",
     "./cards/card-placeholder": "./src/cards/card-placeholder.tsx",
+    "./cards/card-background": "./src/cards/card-background.tsx",
     "./feed/book-cover": "./src/feed/book-cover.tsx",
     "./layout/bottom-nav": "./src/layout/bottom-nav.tsx",
     "./book/book-fan-icon": "./src/book/book-fan-icon.tsx",

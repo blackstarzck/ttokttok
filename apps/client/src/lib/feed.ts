@@ -6,7 +6,7 @@ const SELECT = `
   id, type, like_count, comment_count, share_count, view_count,
   books ( ${BOOK_SELECT} ),
   channels ( id, name, slug, avatar_url ),
-  post_cards ( template, regions ),
+  post_cards ( template, regions, background ),
   post_videos ( source_type, video_path, youtube_id, duration_sec )
 `;
 

@@ -1,3 +1,4 @@
+import type { FeedCardLayout } from "@ttokttok/shared/feed";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +22,7 @@ export default async function EditPostPage({
     db
       .from("posts")
       .select(
-        "id, channel_id, book_id, status, type, post_cards(template, regions), post_videos(source_type, video_path, youtube_id)",
+        "id, channel_id, book_id, status, type, post_cards(template, regions, background), post_videos(source_type, video_path, youtube_id)",
       )
       .eq("id", postId)
       .maybeSingle(),
@@ -67,10 +68,7 @@ export default async function EditPostPage({
   }
 
   // post_id가 PK인 1:1 조인이라 객체(또는 null)로 온다.
-  const card = post.post_cards as unknown as {
-    template: string;
-    regions: Record<string, { variant?: string | null; text?: string | null }>;
-  } | null;
+  const card = post.post_cards as unknown as FeedCardLayout | null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,7 +79,7 @@ export default async function EditPostPage({
           channel_id: post.channel_id,
           book_id: post.book_id,
           status: post.status === "published" ? "published" : "draft",
-          card: card ? { template: card.template, regions: card.regions ?? {} } : null,
+          card: card ? { ...card, regions: card.regions ?? {} } : null,
         }}
         channels={channels ?? []}
         books={books}

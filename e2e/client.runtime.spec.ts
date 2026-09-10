@@ -5,7 +5,7 @@ test("client: guest navigation, sheets, search and both book types", async ({
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "테스트 산책", exact: true }),
+    page.getByRole("button", { name: "테스트 산책 도서 정보", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "테스트 산책 도서 정보", exact: true })
@@ -57,7 +57,7 @@ test("client: authenticated likes, comments, bookmark persist through reload", a
   const card = page
     .locator("article")
     .filter({
-      has: page.getByRole("heading", { name: "테스트 산책", exact: true }),
+      has: page.getByRole("button", { name: "테스트 산책 도서 정보", exact: true }),
     });
   await card.getByRole("button", { name: "좋아요", exact: true }).click();
   await expect

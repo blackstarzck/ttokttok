@@ -84,15 +84,15 @@ export type PostTemplate = {
 };
 
 export const POST_TEMPLATES: Record<string, PostTemplate> = {
-  // 기존 훅 카드의 분해 — 전 영역 variant a면 이전 화면과 같다.
+  // 저장된 템플릿 키는 유지하되 중복 표지와 서지는 하단 도서 바에 맡긴다.
   a: {
-    label: "커버 중심",
-    regions: ["cover", "genre", "biblio", "hook", "desc"],
+    label: "문장 중심",
+    regions: ["hook", "desc"],
   },
   // 커버 없는 텍스트 중심 — 하단 도서 바가 커버를 이미 보여준다.
   b: {
-    label: "텍스트 중심",
-    regions: ["genre", "hook", "desc", "biblio"],
+    label: "장르 포함",
+    regions: ["genre", "hook", "desc"],
   },
 };
 

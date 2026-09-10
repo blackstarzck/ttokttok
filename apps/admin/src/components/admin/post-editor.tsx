@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { PostBackgroundEditor } from "@/components/admin/post-background-editor";
+import { resolveCardBackground } from "@ttokttok/shared/card-background";
 import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import { Textarea } from "@ttokttok/ui/components/textarea";
@@ -58,7 +60,7 @@ function initRegions(saved?: FeedCardLayout | null): RegionState {
  * 카드 게시물 편집기 — 좌측 입력, 우측 실시간 미리보기 (PRD §5.10).
  *
  * 게시물 템플릿이 영역 구성·순서를 고정하고(PRD §5.2), 관리자는 영역별
- * UI 유형과 텍스트만 고른다. 영역 값은 영역 키로 저장하므로 템플릿을
+ * 표시 방식과 텍스트만 고른다. 영역 값은 영역 키로 저장하므로 템플릿을
  * 바꿔도 입력값이 살아남는다.
  *
  * 상태를 여기서 갖는 이유는 하나다: 편집기와 미리보기가 **같은 값**을
@@ -79,6 +81,7 @@ export function PostEditor({
   channels: PreviewChannel[];
   books: BookOption[];
 }) {
+  const [background, setBackground] = useState(() => resolveCardBackground(post?.card?.background));
   const [channelId, setChannelId] = useState(post?.channel_id ?? "");
   const [bookId, setBookId] = useState(post?.book_id ?? "");
   const [template, setTemplate] = useState(() =>
@@ -97,6 +100,7 @@ export function PostEditor({
 
   /** 미리보기에 넘길 레이아웃 — 저장될 것과 같은 모양. */
   const layout: FeedCardLayout = {
+    background,
     template,
     regions: Object.fromEntries(
       regionKeys.map((key) => [
@@ -150,7 +154,7 @@ export function PostEditor({
           >
             {Object.entries(POST_TEMPLATES).map(([key, t]) => (
               <option key={key} value={key}>
-                {t.label} ({key})
+                {t.label}
               </option>
             ))}
           </select>
@@ -159,6 +163,8 @@ export function PostEditor({
             고르세요.
           </p>
         </div>
+
+        <PostBackgroundEditor value={background} onChange={setBackground} />
 
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">영역</h2>
@@ -188,7 +194,7 @@ export function PostEditor({
                   >
                     {Object.entries(entry.variants).map(([vk, v]) => (
                       <option key={vk} value={vk}>
-                        {v.label} ({key}-template-{vk})
+                        {v.label}
                       </option>
                     ))}
                   </select>
@@ -268,7 +274,7 @@ export function PostEditor({
         <h2 className="text-sm font-medium">
           미리보기{" "}
           <span className="text-muted-foreground text-xs font-normal">
-            480×812 · 홈과 같은 컴포넌트(PostCard)
+            375×812 · 모바일 홈 화면
           </span>
         </h2>
 
