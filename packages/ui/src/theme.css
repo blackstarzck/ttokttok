@@ -15,6 +15,9 @@
   --book-cover-wine-base: #6a3446;
   --book-cover-wine-ink: #faeee2;
   --book-cover-wine-accent: #d9aa91;
+  /* 이미지 템플릿 — 판 색은 이미지 가장자리에서 오고, 그 위 글자만 토큰이다. */
+  --book-cover-image-ink-light: #f6f1e7;
+  --book-cover-image-ink-dark: #1d1a17;
   --book-cover-paper: #e9dfca;
   --book-cover-light-sky: #fff8ea;
   --book-cover-light-ground: #6e5848;

@@ -126,3 +126,4 @@ npm test
 - 중앙 배경은 공용 CardBackgroundSurface가 렌더한다. 사용자 홈, 상세, 관리자 미리보기가 같은 저장값을 읽는다. 새 이미지는 관리자에서 blob URL로 미리 보고 해제 시 URL을 반환한다.
 - 업로드는 관리자 권한 확인 후 JPEG/PNG/WebP, 3MB, 실제 이미지 해독 검증을 거친다. 1440×1800 안으로 축소한 WebP를 covers/post-backgrounds/{postId}/{uuid}.webp에 보관한다. 기존 covers 정책을 사용하며 새 공개 권한은 추가하지 않는다.
 - 폼의 이미지 주소는 신뢰하지 않는다. 기존 DB 값 또는 검증된 업로드 결과만 저장한다. 파일 저장 실패 시 게시글을 변경하지 않고 DB 저장 실패 시 신규 파일을 회수한다. 교체·단색 전환·게시글 삭제 시 해당 게시글의 이전 배경 파일만 제거한다.
+- **3D 표지의 이미지 템플릿(`apps/admin/src/lib/book-cover-images.ts`)도 같은 원칙이다.** 면별 원본은 편집기가 브라우저에서 1200×1800 안 WebP로 축소해(`cover-face-image.ts`) 렌더 PNG와 함께 한 폼으로 보낸다 — 서버 액션 본문 4MB를 나눠 쓰기 위해서다. 서버는 새 파일은 검증·재인코딩해 `covers/{bookId}/design-{face}-*.webp`에 올리고, 파일 없는 면은 `cover_design.images`의 주소가 **기존 행과 같을 때만** 유지한다. 검증은 어떤 업로드보다 먼저 끝내고, 저장 성공 뒤 새 설정이 가리키지 않는 이 도서의 면 파일만 회수한다. 렌더러(`book-cover-renderer.ts`)는 파일·URL을 모르고 `ImageBitmap`만 받으며, 색은 `resolveColors` 한 곳에서 정해 텍스처·판·머리띠가 같은 값을 읽는다.

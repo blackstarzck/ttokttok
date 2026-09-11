@@ -6,6 +6,11 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
+import {
+  CoverImageError,
+  coverImageFiles,
+  prepareCoverImages,
+} from "@/lib/book-cover-images";
 import { pathFromPublicUrl } from "@ttokttok/shared/storage-path";
 import type { TablesInsert } from "@ttokttok/database/types";
 import { readCoverDesign } from "@ttokttok/shared/cover-design";
@@ -122,6 +127,7 @@ export async function saveBook(formData: FormData) {
   }
   let coverExtension = "";
   let previousCoverUrl: string | null = null;
+  let previousDesign: unknown = null;
   if (hasCover) {
     if (cover.size > 2 * 1024 * 1024)
       redirect("/admin/books?error=표지는 2MB 이하로 올려 주세요.");
@@ -160,7 +166,7 @@ export async function saveBook(formData: FormData) {
     if (id) {
       const previous = await db
         .from("books")
-        .select("cover_url")
+        .select("cover_url, cover_design")
         .eq("id", bookId)
         .single();
       if (previous.error)
@@ -168,6 +174,7 @@ export async function saveBook(formData: FormData) {
           "/admin/books?error=수정할 도서를 불러오지 못했습니다. 목록에서 다시 열어 주세요.",
         );
       previousCoverUrl = previous.data.cover_url;
+      previousDesign = previous.data.cover_design;
     }
   }
 
@@ -181,6 +188,33 @@ export async function saveBook(formData: FormData) {
       id ? uploaded.filter((file) => file.bucket === "covers") : uploaded,
     );
     redirect(`/admin/books?error=${encodeURIComponent(humanize(message))}`);
+  }
+
+  // 이미지 템플릿의 면 원본. 검증이 업로드보다 먼저 끝나므로 잘못된 파일은
+  // 어떤 것도 올리기 전에 걸린다. 폼의 주소는 신뢰하지 않는다 —
+  // 새 파일 또는 기존 행과 같은 주소만 남는다 (book-cover-images.ts).
+  if (coverDesign?.template === "image") {
+    try {
+      coverDesign = {
+        ...coverDesign,
+        images: await prepareCoverImages(
+          formData,
+          coverDesign,
+          previousDesign,
+          bookId,
+          uploaded,
+        ),
+      };
+    } catch (error) {
+      await fail(
+        error instanceof CoverImageError
+          ? error.message
+          : "표지 면 이미지를 저장하지 못했습니다. 다시 시도해 주세요.",
+      );
+    }
+  } else if (coverDesign) {
+    // 그린 템플릿에 딸려 온 면 주소는 버린다 — 참조가 없는 파일이 남지 않게.
+    delete coverDesign.images;
   }
 
   // 파일 업로드는 비공개 버킷 접근이 필요해 service role로 처리한다.
@@ -229,13 +263,25 @@ export async function saveBook(formData: FormData) {
 
   // 이 도서에 속한 이전 파일만, 새 주소가 저장된 뒤 회수한다.
   const previousCoverPath = pathFromPublicUrl(previousCoverUrl, "covers");
+  const orphans: UploadedFile[] = [];
   if (
     previousCoverPath &&
     (previousCoverPath.startsWith(`${bookId}/`) ||
       previousCoverPath.startsWith(`${bookId}.`))
   ) {
-    await removeUploaded([{ bucket: "covers", path: previousCoverPath }]);
+    orphans.push({ bucket: "covers", path: previousCoverPath });
   }
+  // 이전 3D 표지의 면 원본 중 새 설정이 더는 가리키지 않는 것 — 직접
+  // 업로드로 바꿨거나 그린 템플릿으로 돌아갔으면 전부다.
+  const stillUsed = new Set(
+    coverImageFiles(values.cover_design, bookId).map((file) => file.path),
+  );
+  orphans.push(
+    ...coverImageFiles(previousDesign, bookId).filter(
+      (file) => !stillUsed.has(file.path),
+    ),
+  );
+  await removeUploaded(orphans);
 
   revalidatePath("/admin/books");
   redirect(`/admin/books?saved=1`);
@@ -251,7 +297,7 @@ export async function deleteBook(formData: FormData) {
   // 이 도서 것이었는지 알 방법이 없고, 비공개 버킷이라 눈에도 안 띈다.
   const { data: book } = await db
     .from("books")
-    .select("epub_path, cover_url")
+    .select("epub_path, cover_url, cover_design")
     .eq("id", id)
     .maybeSingle();
 
@@ -274,6 +320,8 @@ export async function deleteBook(formData: FormData) {
 
   const coverPath = pathFromPublicUrl(book?.cover_url, "covers");
   if (coverPath) orphans.push({ bucket: "covers", path: coverPath });
+  // 이미지 템플릿의 면 원본도 이 도서 것이다.
+  orphans.push(...coverImageFiles(book?.cover_design, id));
 
   await removeUploaded(orphans);
 

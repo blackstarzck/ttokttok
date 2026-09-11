@@ -1,9 +1,27 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import type { CoverDesign } from "@ttokttok/shared/cover-design";
+import type { CoverDesign, CoverFace } from "@ttokttok/shared/cover-design";
+import { deriveCoverColors } from "@ttokttok/shared/cover-colors";
 
 const WIDTH = 800;
 const HEIGHT = 1200;
+
+/** 면별로 디코드된 이미지. 편집기가 만들고 소유한다 (cover-face-image.ts). */
+export type CoverBitmaps = Partial<Record<CoverFace, ImageBitmap>>;
+
+/** 텍스처 3장·판·머리띠가 함께 읽는 색. 전부 CSS 색 문자열. */
+export type CoverColors = { base: string; ink: string; accent: string };
+
+// 1 model unit = 100 mm; the reference hardcover is about 131 x 220 mm.
+const BOOK_WIDTH = 1.31;
+const BOOK_HEIGHT = 2.2;
+// 앞·뒤 그림면은 판보다 3.25mm씩 안쪽이다. 책등 그림면은 두께에 따른다.
+const ARTWORK_WIDTH = BOOK_WIDTH - 0.065;
+const ARTWORK_HEIGHT = BOOK_HEIGHT - 0.065;
+/** 표시 두께(mm)에서 판 두 장을 뺀 속 두께. */
+const innerDepth = (thickness: number) => thickness / 100 - 0.034;
+const spineArtworkWidth = (thickness: number) => innerDepth(thickness) - 0.02;
+const SPINE_ARTWORK_HEIGHT = BOOK_HEIGHT - 0.04;
 
 function canvas(width: number, height: number) {
   const element = document.createElement("canvas");
@@ -49,85 +67,148 @@ function textBlock(
   lines.forEach((line, index) => ctx.fillText(line, x, y + index * size * 1.4));
 }
 
+/**
+ * 그림면 비율로 중앙을 잘라 캔버스를 채운다.
+ *
+ * 텍스처 캔버스(800×1200)는 그림면(124.5×213.5mm)보다 넓어서 붙을 때
+ * 가로로 약 12% 눌린다 — 글자는 티가 안 나지만 사진은 난다. 그래서
+ * 잘라낼 영역을 캔버스가 아니라 **그림면** 비율로 잡는다: 캔버스에
+ * 넣을 때 한 번 늘어나고 그림면에 붙을 때 되돌아와 원본 비율이 된다.
+ */
+function drawCropped(
+  ctx: CanvasRenderingContext2D,
+  bitmap: ImageBitmap,
+  width: number,
+  height: number,
+  planeAspect: number,
+) {
+  const sourceAspect = bitmap.width / bitmap.height;
+  const sh = sourceAspect > planeAspect ? bitmap.height : bitmap.width / planeAspect;
+  const sw = sh * planeAspect;
+  ctx.drawImage(
+    bitmap,
+    (bitmap.width - sw) / 2,
+    (bitmap.height - sh) / 2,
+    sw,
+    sh,
+    0,
+    0,
+    width,
+    height,
+  );
+}
+
+/**
+ * 이미지 템플릿의 이음새 색 — 앞표지에서 **실제로 보이는 크롭**의 바깥
+ * 테두리에서 뽑는다. 원본 전체의 테두리를 쓰면 잘려 나간 부분의 색이
+ * 섞여 그림면과 판이 맞닿는 자리에서 어긋난다.
+ */
+function imageColors(front: ImageBitmap, style: CSSStyleDeclaration): CoverColors {
+  const { context } = canvas(64, 110);
+  drawCropped(context, front, 64, 110, ARTWORK_WIDTH / ARTWORK_HEIGHT);
+  const { data } = context.getImageData(0, 0, 64, 110);
+  const derived = deriveCoverColors(data, 64, 110);
+  return {
+    base: derived.base,
+    ink: style.getPropertyValue(`--book-cover-image-ink-${derived.ink}`).trim(),
+    accent: derived.accent,
+  };
+}
+
 function coverTexture(
   design: CoverDesign,
   style: CSSStyleDeclaration,
-  side: "front" | "spine" | "back" = "front",
+  colors: CoverColors,
+  side: CoverFace,
+  image?: ImageBitmap,
 ) {
   const spine = side === "spine";
   const { element, context: ctx } = canvas(spine ? 180 : 800, 1200);
-  const color = (part: string) =>
-    style.getPropertyValue(`--book-cover-${design.palette}-${part}`).trim();
   const font = style.getPropertyValue("--font-sans").trim() || "sans-serif";
-  ctx.fillStyle = color("base");
-  ctx.fillRect(0, 0, element.width, element.height);
-  ctx.fillStyle = color("ink");
-  ctx.strokeStyle = color("accent");
-  if (spine) {
-    ctx.save();
-    ctx.translate(90, 100);
-    ctx.rotate(Math.PI / 2);
-    textBlock(ctx, design.title, font, 0, -30, 970, 70, 42);
-    ctx.restore();
-  } else if (side === "back") {
-    ctx.lineWidth = 2;
-    ctx.strokeRect(48, 48, 704, 1104);
-    textBlock(ctx, design.title, font, 400, 380, 580, 420, 54, true);
-    ctx.fillStyle = color("accent");
-    ctx.fillRect(354, 900, 92, 3);
-    ctx.fillStyle = color("ink");
-    textBlock(ctx, design.author, font, 400, 980, 580, 120, 32, true);
-  } else if (design.template === "classic") {
-    ctx.lineWidth = 3;
-    ctx.strokeRect(48, 48, 704, 1104);
-    ctx.lineWidth = 1;
-    ctx.strokeRect(60, 60, 680, 1080);
-    textBlock(ctx, design.title, font, 400, 240, 600, 500, 96, true);
-    ctx.fillStyle = color("accent");
-    ctx.fillRect(354, 840, 92, 4);
-    ctx.fillStyle = color("ink");
-    textBlock(ctx, design.author, font, 400, 910, 580, 160, 36, true);
-  } else if (design.template === "modern") {
-    ctx.fillStyle = color("ink");
-    ctx.fillRect(0, 0, 800, 770);
-    ctx.fillStyle = color("base");
-    textBlock(ctx, design.title, font, 72, 110, 650, 560, 112);
-    ctx.fillStyle = color("accent");
-    ctx.fillRect(72, 835, 64, 10);
-    ctx.fillStyle = color("ink");
-    textBlock(ctx, design.author, font, 72, 910, 650, 180, 40);
-  } else {
-    ctx.fillStyle = color("accent");
-    ctx.beginPath();
-    ctx.arc(400, 340, 230, Math.PI, 0);
-    ctx.lineTo(630, 1030);
-    ctx.lineTo(170, 1030);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = color("base");
-    ctx.fillRect(0, 470, 800, 430);
-    ctx.fillStyle = color("ink");
-    textBlock(ctx, design.title, font, 400, 520, 640, 310, 86, true);
-    textBlock(ctx, design.author, font, 400, 1080, 650, 90, 32, true);
-  }
-  // Fixed grain keeps exports identical when only the viewing angle changes.
-  let seed = 317;
-  const random = () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-  for (let i = 0; i < (spine ? 1400 : 6400); i++) {
-    ctx.globalAlpha = 0.018 + random() * 0.03;
-    ctx.fillStyle = random() > 0.5 ? color("ink") : color("base");
-    const size = 0.5 + random() * 2;
-    ctx.fillRect(
-      random() * element.width,
-      random() * element.height,
-      size,
-      size,
+  if (image) {
+    // 이미지는 완성된 제작물이다 — 글자·테두리·질감을 얹지 않는다.
+    drawCropped(
+      ctx,
+      image,
+      element.width,
+      element.height,
+      spine
+        ? spineArtworkWidth(design.thickness) / SPINE_ARTWORK_HEIGHT
+        : ARTWORK_WIDTH / ARTWORK_HEIGHT,
     );
+  } else {
+    ctx.fillStyle = colors.base;
+    ctx.fillRect(0, 0, element.width, element.height);
+    ctx.fillStyle = colors.ink;
+    ctx.strokeStyle = colors.accent;
+    if (spine) {
+      ctx.save();
+      ctx.translate(90, 100);
+      ctx.rotate(Math.PI / 2);
+      textBlock(ctx, design.title, font, 0, -30, 970, 70, 42);
+      ctx.restore();
+    } else if (side === "back") {
+      ctx.lineWidth = 2;
+      ctx.strokeRect(48, 48, 704, 1104);
+      textBlock(ctx, design.title, font, 400, 380, 580, 420, 54, true);
+      ctx.fillStyle = colors.accent;
+      ctx.fillRect(354, 900, 92, 3);
+      ctx.fillStyle = colors.ink;
+      textBlock(ctx, design.author, font, 400, 980, 580, 120, 32, true);
+    } else if (design.template === "classic") {
+      ctx.lineWidth = 3;
+      ctx.strokeRect(48, 48, 704, 1104);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(60, 60, 680, 1080);
+      textBlock(ctx, design.title, font, 400, 240, 600, 500, 96, true);
+      ctx.fillStyle = colors.accent;
+      ctx.fillRect(354, 840, 92, 4);
+      ctx.fillStyle = colors.ink;
+      textBlock(ctx, design.author, font, 400, 910, 580, 160, 36, true);
+    } else if (design.template === "modern") {
+      ctx.fillStyle = colors.ink;
+      ctx.fillRect(0, 0, 800, 770);
+      ctx.fillStyle = colors.base;
+      textBlock(ctx, design.title, font, 72, 110, 650, 560, 112);
+      ctx.fillStyle = colors.accent;
+      ctx.fillRect(72, 835, 64, 10);
+      ctx.fillStyle = colors.ink;
+      textBlock(ctx, design.author, font, 72, 910, 650, 180, 40);
+    } else {
+      // 문학 — 그리고 앞표지 이미지가 아직 준비되지 않은 이미지 템플릿도
+      // 여기로 온다 (앞표지는 필수라 저장까지는 가지 않는다).
+      ctx.fillStyle = colors.accent;
+      ctx.beginPath();
+      ctx.arc(400, 340, 230, Math.PI, 0);
+      ctx.lineTo(630, 1030);
+      ctx.lineTo(170, 1030);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = colors.base;
+      ctx.fillRect(0, 470, 800, 430);
+      ctx.fillStyle = colors.ink;
+      textBlock(ctx, design.title, font, 400, 520, 640, 310, 86, true);
+      textBlock(ctx, design.author, font, 400, 1080, 650, 90, 32, true);
+    }
+    // Fixed grain keeps exports identical when only the viewing angle changes.
+    let seed = 317;
+    const random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < (spine ? 1400 : 6400); i++) {
+      ctx.globalAlpha = 0.018 + random() * 0.03;
+      ctx.fillStyle = random() > 0.5 ? colors.ink : colors.base;
+      const size = 0.5 + random() * 2;
+      ctx.fillRect(
+        random() * element.width,
+        random() * element.height,
+        size,
+        size,
+      );
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(element);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -216,13 +297,12 @@ export function createBookCoverRenderer(element: HTMLCanvasElement) {
     roughness: 0.62,
     metalness: 0.2,
   });
-  // 1 model unit = 100 mm; the reference hardcover is about 131 x 220 mm.
-  const width = 1.31;
-  const height = 2.2;
+  const width = BOOK_WIDTH;
+  const height = BOOK_HEIGHT;
   const boardGeometry = new RoundedBoxGeometry(width, height, 0.034, 4, 0.025);
   const artworkGeometry = new THREE.PlaneGeometry(
-    width - 0.065,
-    height - 0.065,
+    ARTWORK_WIDTH,
+    ARTWORK_HEIGHT,
   );
   const frontBoard = new THREE.Mesh(boardGeometry, binding);
   const backBoard = new THREE.Mesh(boardGeometry, binding);
@@ -263,32 +343,71 @@ export function createBookCoverRenderer(element: HTMLCanvasElement) {
   );
   let textureKey = "";
   let previousThickness = 0;
+  let colors: CoverColors = { base: "", ink: "", accent: "" };
   const bounds = new THREE.Box3();
   const extent = new THREE.Vector3();
+  // 비트맵에는 이름이 없다 — 같은 면에 다른 이미지가 와도 키가 바뀌도록 번호를 붙인다.
+  const bitmapIds = new WeakMap<ImageBitmap, number>();
+  let nextBitmapId = 1;
+  const bitmapId = (bitmap?: ImageBitmap) => {
+    if (!bitmap) return 0;
+    const known = bitmapIds.get(bitmap);
+    if (known) return known;
+    bitmapIds.set(bitmap, nextBitmapId);
+    return nextBitmapId++;
+  };
 
-  function render(design: CoverDesign) {
+  /**
+   * 색을 정하는 곳은 여기 하나다. 그린 템플릿은 팔레트 토큰, 이미지
+   * 템플릿은 앞표지 픽셀 — 어느 쪽이든 텍스처 3장과 판·광택·머리띠가
+   * 같은 객체를 읽어 이음새 색이 한 값에서 나온다.
+   */
+  function resolveColors(design: CoverDesign, images: CoverBitmaps): CoverColors {
+    if (design.template === "image" && images.front)
+      return imageColors(images.front, style);
+    return {
+      base: token(`${design.palette}-base`),
+      ink: token(`${design.palette}-ink`),
+      accent: token(`${design.palette}-accent`),
+    };
+  }
+
+  function render(design: CoverDesign, images: CoverBitmaps = {}) {
+    const image = design.template === "image";
     const nextTextureKey = JSON.stringify([
       design.template,
       design.palette,
       design.title,
       design.author,
+      // 이미지 템플릿은 면별 비트맵과 두께 — 책등 그림면 비율이 두께를
+      // 따르므로 책등 이미지를 다시 잘라야 한다.
+      image
+        ? [
+            bitmapId(images.front),
+            bitmapId(images.spine),
+            bitmapId(images.back),
+            design.thickness,
+          ]
+        : null,
     ]);
     if (textureKey !== nextTextureKey) {
+      colors = resolveColors(design, images);
       front.map?.dispose();
       back.map?.dispose();
       spine.map?.dispose();
-      front.map = coverTexture(design, style);
-      back.map = coverTexture(design, style, "back");
-      spine.map = coverTexture(design, style, "spine");
+      const faceImage = (face: CoverFace) => (image ? images[face] : undefined);
+      front.map = coverTexture(design, style, colors, "front", faceImage("front"));
+      back.map = coverTexture(design, style, colors, "back", faceImage("back"));
+      spine.map = coverTexture(design, style, colors, "spine", faceImage("spine"));
       front.needsUpdate = back.needsUpdate = spine.needsUpdate = true;
-      binding.color.set(token(`${design.palette}-base`));
-      binding.sheenColor.set(token(`${design.palette}-ink`));
-      headband.color.set(token(`${design.palette}-accent`));
+      binding.color.set(colors.base);
+      binding.sheenColor.set(colors.ink);
+      headband.color.set(colors.accent);
       textureKey = nextTextureKey;
     }
     if (previousThickness !== design.thickness) {
       // The displayed thickness includes both cover boards.
-      const depth = design.thickness / 100 - 0.034;
+      const depth = innerDepth(design.thickness);
       pageBlock.geometry.dispose();
       spineBoard.geometry.dispose();
       spineSurface.geometry.dispose();
@@ -307,8 +426,8 @@ export function createBookCoverRenderer(element: HTMLCanvasElement) {
         0.018,
       );
       spineSurface.geometry = new THREE.PlaneGeometry(
-        depth - 0.02,
-        height - 0.04,
+        spineArtworkWidth(design.thickness),
+        SPINE_ARTWORK_HEIGHT,
       );
       frontBoard.position.z = depth * 0.5;
       backBoard.position.z = -depth * 0.5;
@@ -330,12 +449,13 @@ export function createBookCoverRenderer(element: HTMLCanvasElement) {
         extent.z / 2,
     );
     renderer.render(scene, camera);
+    return colors;
   }
 
   return {
     render,
-    async exportImage(design: CoverDesign) {
-      render(design); // WebGL은 다음 프레임 전에 비워질 수 있어 캡처 직전에 그린다.
+    async exportImage(design: CoverDesign, images: CoverBitmaps = {}) {
+      render(design, images); // WebGL은 다음 프레임 전에 비워질 수 있어 캡처 직전에 그린다.
       return new Promise<Blob>((resolve, reject) => {
         element.toBlob(
           (blob) =>
