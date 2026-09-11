@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { LoadFailed } from "@/components/load-failed";
 
 /**
@@ -27,9 +28,15 @@ import { LoadFailed } from "@/components/load-failed";
  *
  * `getCurrentUser`가 어떤 화면에서 왜 던졌는지는 이 경계가 모른다 —
  * 화면별로 다른 문구를 주고 싶다면 각 화면에 자기 `error.tsx`를 두거나
- * `LoadFailed`에 `message`를 넘겨야 하는데, 지금은 일곱 화면 모두에
- * 똑같이 적용 가능한 공용 문구(`LoadFailed`의 기본값)로 충분하다.
+ * `LoadFailed`에 `message`를 넘겨야 하는데, 지금은 `(main)` 아래 여섯 화면
+ * 모두에 똑같이 적용 가능한 공용 문구(`LoadFailed`의 기본값)로 충분하다.
+ * (`read/[bookId]`는 `(main)` 그룹 밖이라 그 경계가 따로 받는다.)
  */
-export default function MainError() {
+export default function MainError({ error }: { error: Error & { digest?: string } }) {
+  useEffect(() => {
+    // 조회 실패를 기록한다(§11-61).
+    console.error(error);
+  }, [error]);
+
   return <LoadFailed />;
 }

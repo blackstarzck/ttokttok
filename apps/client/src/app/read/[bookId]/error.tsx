@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { LoadFailed } from "@/components/load-failed";
 
 /**
@@ -26,14 +27,19 @@ import { LoadFailed } from "@/components/load-failed";
  * 대신 깔아 준다.
  *
  * 문구는 기본값 대신 "책"을 명시한다 — 이 경계는 화면 하나만 덮으므로
- * 어떤 화면인지 안다는 점이 `(main)/error.tsx`(화면 일곱 개를 공유)와
- * 다르고, 뷰어의 로딩 폴백("책을 여는 중…")과 어조를 맞출 수 있다.
+ * 어떤 화면인지 안다는 점이 `(main)/error.tsx`와 다르고, 뷰어의 로딩
+ * 폴백("책을 여는 중…")과 어조를 맞출 수 있다.
  *
  * `retry`/`reset`을 쓰지 않는 이유는 `(main)/error.tsx`와 같다 — `LoadFailed`가
  * 이미 주는 "홈으로" 탈출로를 넘어서는 재시도 UI를 새로 만드는 것은 이
  * 작업의 범위 밖이다.
  */
-export default function ReadError() {
+export default function ReadError({ error }: { error: Error & { digest?: string } }) {
+  useEffect(() => {
+    // 조회 실패를 기록한다(§11-61).
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="h-dvh">
       <LoadFailed message="책을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." />
