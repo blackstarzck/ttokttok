@@ -6,6 +6,7 @@ import {
 } from "@ttokttok/ui/feed/card-actions-view";
 
 import { useState } from "react";
+import { ShareDialog } from "@/components/feed/share-dialog";
 
 import { toast } from "sonner";
 import { BookSheet } from "@/components/book/book-sheet";
@@ -48,28 +49,18 @@ export function CardActions({
   const [shareCount, setShareCount] = useState(post.share_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
 
-  async function handleShare() {
-    const url = `${window.location.origin}/p/${post.id}`;
-    const title = `${post.books.title} · ${post.books.author}`;
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("링크를 복사했어요");
-      }
-    } catch {
-      return; // 사용자가 공유 시트를 닫은 경우 — 집계하지 않는다.
-    }
-
+  async function recordShare() {
     setShareCount((n) => n + 1);
     void track("share", { postId: post.id, bookId: post.books.id });
 
-    const { error } = await createClient().rpc("record_share", {
-      p_post_id: post.id,
-    });
-    if (error) {
+    try {
+      const { error } = await createClient().rpc("record_share", {
+        p_post_id: post.id,
+      });
+      if (error) throw error;
+    } catch {
       setShareCount((n) => Math.max(n - 1, 0));
       toast.error("공유 집계에 실패했어요");
     }
@@ -77,43 +68,53 @@ export function CardActions({
 
   const commentButton = <CardCommentButton count={commentCount} />;
   return (
-    <CardActionsView
-      post={post}
-      shareCount={shareCount}
-      onShare={handleShare}
-      likeButton={
-        <LikeButton
-          postId={post.id}
-          count={post.like_count}
-          liked={liked}
-          isGuest={isGuest}
-          surface
+    <>
+      {shareUrl ? (
+        <ShareDialog
+          url={shareUrl}
+          title={`${post.books.title} · ${post.books.author}`}
+          onClose={() => setShareUrl(null)}
+          onShared={recordShare}
         />
-      }
-      commentButton={
-        isGuest ? (
-          <LoginSheet reason="로그인하면 댓글을 남길 수 있어요.">
-            {commentButton}
-          </LoginSheet>
-        ) : (
-          <CommentSheet
+      ) : null}
+      <CardActionsView
+        post={post}
+        shareCount={shareCount}
+        onShare={() => setShareUrl(`${window.location.origin}/p/${post.id}`)}
+        likeButton={
+          <LikeButton
             postId={post.id}
-            currentUserId={userId!}
-            onAdded={() => setCommentCount((n) => n + 1)}
-          >
-            {commentButton}
-          </CommentSheet>
-        )
-      }
-      bookAction={
-        post.books.epub_path !== null ? (
-          <CardBookAction post={post} />
-        ) : (
-          <BookSheet book={post.books} isGuest={isGuest}>
+            count={post.like_count}
+            liked={liked}
+            isGuest={isGuest}
+            surface
+          />
+        }
+        commentButton={
+          isGuest ? (
+            <LoginSheet reason="로그인하면 댓글을 남길 수 있어요.">
+              {commentButton}
+            </LoginSheet>
+          ) : (
+            <CommentSheet
+              postId={post.id}
+              currentUserId={userId!}
+              onAdded={() => setCommentCount((n) => n + 1)}
+            >
+              {commentButton}
+            </CommentSheet>
+          )
+        }
+        bookAction={
+          post.books.epub_path !== null ? (
             <CardBookAction post={post} />
-          </BookSheet>
-        )
-      }
-    />
+          ) : (
+            <BookSheet book={post.books} isGuest={isGuest}>
+              <CardBookAction post={post} />
+            </BookSheet>
+          )
+        }
+      />
+    </>
   );
 }

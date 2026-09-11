@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ShareDialog } from "@/components/feed/share-dialog";
 import Link from "next/link";
 import { Info, MessageCircle, Share2 } from "lucide-react";
 import { BookFanIcon } from "@ttokttok/ui/book/book-fan-icon";
@@ -45,28 +46,18 @@ export function ActionBar({
   const [shareCount, setShareCount] = useState(post.share_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
 
-  async function handleShare() {
-    const url = `${window.location.origin}/p/${post.id}`;
-    const title = `${post.books.title} · ${post.books.author}`;
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("링크를 복사했어요");
-      }
-    } catch {
-      return; // 사용자가 공유 시트를 닫은 경우 — 집계하지 않는다.
-    }
-
+  async function recordShare() {
     setShareCount((n) => n + 1);
     void track("share", { postId: post.id, bookId: post.books.id });
 
-    const { error } = await createClient().rpc("record_share", {
-      p_post_id: post.id,
-    });
-    if (error) {
+    try {
+      const { error } = await createClient().rpc("record_share", {
+        p_post_id: post.id,
+      });
+      if (error) throw error;
+    } catch {
       setShareCount((n) => Math.max(n - 1, 0));
       toast.error("공유 집계에 실패했어요");
     }
@@ -80,65 +71,75 @@ export function ActionBar({
   );
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <LikeButton
-        postId={post.id}
-        count={post.like_count}
-        liked={liked}
-        isGuest={isGuest}
-      />
-
-      {isGuest ? (
-        <LoginSheet reason="로그인하면 댓글을 남길 수 있어요.">
-          {commentButton}
-        </LoginSheet>
-      ) : (
-        <CommentSheet
+    <>
+      {shareUrl ? (
+        <ShareDialog
+          url={shareUrl}
+          title={`${post.books.title} · ${post.books.author}`}
+          onClose={() => setShareUrl(null)}
+          onShared={recordShare}
+        />
+      ) : null}
+      <div className="flex flex-col items-center gap-4">
+        <LikeButton
           postId={post.id}
-          currentUserId={userId!}
-          onAdded={() => setCommentCount((n) => n + 1)}
-          pinnedCommentId={pinnedCommentId}
-        >
-          {commentButton}
-        </CommentSheet>
-      )}
+          count={post.like_count}
+          liked={liked}
+          isGuest={isGuest}
+        />
 
-      <button
-        type="button"
-        onClick={handleShare}
-        aria-label="공유"
-        className={CHROME_ACTION}
-      >
-        <Share2 className={CHROME_ICON} aria-hidden />
-        <span className={CHROME_COUNT}>{formatCount(shareCount)}</span>
-      </button>
+        {isGuest ? (
+          <LoginSheet reason="로그인하면 댓글을 남길 수 있어요.">
+            {commentButton}
+          </LoginSheet>
+        ) : (
+          <CommentSheet
+            postId={post.id}
+            currentUserId={userId!}
+            onAdded={() => setCommentCount((n) => n + 1)}
+            pinnedCommentId={pinnedCommentId}
+          >
+            {commentButton}
+          </CommentSheet>
+        )}
 
-      {/* 전문 도서는 뷰어로 직행, 링크형은 도서 상세 시트로 (PRD §11-31) */}
-      {post.books.epub_path !== null ? (
-        <Link
-          href={`/read/${post.books.id}`}
-          aria-label={`${post.books.title} 바로 읽기`}
-          className={CHROME_CTA}
+        <button
+          type="button"
+          onClick={() => setShareUrl(`${window.location.origin}/p/${post.id}`)}
+          aria-label="공유"
+          className={CHROME_ACTION}
         >
-          <span className={CHROME_CTA_ICON}>
-            <BookFanIcon className="size-7 shrink-0" aria-hidden />
-          </span>
-          <span className={CHROME_COUNT}>읽기</span>
-        </Link>
-      ) : (
-        <BookSheet book={post.books} isGuest={isGuest}>
-          <button
-            type="button"
-            aria-label={`${post.books.title} 도서 정보 보기`}
+          <Share2 className={CHROME_ICON} aria-hidden />
+          <span className={CHROME_COUNT}>{formatCount(shareCount)}</span>
+        </button>
+
+        {/* 전문 도서는 뷰어로 직행, 링크형은 도서 상세 시트로 (PRD §11-31) */}
+        {post.books.epub_path !== null ? (
+          <Link
+            href={`/read/${post.books.id}`}
+            aria-label={`${post.books.title} 바로 읽기`}
             className={CHROME_CTA}
           >
             <span className={CHROME_CTA_ICON}>
-              <Info className="size-5" aria-hidden />
+              <BookFanIcon className="size-7 shrink-0" aria-hidden />
             </span>
-            <span className={CHROME_COUNT}>도서</span>
-          </button>
-        </BookSheet>
-      )}
-    </div>
+            <span className={CHROME_COUNT}>읽기</span>
+          </Link>
+        ) : (
+          <BookSheet book={post.books} isGuest={isGuest}>
+            <button
+              type="button"
+              aria-label={`${post.books.title} 도서 정보 보기`}
+              className={CHROME_CTA}
+            >
+              <span className={CHROME_CTA_ICON}>
+                <Info className="size-5" aria-hidden />
+              </span>
+              <span className={CHROME_COUNT}>도서</span>
+            </button>
+          </BookSheet>
+        )}
+      </div>
+    </>
   );
 }
