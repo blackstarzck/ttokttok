@@ -154,6 +154,9 @@ test("admin: channel create, edit and delete reach the real DB", async ({
     .getByLabel("슬러그 *", { exact: true })
     .fill("integration-test-channel");
   await page.getByLabel("장르 *", { exact: true }).fill("소설");
+  await page
+    .getByLabel("커버 이미지 URL", { exact: true })
+    .fill("https://example.com/covers/integration.png");
   await page.getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.getByText("저장했습니다.", { exact: true })).toBeVisible();
   const row = page
@@ -164,10 +167,11 @@ test("admin: channel create, edit and delete reach the real DB", async ({
   const channel = check(
     await db
       .from("channels")
-      .select("id")
+      .select("id, cover_url")
       .eq("slug", "integration-test-channel")
       .single(),
   ).data;
+  expect(channel.cover_url).toBe("https://example.com/covers/integration.png");
   try {
     await row.getByRole("link", { name: "수정" }).click();
     await page.getByLabel("이름 *", { exact: true }).fill("수정된 테스트 채널");
