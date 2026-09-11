@@ -645,21 +645,18 @@ export type Database = {
           created_at: string
           id: string
           nickname: string
-          role: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           id: string
           nickname: string
-          role?: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           id?: string
           nickname?: string
-          role?: string
         }
         Relationships: []
       }
@@ -1055,3 +1052,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

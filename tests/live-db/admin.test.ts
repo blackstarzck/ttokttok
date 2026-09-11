@@ -10,7 +10,7 @@ import {
   fixtureEpub,
 } from "./fixtures.ts";
 
-test("admin integration: regular readers cannot create content or promote their role", async () => {
+test("admin integration: regular readers cannot create content or join admin_accounts", async () => {
   const { db, user } = await account("user");
   assert.ok(
     (

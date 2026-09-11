@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@ttokttok/ui/components/avatar";
-import { Button } from "@ttokttok/ui/components/button";
 import { Progress } from "@ttokttok/ui/components/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ttokttok/ui/components/tabs";
 import { BookCover } from "@ttokttok/ui/feed/book-cover";
@@ -140,11 +139,6 @@ export default async function ProfilePage() {
           </span>
         </div>
 
-        {user.role === "admin" ? (
-          <Button asChild variant="secondary" size="sm" className="min-h-11">
-            <Link href="/admin">관리자</Link>
-          </Button>
-        ) : null}
         <SignOutButton />
       </header>
 

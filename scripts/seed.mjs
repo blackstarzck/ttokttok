@@ -585,11 +585,18 @@ async function run() {
           `· ${email} 계정 없음 — 소셜 로그인을 한 번 한 뒤 다시 실행하면 관리자로 승격된다`,
         );
       } else {
-        const { error: upErr } = await db
+        // 관리자는 profiles가 아니라 admin_accounts에 등록한다. 시드는
+        // 기존 소셜 계정을 승격시키는 용도라 프로필 행이 남아 있을 수 있다 —
+        // 관리자는 프로필을 갖지 않으므로 함께 지운다.
+        const { error: delErr } = await db
           .from("profiles")
-          .update({ role: "admin" })
+          .delete()
           .eq("id", user.id);
-        if (upErr) throw new Error(`profiles: ${upErr.message}`);
+        if (delErr) throw new Error(`profiles: ${delErr.message}`);
+        const { error: upErr } = await db
+          .from("admin_accounts")
+          .upsert({ id: user.id, name: "관리자", level: "owner" });
+        if (upErr) throw new Error(`admin_accounts: ${upErr.message}`);
         console.log(`✓ 관리자 승격: ${email}`);
       }
     }

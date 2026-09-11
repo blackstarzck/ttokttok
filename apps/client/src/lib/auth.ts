@@ -13,7 +13,6 @@ export type CurrentUser = {
   id: string;
   nickname: string;
   avatarUrl: string | null;
-  role: "user" | "admin";
 };
 
 /**
@@ -30,7 +29,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const { data: profile } = await db
     .from("profiles")
-    .select("nickname, avatar_url, role")
+    .select("nickname, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -38,7 +37,6 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     id: user.id,
     nickname: profile?.nickname ?? "독자",
     avatarUrl: profile?.avatar_url ?? null,
-    role: (profile?.role as "user" | "admin") ?? "user",
   };
 }
 
