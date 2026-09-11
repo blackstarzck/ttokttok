@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultCoverDesign, readCoverDesign } from "./cover-design";
+import {
+  COVER_FACES,
+  COVER_TEMPLATES,
+  defaultCoverDesign,
+  readCoverDesign,
+} from "./cover-design";
 
 describe("saved book cover designs", () => {
   const design = defaultCoverDesign("운수 좋은 날", "현진건");
@@ -36,4 +41,34 @@ describe("saved book cover designs", () => {
       );
     },
   );
+});
+
+describe("image template designs", () => {
+  const design = {
+    ...defaultCoverDesign("운수 좋은 날", "현진건"),
+    template: "image" as const,
+    images: { front: "https://example.supabase.co/storage/v1/object/public/covers/b/design-front-1.webp" },
+  };
+  it("keeps saved face image addresses", () => {
+    expect(readCoverDesign(design)).toEqual(design);
+    const full = {
+      ...design,
+      images: { ...design.images, spine: "blob:http://localhost/1", back: "blob:http://localhost/2" },
+    };
+    expect(readCoverDesign(full)).toEqual(full);
+  });
+  it("requires a front image for the image template", () => {
+    expect(readCoverDesign({ ...design, images: undefined })).toBeNull();
+    expect(readCoverDesign({ ...design, images: { spine: "blob:x" } })).toBeNull();
+    expect(readCoverDesign({ ...design, images: { front: "" } })).toBeNull();
+    expect(readCoverDesign({ ...design, images: { front: "x".repeat(2049) } })).toBeNull();
+  });
+  it("ignores stray image addresses on drawn templates", () => {
+    const drawn = { ...design, template: "classic" as const };
+    expect(readCoverDesign(drawn)).toEqual(drawn);
+  });
+  it("lists the image template after the drawn ones", () => {
+    expect(COVER_TEMPLATES.map((t) => t.id)).toEqual(["classic", "modern", "literary", "image"]);
+    expect(COVER_FACES).toEqual(["front", "spine", "back"]);
+  });
 });
