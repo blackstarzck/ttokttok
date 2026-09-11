@@ -119,7 +119,7 @@ create function public.is_admin_owner()  -- 같은 형태, level = 'owner' and i
 ```
 
 `security definer`라 `admin_accounts`의 RLS를 우회한다 — 기존 `is_admin()`과 같은 패턴이고
-재귀가 없다. **`is_active = false`가 곧 즉시 차단**이다: 다음 요청부터 28개 정책이 전부
+재귀가 없다. **`is_active = false`가 곧 즉시 차단**이다: 다음 요청부터 그 24줄이 전부
 거부한다. 이것이 "비활성화"의 실제 의미이며, B안을 기각한 이유다.
 
 ### `admin_accounts`의 RLS

@@ -296,7 +296,7 @@ create table public.admin_accounts (
 -- **함수 본문만 바꾼다.** 이 함수를 부르는 기존 마이그레이션 5개의 24줄은
 -- 한 글자도 건드리지 않는다 — is_admin()이 이미 추상화 경계였다.
 --
--- is_active = false가 곧 즉시 차단이다. 다음 요청부터 28개 정책이 전부
+-- is_active = false가 곧 즉시 차단이다. 다음 요청부터 그 24줄이 전부
 -- 거부한다. JWT 클레임 방식을 쓰지 않은 이유가 이것이다(토큰 만료 전까지
 -- 비활성화가 안 먹는다).
 create or replace function public.is_admin()
