@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 import { authenticate, ids } from "./helpers";
 import { snapshot, legacyUrl } from "./visual";
 
-test.use({ baseURL: legacyUrl ?? "http://localhost:3000" });
+// 분리 전 앱을 3100에서 찍을 때만 baseURL을 바꾼다 — 그 외에는 프로젝트 설정(3000)을 따른다.
+// 예전엔 3000을 여기 다시 적어 두어, 다른 설정으로 돌려도 이 스펙만 3000의 서버를 찍었다.
+if (legacyUrl) test.use({ baseURL: legacyUrl });
 test.beforeEach(async ({ context }) => {
   await context.addCookies([
     {

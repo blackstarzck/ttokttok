@@ -20,6 +20,7 @@ function readForm(formData: FormData) {
     genre: String(formData.get("genre") ?? "").trim(),
     description: String(formData.get("description") ?? "").trim() || null,
     avatar_url: String(formData.get("avatar_url") ?? "").trim() || null,
+    cover_url: String(formData.get("cover_url") ?? "").trim() || null,
   };
 }
 

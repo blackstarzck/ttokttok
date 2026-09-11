@@ -128,6 +128,31 @@ export async function seedFixtures() {
         check(await db.from(table).delete().eq("user_id", user.id));
     }
   }
+  // 채널 홈 히어로가 주 경로(사진 커버)를 찍도록 단색 PNG를 만들어 올린다.
+  mkdirSync(".tmp/test-assets", { recursive: true });
+  execFileSync("ffmpeg", [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=0x3b5a6f:s=720x960:d=1",
+    "-frames:v",
+    "1",
+    ".tmp/test-assets/channel-cover.png",
+  ]);
+  check(
+    await db.storage
+      .from("covers")
+      .upload("tests/channel-cover.png", readFileSync(".tmp/test-assets/channel-cover.png"), {
+        contentType: "image/png",
+        upsert: true,
+      }),
+  );
+  const coverUrl = db.storage.from("covers").getPublicUrl("tests/channel-cover.png")
+    .data.publicUrl;
   check(
     await db
       .from("channels")
@@ -137,6 +162,7 @@ export async function seedFixtures() {
         slug: "test-walk",
         genre: "소설",
         description: "매일 새로운 책을 만나는 시간",
+        cover_url: coverUrl,
       }),
   );
   check(

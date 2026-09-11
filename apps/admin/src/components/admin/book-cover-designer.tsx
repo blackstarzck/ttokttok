@@ -1,30 +1,72 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@ttokttok/ui/components/button";
+import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import {
+  COVER_FACES,
   COVER_PALETTES,
   COVER_TEMPLATES,
   coverDesignSchema,
   type CoverDesign,
+  type CoverFace,
 } from "@ttokttok/shared/cover-design";
-import { createBookCoverRenderer } from "@/lib/book-cover-renderer";
+import {
+  createBookCoverRenderer,
+  type CoverBitmaps,
+  type CoverColors,
+} from "@/lib/book-cover-renderer";
+import {
+  FACE_IMAGE_TYPES,
+  FACE_LABELS,
+  prepareFaceImage,
+  releaseFaceImage,
+  type FaceImage,
+} from "@/lib/cover-face-image";
+
+type Faces = Partial<Record<CoverFace, FaceImage>>;
+/** 면마다 "불러오는 중"이거나 실패 문구. 성공하면 항목이 사라진다. */
+type FaceStatus = Partial<Record<CoverFace, "loading" | string>>;
+
+/** 면 파일이 있으면 그것으로, 없으면 저장된 주소로 — 폼 상태에 남은 blob: 주소는 이미 해제됐을 수 있다. */
+function faceSource(
+  design: CoverDesign,
+  files: Partial<Record<CoverFace, File>> | undefined,
+  face: CoverFace,
+): File | string | null {
+  const file = files?.[face];
+  if (file) return file;
+  const url = design.images?.[face];
+  return url && !url.startsWith("blob:") ? url : null;
+}
 
 export function BookCoverDesigner({
   initialDesign,
+  initialFaces,
   onApply,
   onCancel,
 }: {
   initialDesign: CoverDesign;
-  onApply: (file: File, design: CoverDesign) => void;
+  /** 직전 적용에서 올린 면 파일. 다시 열 때 재디코드한다. */
+  initialFaces?: Partial<Record<CoverFace, File>>;
+  onApply: (
+    file: File,
+    design: CoverDesign,
+    faceUploads: Partial<Record<CoverFace, File>>,
+  ) => void;
   onCancel: () => void;
 }) {
   const [design, setDesign] = useState(initialDesign);
+  const [faces, setFaces] = useState<Faces>({});
+  const [faceStatus, setFaceStatus] = useState<FaceStatus>({});
+  const [colors, setColors] = useState<CoverColors | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const canvas = useRef<HTMLCanvasElement>(null);
+  const facesRef = useRef<Faces>({});
   const drag = useRef<{
     id: number;
     x: number;
@@ -69,24 +111,101 @@ export function BookCoverDesigner({
     };
   }, []);
 
+  // 면 이미지는 이 컴포넌트가 소유한다 — 바뀌거나 닫힐 때 비트맵과 blob: 주소를 놓는다.
+  useEffect(() => {
+    facesRef.current = faces;
+  }, [faces]);
+  useEffect(
+    () => () => {
+      for (const face of COVER_FACES) releaseFaceImage(facesRef.current[face]);
+    },
+    [],
+  );
+
+  function loadFace(face: CoverFace, source: File | string) {
+    setFaceStatus((current) => ({ ...current, [face]: "loading" }));
+    return prepareFaceImage(source).then(
+      (image) => {
+        setFaces((current) => {
+          releaseFaceImage(current[face]);
+          return { ...current, [face]: image };
+        });
+        setFaceStatus((current) => {
+          const next = { ...current };
+          delete next[face];
+          return next;
+        });
+      },
+      (cause: unknown) => {
+        setFaceStatus((current) => ({
+          ...current,
+          [face]:
+            typeof source === "string"
+              ? "저장된 이미지를 불러오지 못했습니다. 다시 올려 주세요."
+              : cause instanceof Error && cause.message
+                ? cause.message
+                : "이미지를 읽을 수 없습니다. 다른 파일을 선택해 주세요.",
+        }));
+      },
+    );
+  }
+
+  // 저장된 면(다시 편집)이나 직전 적용의 파일을 처음 한 번 불러온다.
+  useEffect(() => {
+    if (initialDesign.template !== "image") return;
+    for (const face of COVER_FACES) {
+      const source = faceSource(initialDesign, initialFaces, face);
+      if (source) void loadFace(face, source);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 한 번
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     const frame = requestAnimationFrame(() => {
       try {
-        renderer.current?.render(design);
+        const next = renderer.current?.render(design, bitmaps(faces));
+        if (next)
+          setColors((current) =>
+            current &&
+            current.base === next.base &&
+            current.ink === next.ink &&
+            current.accent === next.accent
+              ? current
+              : next,
+          );
       } catch {
         setError("미리보기를 그리지 못했습니다. 편집을 닫고 다시 열어 주세요.");
         setReady(false);
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [design, ready]);
+  }, [design, faces, ready]);
+
+  const image = design.template === "image";
+  const loading = COVER_FACES.some((face) => faceStatus[face] === "loading");
+  const canApply = ready && !busy && !loading && (!image || !!faces.front);
 
   async function apply() {
-    const result = coverDesignSchema.safeParse(design);
+    const result = coverDesignSchema.safeParse(
+      image
+        ? {
+            ...design,
+            images: faces.front
+              ? {
+                  front: faces.front.url,
+                  ...(faces.spine ? { spine: faces.spine.url } : {}),
+                  ...(faces.back ? { back: faces.back.url } : {}),
+                }
+              : undefined,
+          }
+        : { ...design, images: undefined },
+    );
     if (!result.success) {
       setError(
-        "제목은 1~120자, 저자는 1~80자로 입력해 주세요. 편집을 닫고 서지 정보를 수정할 수 있습니다.",
+        image && !faces.front
+          ? "앞표지 이미지를 올려 주세요."
+          : "제목은 1~120자, 저자는 1~80자로 입력해 주세요. 편집을 닫고 서지 정보를 수정할 수 있습니다.",
       );
       return;
     }
@@ -94,10 +213,20 @@ export function BookCoverDesigner({
     setBusy(true);
     setError("");
     try {
-      const blob = await renderer.current.exportImage(result.data);
+      const blob = await renderer.current.exportImage(
+        result.data,
+        bitmaps(faces),
+      );
+      const uploads: Partial<Record<CoverFace, File>> = {};
+      if (image)
+        for (const face of COVER_FACES) {
+          const upload = faces[face]?.upload;
+          if (upload) uploads[face] = upload;
+        }
       onApply(
         new File([blob], "book-cover.png", { type: "image/png" }),
         result.data,
+        uploads,
       );
     } catch {
       setError("이미지를 만들지 못했습니다. 다시 적용해 주세요.");
@@ -281,30 +410,152 @@ export function BookCoverDesigner({
               </Button>
             ))}
           </fieldset>
-          <fieldset disabled={busy} className="flex flex-wrap gap-2">
-            <legend className="mb-2 text-sm font-medium">표지 색상</legend>
-            {COVER_PALETTES.map((palette) => (
-              <Button
-                key={palette.id}
-                type="button"
-                variant={
-                  design.palette === palette.id ? "secondary" : "outline"
-                }
-                aria-pressed={design.palette === palette.id}
-                className="min-h-11"
-                onClick={() => setDesign({ ...design, palette: palette.id })}
+          {image ? (
+            <fieldset disabled={busy} className="flex flex-col gap-4">
+              <legend className="mb-2 text-sm font-medium">면별 이미지</legend>
+              <p
+                id="cover-face-help"
+                className="text-muted-foreground text-xs"
               >
-                <span
-                  aria-hidden
-                  className="size-4 rounded-full border"
-                  style={{
-                    backgroundColor: `var(--book-cover-${palette.id}-base)`,
-                  }}
-                />
-                {palette.label}
-              </Button>
-            ))}
-          </fieldset>
+                JPG · PNG · WebP, 최대 10MB. 그림면 비율로 중앙을 채우며
+                가장자리가 잘릴 수 있습니다. 책등은 두께 슬라이더에 맞춰
+                잘립니다.
+              </p>
+              {COVER_FACES.map((face) => {
+                const current = faces[face];
+                const status = faceStatus[face];
+                const required = face === "front";
+                return (
+                  <div key={face} className="flex flex-col gap-2">
+                    {/* 파일 입력은 접근성 트리에서 버튼이라, 회전 버튼(앞표지·책등·뒷표지)과 이름이 겹치지 않게 한다. */}
+                    <Label htmlFor={`cover-face-${face}`}>
+                      {FACE_LABELS[face]} 이미지
+                      {required ? " (필수)" : ""}
+                    </Label>
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`bg-muted relative h-20 shrink-0 overflow-hidden rounded-sm border ${
+                          face === "spine" ? "w-5" : "w-14"
+                        }`}
+                      >
+                        {current && (
+                          <Image
+                            src={current.url}
+                            alt=""
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                            unoptimized={current.url.startsWith("blob:")}
+                          />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <Input
+                          id={`cover-face-${face}`}
+                          type="file"
+                          accept={FACE_IMAGE_TYPES.join(",")}
+                          aria-describedby={`cover-face-help cover-face-${face}-status`}
+                          disabled={status === "loading"}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = "";
+                            if (file) void loadFace(face, file);
+                          }}
+                        />
+                        <p
+                          id={`cover-face-${face}-status`}
+                          role="status"
+                          className={`text-xs ${
+                            status && status !== "loading"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {status === "loading"
+                            ? "이미지를 불러오는 중…"
+                            : status
+                              ? status
+                              : current
+                                ? "적용됨"
+                                : required
+                                  ? "앞표지 이미지를 올려 주세요."
+                                  : "비우면 제목·저자로 그립니다."}
+                        </p>
+                        {current && !required && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="min-h-11 self-start"
+                            onClick={() =>
+                              setFaces(({ [face]: removed, ...rest }) => {
+                                releaseFaceImage(removed);
+                                return rest;
+                              })
+                            }
+                          >
+                            {FACE_LABELS[face]} 제거
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-xs">
+                  판·책등·머리띠 색은 앞표지 이미지 가장자리에서 정해집니다.
+                </p>
+                {faces.front && colors && (
+                  <ul
+                    aria-label="이미지에서 뽑은 색"
+                    className="flex items-center gap-2"
+                  >
+                    {(
+                      [
+                        ["판", colors.base],
+                        ["글자", colors.ink],
+                        ["머리띠", colors.accent],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <li key={label} className="flex items-center gap-1 text-xs">
+                        <span
+                          aria-hidden
+                          className="size-4 rounded-full border"
+                          style={{ backgroundColor: value }}
+                        />
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </fieldset>
+          ) : (
+            <fieldset disabled={busy} className="flex flex-wrap gap-2">
+              <legend className="mb-2 text-sm font-medium">표지 색상</legend>
+              {COVER_PALETTES.map((palette) => (
+                <Button
+                  key={palette.id}
+                  type="button"
+                  variant={
+                    design.palette === palette.id ? "secondary" : "outline"
+                  }
+                  aria-pressed={design.palette === palette.id}
+                  className="min-h-11"
+                  onClick={() => setDesign({ ...design, palette: palette.id })}
+                >
+                  <span
+                    aria-hidden
+                    className="size-4 rounded-full border"
+                    style={{
+                      backgroundColor: `var(--book-cover-${palette.id}-base)`,
+                    }}
+                  />
+                  {palette.label}
+                </Button>
+              ))}
+            </fieldset>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="cover-angle">책 각도 · {design.angle}°</Label>
             <input
@@ -368,7 +619,7 @@ export function BookCoverDesigner({
             <Button
               type="button"
               variant="secondary"
-              disabled={!ready || busy}
+              disabled={!canApply}
               className="min-h-11"
               onClick={apply}
             >
@@ -388,4 +639,12 @@ export function BookCoverDesigner({
       </div>
     </section>
   );
+}
+
+function bitmaps(faces: Faces): CoverBitmaps {
+  return {
+    front: faces.front?.bitmap,
+    spine: faces.spine?.bitmap,
+    back: faces.back?.bitmap,
+  };
 }

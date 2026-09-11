@@ -30,7 +30,7 @@ export default async function AdminChannelsPage({
 
   const { data: channels, error } = await db
     .from("channels")
-    .select("id, name, slug, genre, description, avatar_url")
+    .select("id, name, slug, genre, description, avatar_url, cover_url")
     .order("name");
 
   // 삼키면 실패가 빈 목록이 되어 "아직 채널이 없다"와 구분되지 않는다.
@@ -102,6 +102,16 @@ export default async function AdminChannelsPage({
               name="avatar_url"
               defaultValue={editing?.avatar_url ?? ""}
               placeholder="비워 두면 이름 첫 글자로 표시됩니다"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="cover_url">커버 이미지 URL</Label>
+            <Input
+              id="cover_url"
+              name="cover_url"
+              defaultValue={editing?.cover_url ?? ""}
+              placeholder="채널 홈 상단 배경. 비워 두면 아바타를 흐리게 깔아 표시됩니다"
             />
           </div>
 

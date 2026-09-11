@@ -10,12 +10,15 @@ export function PostCard({
   isGuest = true,
   userId = null,
   preview,
+  pinnedCommentId,
 }: {
   post: FeedPost;
   liked?: boolean;
   isGuest?: boolean;
   userId?: string | null;
   preview?: boolean;
+  /** 게시물 상세(`/p/[postId]?comment=`)만 넘긴다. 홈은 undefined. */
+  pinnedCommentId?: string;
 }) {
   return (
     <PostCardView
@@ -27,6 +30,7 @@ export function PostCard({
           liked={liked}
           isGuest={isGuest}
           userId={userId}
+          pinnedCommentId={pinnedCommentId}
         />
       }
       bookInfo={

@@ -7,8 +7,10 @@ import { Button } from "@ttokttok/ui/components/button";
 import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import {
+  COVER_FACES,
   defaultCoverDesign,
   type CoverDesign,
+  type CoverFace,
 } from "@ttokttok/shared/cover-design";
 
 const BookCoverDesigner = dynamic(
@@ -24,6 +26,15 @@ const BookCoverDesigner = dynamic(
   },
 );
 
+type FaceFiles = Partial<Record<CoverFace, File>>;
+
+function setFiles(input: HTMLInputElement | null, file: File | undefined) {
+  if (!input) return;
+  const transfer = new DataTransfer();
+  if (file) transfer.items.add(file);
+  input.files = transfer.files;
+}
+
 export function BookCoverField({
   coverUrl,
   savedDesign,
@@ -32,9 +43,15 @@ export function BookCoverField({
   savedDesign: CoverDesign | null;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const faceInputs = useRef<Partial<Record<CoverFace, HTMLInputElement | null>>>(
+    {},
+  );
   const root = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<CoverDesign | null>(null);
   const [applied, setApplied] = useState<CoverDesign | null>(null);
+  // 직전 적용에서 올린 면 파일. blob: 주소는 편집기가 닫히며 해제되므로
+  // 다시 열 때는 이 파일로 재디코드한다.
+  const [appliedFaces, setAppliedFaces] = useState<FaceFiles>({});
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -84,18 +101,26 @@ export function BookCoverField({
     });
   }
 
-  function apply(file: File, design: CoverDesign) {
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    fileInput.current!.files = transfer.files;
+  function apply(file: File, design: CoverDesign, faceUploads: FaceFiles) {
+    setFiles(fileInput.current, file);
+    for (const face of COVER_FACES)
+      setFiles(faceInputs.current[face] ?? null, faceUploads[face]);
     setPreview(URL.createObjectURL(file));
     setApplied(design);
+    setAppliedFaces(faceUploads);
     setEditing(null);
     setError("");
   }
 
+  function clearFaces() {
+    for (const face of COVER_FACES)
+      setFiles(faceInputs.current[face] ?? null, undefined);
+    setAppliedFaces({});
+  }
+
   function reset() {
     fileInput.current!.value = "";
+    clearFaces();
     setApplied(null);
     setPreview(null);
     setError("");
@@ -109,6 +134,20 @@ export function BookCoverField({
         name="cover_design"
         value={applied ? JSON.stringify(applied) : ""}
       />
+      {/* 이미지 템플릿의 면별 축소본. 편집기가 적용할 때 채우고 사람은 만지지 않는다. */}
+      {COVER_FACES.map((face) => (
+        <input
+          key={face}
+          ref={(element) => {
+            faceInputs.current[face] = element;
+          }}
+          type="file"
+          name={`cover_image_${face}`}
+          hidden
+          tabIndex={-1}
+          aria-hidden
+        />
+      ))}
       <div className="flex flex-col gap-2">
         <Label htmlFor="cover">표지 이미지</Label>
         <Input
@@ -120,6 +159,7 @@ export function BookCoverField({
           disabled={!!editing}
           onChange={(event) => {
             const file = event.target.files?.[0];
+            clearFaces();
             if (file && file.size > 2 * 1024 * 1024) {
               event.target.value = "";
               setApplied(null);
@@ -139,6 +179,7 @@ export function BookCoverField({
       {editing ? (
         <BookCoverDesigner
           initialDesign={editing}
+          initialFaces={appliedFaces}
           onApply={apply}
           onCancel={() => {
             setEditing(null);

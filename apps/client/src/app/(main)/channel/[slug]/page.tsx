@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@ttokttok/ui/components/avatar";
-import { Badge } from "@ttokttok/ui/components/badge";
-import { BookCover } from "@ttokttok/ui/feed/book-cover";
-import { getChannel } from "@/lib/channel";
-import { getChannelPosts } from "@/lib/feed";
-import { LoadFailed } from "@/components/load-failed";
 import { formatCount } from "@ttokttok/shared/format";
+import { ChannelActions } from "@/components/channel/channel-actions";
+import { ChannelGrid } from "@/components/channel/channel-grid";
+import { ChannelHero } from "@/components/channel/channel-hero";
+import { LoadFailed } from "@/components/load-failed";
+import { getChannel, getChannelCounts } from "@/lib/channel";
+import { getChannelPosts } from "@/lib/feed";
 
 export async function generateMetadata({
   params,
@@ -21,15 +19,23 @@ export async function generateMetadata({
   return {
     title: channel.name,
     description: channel.description ?? undefined,
+    ...(channel.cover_url
+      ? { openGraph: { images: [{ url: channel.cover_url }] } }
+      : {}),
   };
 }
 
 /**
- * 채널 페이지 (PRD §5.9).
- * 채널 정보 + 그 채널이 발행한 게시물 그리드. 항목을 누르면 유형에 따라
- * 갈린다 — 영상은 이 채널 안에서 이어 보는 채널 스코프 릴스 뷰어
- * (`/channel/[slug]/reels`)로, 카드는 게시물 상세(`/p/[postId]`)로
- * 딥링크된다(§11-58).
+ * 채널 홈 (PRD §5.9, 설계 2026-09-11-channel-home-redesign).
+ *
+ * 위에서 아래로 히어로(커버·이름·액션 바) → 정방형 타일 모자이크.
+ * 타일의 목적지는 유형에 따라 갈린다 — 영상은 채널 스코프 릴스 뷰어
+ * (`/channel/[slug]/reels`), 카드는 게시물 상세(`/p/[postId]`, 홈 카드를
+ * 그린다)(§11-58·§11-68).
+ *
+ * 게시물 조회와 카운트는 서로 독립이라 실패도 따로 말한다 — 카운트가
+ * 실패했다고 그리드를 지우지 않고, 그리드가 실패했다고 히어로를 지우지
+ * 않는다(§11-61).
  */
 export default async function ChannelPage({
   params,
@@ -41,76 +47,25 @@ export default async function ChannelPage({
   if (channelFailed) return <LoadFailed />;
   if (!channel) notFound();
 
-  const { posts, failed: postsFailed } = await getChannelPosts(channel.id);
+  const [{ posts, failed: postsFailed }, counts] = await Promise.all([
+    getChannelPosts(channel.id),
+    getChannelCounts(channel.id),
+  ]);
 
   return (
     <div className="h-full overflow-y-auto">
-      <header className="flex flex-col gap-4 p-4">
-        <Link
-          href="/"
-          aria-label="피드로 돌아가기"
-          className="focus-visible:ring-ring text-muted-foreground hover:text-foreground -ml-2 flex size-11 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <ChevronLeft aria-hidden />
-        </Link>
-
-        <div className="flex items-center gap-3">
-          <Avatar className="size-14 shrink-0">
-            {channel.avatar_url ? (
-              <AvatarImage src={channel.avatar_url} alt="" />
-            ) : null}
-            <AvatarFallback>{channel.name.slice(0, 1)}</AvatarFallback>
-          </Avatar>
-
-          <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-lg font-bold break-keep">{channel.name}</h1>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{channel.genre}</Badge>
-              <span className="text-muted-foreground text-xs">
-                게시물 {postsFailed ? "–" : formatCount(posts.length)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {channel.description ? (
-          <p className="text-muted-foreground text-sm leading-relaxed break-keep">
-            {channel.description}
-          </p>
-        ) : null}
-      </header>
-
-      {posts.length === 0 ? (
-        // 실패와 빈 목록을 다른 문구로 가른다 (알림 화면 §5.5의 선례).
-        // 채널 정보는 이미 떠 있으므로 화면을 통째로 지우지는 않는다.
-        <p className="text-muted-foreground px-4 py-10 text-center text-sm">
-          {postsFailed
-            ? "게시물을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
-            : "아직 발행한 게시물이 없어요."}
-        </p>
-      ) : (
-        <ul className="grid grid-cols-3 gap-1 p-1">
-          {posts.map((post) => (
-            <li key={post.id}>
-              <Link
-                href={
-                  post.type === "video"
-                    ? `/channel/${channel.slug}/reels?start=${post.id}`
-                    : `/p/${post.id}`
-                }
-                // 영상은 이 채널 안에서 이어 보게 릴스 뷰어로 보낸다(결정 7).
-                // 카드는 전면 뷰어가 없으므로 그대로 상세(/p/[postId])로 간다.
-                className="focus-visible:ring-ring block rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <BookCover book={post.books} className="w-full" />
-                <span className="text-muted-foreground mt-1 block truncate px-0.5 text-xs">
-                  조회 {formatCount(post.view_count)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChannelHero
+        channel={channel}
+        postCount={counts.failed ? "–" : formatCount(counts.total)}
+        actions={
+          <ChannelActions
+            slug={channel.slug}
+            name={channel.name}
+            showVideos={!counts.failed && counts.videos > 0}
+          />
+        }
+      />
+      <ChannelGrid posts={posts} slug={channel.slug} failed={postsFailed} />
     </div>
   );
 }

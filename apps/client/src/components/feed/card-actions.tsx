@@ -40,11 +40,14 @@ export function CardActions({
   liked,
   isGuest,
   userId,
+  pinnedCommentId,
 }: {
   post: FeedPost;
   liked: boolean;
   isGuest: boolean;
   userId: string | null;
+  /** 알림의 댓글 딥링크(`/p/[postId]?comment=`). 있으면 시트를 열고 그 댓글로 간다. */
+  pinnedCommentId?: string;
 }) {
   const [shareCount, setShareCount] = useState(post.share_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
@@ -99,6 +102,7 @@ export function CardActions({
             <CommentSheet
               postId={post.id}
               currentUserId={userId!}
+              pinnedCommentId={pinnedCommentId}
               onAdded={() => setCommentCount((n) => n + 1)}
             >
               {commentButton}

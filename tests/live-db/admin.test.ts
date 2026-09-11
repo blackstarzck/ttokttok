@@ -104,3 +104,31 @@ test("admin integration: authenticated upload and cleanup respect storage polici
   }
   assert.ok((await serviceDb().storage.from("epubs").download(path)).error);
 });
+
+test("admin integration: channel cover_url round-trips and is publicly readable", async () => {
+  const { db } = await account("admin");
+  const slug = `cover-${randomUUID().slice(0, 8)}`;
+  const coverUrl = "https://example.com/covers/test-cover.png";
+  try {
+    const { id } = check(
+      await db
+        .from("channels")
+        .insert({ name: "커버 테스트 채널", slug, genre: "소설", cover_url: coverUrl })
+        .select("id")
+        .single(),
+    ).data;
+    assert.equal(
+      check(await publicDb().from("channels").select("cover_url").eq("id", id).single())
+        .data.cover_url,
+      coverUrl,
+    );
+    check(await db.from("channels").update({ cover_url: null }).eq("id", id));
+    assert.equal(
+      check(await publicDb().from("channels").select("cover_url").eq("id", id).single())
+        .data.cover_url,
+      null,
+    );
+  } finally {
+    check(await serviceDb().from("channels").delete().eq("slug", slug));
+  }
+});
