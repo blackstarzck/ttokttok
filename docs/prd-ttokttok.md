@@ -411,10 +411,14 @@ video_uploads
   status text CHECK (status IN ('uploading','ready','deleting')),
   manifest jsonb, public_base text -- 관리자 읽기, 서버 검증/정리 전용 쓰기
 
+admin_accounts
+  id PK FK auth.users, name, level ('owner'|'admin'),
+  is_active bool, created_at, created_by FK admin_accounts
+  -- 관리자 신원. profiles와 분리되어 관리자는 profiles 행을 갖지 않는다.
+  -- 로그인 ID는 <id>@ttokttok.local 합성 이메일로 auth.users에 담는다.
+
 profiles
-  id uuid PK (= auth.users.id), nickname text, avatar_url text,
-  role text DEFAULT 'user',      -- 'user' | 'admin'
-  created_at timestamptz
+  id PK FK auth.users, nickname, avatar_url, created_at
 
 likes        (user_id, post_id) PK 복합, created_at
 comment_likes (user_id, comment_id) PK 복합, created_at
@@ -447,7 +451,7 @@ featured_books (탐색 '오늘의 추천') book_id FK, sort_order, active bool
 - 쓰기: `likes`/`comments`/`comment_likes`/`bookmarks`/`reading_progress`는 본인 행만, `reports`는 로그인 사용자 insert만
 - `comments`의 UPDATE는 RLS 위에 **컬럼 GRANT로도** 좁혀져 있다 — 테이블 단위 UPDATE를 revoke하고 `deleted_at`만 재부여했으므로(20260903000001), RLS를 통과하는 요청이라도 `deleted_at` 외 컬럼은 기본적으로 막힌다. 새로 컬럼을 추가해도 grant 목록에 넣기 전까지는 UPDATE가 열리지 않는다 — RLS 정책만 보고 "된다"고 판단하지 말 것 (§11-45)
 - `notifications`는 받은 사람만 select·update할 수 있고, **insert 정책이 없다** — 행은 `notify_on_reply`/`notify_on_comment_like` 두 security definer 트리거만 만든다(20260903000002). `comments`와 같은 패턴으로 UPDATE도 컬럼 GRANT로 더 좁혀서 `read_at`만 재부여했다 — RLS를 통과해도 `type`·`comment_id` 같은 다른 컬럼은 클라이언트가 못 바꾼다(§11-45와 동일 근거, §11-47)
-- 어드민 쓰기(`books`, `posts`, `channels` 등)는 `role='admin'` 체크 (service role or RLS policy)
+- 어드민 쓰기(`books`, `posts`, `channels` 등)는 `is_admin()`(= `admin_accounts`에 활성 행이 있는가) 체크 (service role or RLS policy)
 - EPUB 파일: private bucket + 서버에서 signed URL 발급 (전문 도서 전용 — 챕터 잠금 없음)
 
 ---

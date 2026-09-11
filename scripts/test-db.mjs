@@ -42,7 +42,7 @@ if (process.argv.includes("--stop")) {
     NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
     CLIENT_URL: "http://localhost:3000",
     ADMIN_URL: "http://localhost:3001",
-    TEST_ADMIN_EMAIL: "admin@ttokttok.test",
+    TEST_ADMIN_ID: "test.admin",
     TEST_USER_EMAIL: "reader@ttokttok.test",
     TEST_PASSWORD: "Local-test-only-2026!",
   };

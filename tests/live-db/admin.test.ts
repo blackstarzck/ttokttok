@@ -19,9 +19,13 @@ test("admin integration: regular readers cannot create content or promote their 
         .insert({ name: "forbidden", slug: "forbidden", genre: "소설" })
     ).error,
   );
+  // 관리자 승격 경로가 사라졌는지는 admin_accounts 쓰기로 확인한다.
   assert.ok(
-    (await db.from("profiles").update({ role: "admin" }).eq("id", user.id))
-      .error,
+    (
+      await db
+        .from("admin_accounts")
+        .insert({ id: user.id, name: "침입자", level: "owner" })
+    ).error,
   );
   const posts = check(
     await db.from("posts").select("id").eq("id", ids.draft),

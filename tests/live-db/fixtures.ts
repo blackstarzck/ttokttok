@@ -1,3 +1,4 @@
+import { adminIdToEmail } from "@ttokttok/shared/admin-id";
 import { createClient } from "@supabase/supabase-js";
 import { strToU8, zipSync } from "fflate";
 import { execFileSync } from "node:child_process";
@@ -30,7 +31,9 @@ export async function account(role: "admin" | "user") {
   const db = publicDb();
   const { data, error } = await db.auth.signInWithPassword({
     email:
-      process.env[role === "admin" ? "TEST_ADMIN_EMAIL" : "TEST_USER_EMAIL"]!,
+      role === "admin"
+        ? adminIdToEmail(process.env.TEST_ADMIN_ID!)
+        : process.env.TEST_USER_EMAIL!,
     password: process.env.TEST_PASSWORD!,
   });
   if (error || !data.session) throw error ?? new Error("No fixture session");
@@ -78,8 +81,12 @@ export async function seedFixtures() {
   );
   const existing = check(await db.auth.admin.listUsers()).data.users;
   for (const role of ["admin", "user"] as const) {
+    // 관리자는 라우팅되지 않는 합성 이메일을 쓴다 — 사용자와 신원 공간이
+    // 겹치지 않는다는 것이 이 설계의 요점이다.
     const email =
-      process.env[role === "admin" ? "TEST_ADMIN_EMAIL" : "TEST_USER_EMAIL"]!;
+      role === "admin"
+        ? adminIdToEmail(process.env.TEST_ADMIN_ID!)
+        : process.env.TEST_USER_EMAIL!;
     const found = existing.find((user) => user.email === email);
     const user =
       found ??
@@ -88,24 +95,38 @@ export async function seedFixtures() {
           email,
           password: process.env.TEST_PASSWORD!,
           email_confirm: true,
+          app_metadata: role === "admin" ? { ttokttok_admin: true } : {},
           user_metadata: {
             name: role === "admin" ? "테스트 관리자" : "테스트 독자",
           },
         }),
       ).data.user;
     if (!user) throw new Error("Fixture user missing");
-    check(
-      await db
-        .from("profiles")
-        .update({
-          role,
-          nickname: role === "admin" ? "테스트 관리자" : "테스트 독자",
-        })
-        .eq("id", user.id),
-    );
-    // Only this test account's interactions are reset; never reset the database.
-    for (const table of ["likes", "bookmarks", "reading_progress", "comments"])
-      check(await db.from(table).delete().eq("user_id", user.id));
+
+    if (role === "admin") {
+      // 트리거의 건너뛰기는 이 경로에서 먹지 않는다 — GoTrue가 app_metadata를
+      // INSERT 이후에 붙여 트리거가 볼 때는 표식이 없다. 여기서 지우는 것이
+      // 관리자에게 프로필이 생기지 않게 하는 실질적 방어다 (마이그레이션 주석).
+      check(await db.from("profiles").delete().eq("id", user.id));
+      check(
+        await db.from("admin_accounts").upsert({
+          id: user.id,
+          name: "테스트 관리자",
+          level: "owner",
+          is_active: true,
+        }),
+      );
+    } else {
+      check(
+        await db
+          .from("profiles")
+          .update({ nickname: "테스트 독자" })
+          .eq("id", user.id),
+      );
+      // Only this test account's interactions are reset; never reset the database.
+      for (const table of ["likes", "bookmarks", "reading_progress", "comments"])
+        check(await db.from(table).delete().eq("user_id", user.id));
+    }
   }
   check(
     await db

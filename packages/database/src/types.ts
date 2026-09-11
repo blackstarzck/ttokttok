@@ -34,6 +34,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_accounts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          level: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id: string
+          is_active?: boolean
+          level?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          level?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics_events: {
         Row: {
           book_id: string | null
@@ -852,6 +887,7 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
+      is_admin_owner: { Args: never; Returns: boolean }
       record_share: { Args: { p_post_id: string }; Returns: undefined }
       record_view: {
         Args: { p_post_id: string; p_session_id: string }
