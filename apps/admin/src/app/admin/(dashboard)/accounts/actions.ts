@@ -1,0 +1,121 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { adminIdToEmail, isValidAdminId } from "@ttokttok/shared/admin-id";
+import { requireOwner } from "@/lib/admin-guard";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+/**
+ * 관리자 계정 관리 (설계 §7).
+ *
+ * 모든 액션이 requireOwner로 시작한다 — 서버 액션은 미들웨어를 거치지 않을
+ * 수 있다. RLS도 owner만 쓰기를 허용하므로 이중이다.
+ *
+ * 계정 **생성**만 service role 클라이언트를 쓴다: auth.users에 행을 만드는
+ * 것은 anon 키로 할 수 없다. 등급 변경·활성 토글은 일반 클라이언트로 하며
+ * RLS가 판정한다 — 그래야 "자기 행은 못 바꾼다"가 DB에서 강제된다.
+ */
+
+export async function createAdminAccount(formData: FormData) {
+  const { userId } = await requireOwner();
+
+  const adminId = String(formData.get("adminId") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const level = String(formData.get("level") ?? "admin");
+
+  if (!isValidAdminId(adminId)) {
+    redirect("/admin/accounts?error=invalid_id");
+  }
+  if (!name || password.length < 6) {
+    redirect("/admin/accounts?error=required");
+  }
+  if (level !== "owner" && level !== "admin") {
+    redirect("/admin/accounts?error=invalid_level");
+  }
+
+  const service = createAdminClient();
+  const { data, error } = await service.auth.admin.createUser({
+    email: adminIdToEmail(adminId),
+    password,
+    email_confirm: true,
+    app_metadata: { ttokttok_admin: true },
+  });
+
+  if (error) {
+    redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // 트리거가 app_metadata 표식을 보고 건너뛰지만 보장이 없다. 이중으로 막는다.
+  const { error: profErr } = await service
+    .from("profiles")
+    .delete()
+    .eq("id", data.user.id);
+  if (profErr) {
+    redirect(`/admin/accounts?error=${encodeURIComponent(profErr.message)}`);
+  }
+
+  const { error: acctErr } = await service.from("admin_accounts").insert({
+    id: data.user.id,
+    name,
+    level,
+    created_by: userId,
+  });
+
+  if (acctErr) {
+    // auth 계정만 남고 admin_accounts 행이 없으면 로그인은 되는데 아무 권한이
+    // 없는 유령이 된다. 되돌린다.
+    await service.auth.admin.deleteUser(data.user.id);
+    redirect(`/admin/accounts?error=${encodeURIComponent(acctErr.message)}`);
+  }
+
+  revalidatePath("/admin/accounts");
+  redirect("/admin/accounts?saved=1");
+}
+
+export async function setAdminActive(formData: FormData) {
+  await requireOwner();
+
+  const id = String(formData.get("id") ?? "");
+  const isActive = String(formData.get("isActive") ?? "") === "true";
+
+  // 일반 클라이언트 — RLS가 "owner이고 자기 행이 아님"을 판정한다.
+  const db = await createClient();
+  const { error } = await db
+    .from("admin_accounts")
+    .update({ is_active: isActive })
+    .eq("id", id);
+
+  if (error) {
+    redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/accounts");
+  redirect(`/admin/accounts?${isActive ? "enabled" : "disabled"}=1`);
+}
+
+export async function setAdminLevel(formData: FormData) {
+  await requireOwner();
+
+  const id = String(formData.get("id") ?? "");
+  const level = String(formData.get("level") ?? "");
+
+  if (level !== "owner" && level !== "admin") {
+    redirect("/admin/accounts?error=invalid_level");
+  }
+
+  const db = await createClient();
+  const { error } = await db
+    .from("admin_accounts")
+    .update({ level })
+    .eq("id", id);
+
+  if (error) {
+    redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/accounts");
+  redirect("/admin/accounts?saved=1");
+}

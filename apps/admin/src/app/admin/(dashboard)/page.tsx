@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { AdminNotice } from "@/components/admin/admin-notice";
 
 export const metadata: Metadata = { title: "관리자" };
+
+const q = (v: string | string[] | undefined) =>
+  typeof v === "string" ? v : undefined;
+
+// requireOwner()가 owner가 아닌 관리자를 여기로 리다이렉트할 때 붙이는 코드
+// (admin-guard.ts). 코드를 그대로 보여주면 관리자가 무슨 뜻인지 알 수
+// 없으니 사람이 읽을 문구로 바꾼다 — /admin/login의 error 매핑과 같은 관용구.
+const ERROR_MESSAGES: Record<string, string> = {
+  owner_only: "관리자 계정 관리는 owner 등급만 이용할 수 있습니다.",
+};
 
 const CARDS = [
   {
@@ -18,7 +29,11 @@ const CARDS = [
   { href: "/admin/channels", title: "채널", desc: "큐레이션 페르소나" },
 ] as const;
 
-export default async function AdminHomePage() {
+export default async function AdminHomePage({
+  searchParams,
+}: PageProps<"/admin">) {
+  const sp = await searchParams;
+  const error = q(sp.error);
   const db = await createClient();
 
   // 여기는 다른 어드민 화면과 달리 **일부러 던지지 않는다.**
@@ -42,6 +57,8 @@ export default async function AdminHomePage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold">관리자</h1>
+
+      <AdminNotice error={error ? (ERROR_MESSAGES[error] ?? error) : undefined} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {CARDS.map((c) => (

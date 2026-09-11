@@ -19,20 +19,29 @@ async function signOut() {
   redirect("/admin/login");
 }
 
-const NAV = [
+// "계정" 항목을 owner에게만 조건부로 더한다 — as const로 두면 스프레드 시
+// 항목 타입이 좁게 굳어 조건부로 더한 항목과 타입이 어긋난다.
+const NAV: readonly { href: string; label: string }[] = [
   { href: "/admin/books", label: "도서" },
   { href: "/admin/posts", label: "게시물" },
   { href: "/admin/channels", label: "채널" },
   { href: "/admin/featured", label: "추천" },
   { href: "/admin/reports", label: "신고" },
-] as const;
+];
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdmin();
+  const { level } = await requireAdmin();
+
+  // 관리자 계정 관리는 owner만 접근할 수 있다(RLS도 같은 경계를 강제한다) —
+  // 메뉴에도 admin에게는 보이지 않아야 "눌러 봤더니 튕긴다"가 생기지 않는다.
+  const nav =
+    level === "owner"
+      ? [...NAV, { href: "/admin/accounts", label: "계정" }]
+      : NAV;
 
   return (
     <div className="min-h-dvh">
@@ -61,7 +70,7 @@ export default async function AdminLayout({
           </Link>
 
           <nav className="order-last flex w-full min-w-0 items-center gap-1 overflow-x-auto sm:order-none sm:w-auto">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Button key={item.href} asChild variant="ghost" size="sm">
                 <Link href={item.href}>{item.label}</Link>
               </Button>
