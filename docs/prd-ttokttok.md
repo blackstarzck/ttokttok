@@ -364,6 +364,7 @@ ws-export는 FreeSerif 4종(약 7.7MB)을 항상 임베드하고, 위키문헌 �
 ```
 channels
   id uuid PK, name text, slug text UNIQUE, avatar_url text,
+  cover_url text,                -- 채널 홈 히어로 배경. NULL이면 아바타 블러 → --post-navy 폴백 (§5.9)
   genre text, description text, created_at timestamptz
 
 books

@@ -218,6 +218,7 @@ export type Database = {
       channels: {
         Row: {
           avatar_url: string | null
+          cover_url: string | null
           created_at: string
           description: string | null
           genre: string
@@ -227,6 +228,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           genre: string
@@ -236,6 +238,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           genre?: string

@@ -13,7 +13,7 @@ export async function getChannel(slug: string) {
   const db = await createClient();
   const { data, error } = await db
     .from("channels")
-    .select("id, name, slug, genre, description, avatar_url")
+    .select("id, name, slug, genre, description, avatar_url, cover_url")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -26,4 +26,40 @@ export async function getChannel(slug: string) {
     return { channel: null, failed: true };
   }
   return { channel: data, failed: false };
+}
+
+/**
+ * 채널의 발행 게시물 수와 그중 영상 수.
+ *
+ * 그리드에 실린 목록(`getChannelPosts`, 최대 30건 — §11-58)으로 세면
+ * 30건을 넘는 채널에서 "게시물 30"으로 틀리고, 영상이 전부 31번째
+ * 뒤에 있으면 "영상 이어보기"가 사라진다. 그래서 head count 두 번을
+ * 병렬로 던진다 — 행을 받지 않으니 비용은 카운트 쿼리 두 개다.
+ *
+ * `failed`면 화면은 "게시물 –"를 그리고 "영상 이어보기"를 숨긴다 —
+ * 영상 0건 채널의 뷰어는 `notFound()`로 답하므로, 모르는 채로 링크를
+ * 살려두면 막다른 길이 된다 (설계 문서 §1.2).
+ */
+export async function getChannelCounts(
+  channelId: string,
+): Promise<{ total: number; videos: number; failed: boolean }> {
+  const db = await createClient();
+  const published = () =>
+    db
+      .from("posts")
+      .select("id", { count: "exact", head: true })
+      .eq("channel_id", channelId)
+      .eq("status", "published");
+
+  const [all, videos] = await Promise.all([
+    published(),
+    published().eq("type", "video"),
+  ]);
+
+  const error = all.error ?? videos.error;
+  if (error) {
+    console.error("getChannelCounts:", error.message);
+    return { total: 0, videos: 0, failed: true };
+  }
+  return { total: all.count ?? 0, videos: videos.count ?? 0, failed: false };
 }
