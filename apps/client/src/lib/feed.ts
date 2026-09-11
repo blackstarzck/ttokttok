@@ -7,7 +7,7 @@ const SELECT = `
   books ( ${BOOK_SELECT} ),
   channels ( id, name, slug, avatar_url ),
   post_cards ( template, regions, background ),
-  post_videos ( source_type, video_path, youtube_id, duration_sec )
+  post_videos ( source_type, video_path, youtube_id, duration_sec, hls_path, poster_path )
 `;
 
 /**

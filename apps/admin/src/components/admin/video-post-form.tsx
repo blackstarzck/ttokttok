@@ -7,6 +7,7 @@ import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import { BookSelect, type BookOption } from "@/components/admin/book-select";
 import { saveVideoPost } from "@/app/admin/(dashboard)/posts/actions";
+import { VideoBundleField } from "@/components/admin/video-bundle-field";
 
 export type VideoPostFormValues = {
   id: string;
@@ -36,15 +37,11 @@ export function VideoPostForm({
   const [source, setSource] = useState<"upload" | "youtube">(
     post?.source_type ?? "upload",
   );
+  const [videoReady, setVideoReady] = useState(Boolean(post?.video_path));
 
   return (
     <form action={saveVideoPost} className="flex flex-col gap-6">
       <input type="hidden" name="id" value={post?.id ?? ""} />
-      <input
-        type="hidden"
-        name="existing_video_path"
-        value={post?.video_path ?? ""}
-      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
@@ -81,26 +78,19 @@ export function VideoPostForm({
             id="source_type"
             name="source_type"
             value={source}
-            onChange={(e) =>
-              setSource(e.target.value as "upload" | "youtube")
-            }
+            onChange={(e) => {
+              setSource(e.target.value as "upload" | "youtube");
+              setVideoReady(Boolean(post?.video_path));
+            }}
             className={selectClass}
           >
-            <option value="upload">mp4 업로드</option>
+            <option value="upload">영상 묶음 업로드</option>
             <option value="youtube">유튜브</option>
           </select>
         </div>
 
         {source === "upload" ? (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="video">mp4 파일</Label>
-            <Input id="video" name="video" type="file" accept="video/mp4,video/*" />
-            <p className="text-muted-foreground text-xs">
-              30~60초 세로 영상을 권장합니다. 피드에서 음소거 자동재생·루프로
-              나갑니다.
-              {post?.video_path ? " 현재: 업로드됨 (다시 올리면 교체)" : ""}
-            </p>
-          </div>
+          <VideoBundleField existing={Boolean(post?.video_path)} onReadyChange={setVideoReady} />
         ) : (
           <div className="flex flex-col gap-2">
             <Label htmlFor="youtube_url">유튜브 주소 또는 ID</Label>
@@ -119,13 +109,14 @@ export function VideoPostForm({
       </section>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" name="publish" value="1" size="lg" className="min-h-11">
+        <Button type="submit" name="publish" value="1" size="lg" className="min-h-11" disabled={source === 'upload' && !videoReady}>
           발행
         </Button>
         <Button
           type="submit"
           name="publish"
           value="0"
+          disabled={source === 'upload' && !videoReady}
           variant="secondary"
           size="lg"
           className="min-h-11"

@@ -39,10 +39,11 @@ export default async function ReelsPage() {
   // failed를 그대로 넘긴다 — 1페이지가 실패했는데 빈 목록으로만 보여주면
   // 스크롤러가 "아직 게시물이 없어요"라고 거짓말한다(§11-61). 다음 페이지는
   // 서버 액션(loadMoreFeed)이 던져서 알린다.
+  const userPromise = getCurrentUser();
   const { posts, nextCursor, failed } = await getFeed(seed, sessionId, 10, null, "video");
 
   const [user, likedIds] = await Promise.all([
-    getCurrentUser(),
+    userPromise,
     getLikedPostIds(posts.map((p) => p.id)),
   ]);
 

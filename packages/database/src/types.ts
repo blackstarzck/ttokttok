@@ -141,6 +141,7 @@ export type Database = {
         Row: {
           author: string
           category: string
+          cover_design: Json | null
           cover_url: string | null
           created_at: string
           epub_path: string | null
@@ -165,6 +166,7 @@ export type Database = {
         Insert: {
           author: string
           category: string
+          cover_design?: Json | null
           cover_url?: string | null
           created_at?: string
           epub_path?: string | null
@@ -189,6 +191,7 @@ export type Database = {
         Update: {
           author?: string
           category?: string
+          cover_design?: Json | null
           cover_url?: string | null
           created_at?: string
           epub_path?: string | null
@@ -492,27 +495,46 @@ export type Database = {
       }
       post_videos: {
         Row: {
+          asset_group_id: string | null
           duration_sec: number | null
+          hls_path: string | null
           post_id: string
+          poster_path: string | null
+          renditions: Json | null
           source_type: string
           video_path: string | null
           youtube_id: string | null
         }
         Insert: {
+          asset_group_id?: string | null
           duration_sec?: number | null
+          hls_path?: string | null
           post_id: string
+          poster_path?: string | null
+          renditions?: Json | null
           source_type: string
           video_path?: string | null
           youtube_id?: string | null
         }
         Update: {
+          asset_group_id?: string | null
           duration_sec?: number | null
+          hls_path?: string | null
           post_id?: string
+          poster_path?: string | null
+          renditions?: Json | null
           source_type?: string
           video_path?: string | null
           youtube_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "post_videos_asset_group_id_fkey"
+            columns: ["asset_group_id"]
+            isOneToOne: false
+            referencedRelation: "video_uploads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "post_videos_post_id_fkey"
             columns: ["post_id"]
@@ -687,6 +709,33 @@ export type Database = {
           },
         ]
       }
+      video_uploads: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          manifest: Json
+          public_base: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          manifest: Json
+          public_base: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          manifest?: Json
+          public_base?: string
+          status?: string
+        }
+        Relationships: []
+      }
       view_logs: {
         Row: {
           created_at: string
@@ -776,6 +825,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_write_video_bundle: {
+        Args: { object_name: string }
+        Returns: boolean
+      }
+      claim_video_cleanup: { Args: { p_id: string }; Returns: boolean }
       get_feed_v4: {
         Args: {
           p_cursor?: string
@@ -802,6 +856,18 @@ export type Database = {
       record_view: {
         Args: { p_post_id: string; p_session_id: string }
         Returns: undefined
+      }
+      save_video_post: {
+        Args: {
+          p_book_id: string
+          p_channel_id: string
+          p_id: string
+          p_publish: boolean
+          p_source: string
+          p_upload_id?: string
+          p_youtube_id?: string
+        }
+        Returns: string
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

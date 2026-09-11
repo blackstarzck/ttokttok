@@ -1,4 +1,13 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+
+// 같은 화면의 사용자 정보·좋아요 조회에서 인증 요청을 반복하지 않는다.
+// cache는 서버 렌더 요청 안에서만 공유되며 다른 사용자의 세션은 섞이지 않는다.
+const getAuthenticatedUser = cache(async () => {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  return user;
+});
 
 export type CurrentUser = {
   id: string;
@@ -16,9 +25,7 @@ export type CurrentUser = {
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const db = await createClient();
 
-  const {
-    data: { user },
-  } = await db.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) return null;
 
   const { data: profile } = await db
@@ -45,9 +52,7 @@ export async function getLikedPostIds(
   if (postIds.length === 0) return new Set();
 
   const db = await createClient();
-  const {
-    data: { user },
-  } = await db.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) return new Set();
 
   // RLS가 본인 행만 주므로 user_id 조건은 생략해도 되지만,

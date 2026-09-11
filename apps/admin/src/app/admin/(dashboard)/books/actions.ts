@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { removeUploaded, type UploadedFile } from "@/lib/admin-storage";
 import { pathFromPublicUrl } from "@ttokttok/shared/storage-path";
 import type { TablesInsert } from "@ttokttok/database/types";
+import { readCoverDesign } from "@ttokttok/shared/cover-design";
 
 /**
  * 도서 CRUD (PRD §5.10).
@@ -93,13 +94,92 @@ export async function saveBook(formData: FormData) {
   // 업로드를 끝낸 뒤 한 번에 INSERT한다.
   const bookId = id ?? crypto.randomUUID();
 
+  // 검증은 업로드 전에 끝낸다. 설정만 저장되거나, 서지 정보와 다른
+  // 문구로 만든 새 이미지가 저장되는 것을 막는다.
+  const cover = formData.get("cover");
+  const hasCover = cover instanceof File && cover.size > 0;
+  const rawDesign = str(formData, "cover_design");
+  let coverDesign = null;
+  if (rawDesign) {
+    try {
+      coverDesign =
+        rawDesign.length <= 4096
+          ? readCoverDesign(JSON.parse(rawDesign))
+          : null;
+    } catch {
+      /* 아래에서 같은 안내로 처리 */
+    }
+    if (
+      !coverDesign ||
+      !hasCover ||
+      coverDesign.title !== title ||
+      coverDesign.author !== author
+    ) {
+      redirect(
+        "/admin/books?error=3D 표지를 다시 열어 이미지로 적용한 뒤 저장해 주세요.",
+      );
+    }
+  }
+  let coverExtension = "";
+  let previousCoverUrl: string | null = null;
+  if (hasCover) {
+    if (cover.size > 2 * 1024 * 1024)
+      redirect("/admin/books?error=표지는 2MB 이하로 올려 주세요.");
+    const bytes = Buffer.from(await cover.arrayBuffer());
+    if (
+      cover.type === "image/png" &&
+      bytes
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    )
+      coverExtension = "png";
+    else if (
+      cover.type === "image/jpeg" &&
+      bytes[0] === 255 &&
+      bytes[1] === 216 &&
+      bytes[2] === 255
+    )
+      coverExtension = "jpg";
+    else if (
+      cover.type === "image/webp" &&
+      bytes.toString("ascii", 0, 4) === "RIFF" &&
+      bytes.toString("ascii", 8, 12) === "WEBP"
+    )
+      coverExtension = "webp";
+    if (!coverExtension)
+      redirect("/admin/books?error=PNG·JPEG·WebP 표지 이미지를 올려 주세요.");
+    if (
+      coverDesign &&
+      (coverExtension !== "png" ||
+        bytes.length < 24 ||
+        bytes.readUInt32BE(16) !== 800 ||
+        bytes.readUInt32BE(20) !== 1200)
+    ) {
+      redirect("/admin/books?error=3D 표지 이미지를 다시 생성해 주세요.");
+    }
+    if (id) {
+      const previous = await db
+        .from("books")
+        .select("cover_url")
+        .eq("id", bookId)
+        .single();
+      if (previous.error)
+        redirect(
+          "/admin/books?error=수정할 도서를 불러오지 못했습니다. 목록에서 다시 열어 주세요.",
+        );
+      previousCoverUrl = previous.data.cover_url;
+    }
+  }
+
   // 신규 저장이 실패하면 방금 올린 파일만 남는다 — 되돌리려고 기록해 둔다.
   const uploaded: UploadedFile[] = [];
 
   async function fail(message: string): Promise<never> {
-    // 수정이면 기존 파일을 교체한 것이므로 지우지 않는다 — 지우면 멀쩡했던
-    // 도서의 본문이 사라진다.
-    if (!id) await removeUploaded(uploaded);
+    // 새 표지는 고유 경로라 수정 실패 때도 안전하게 회수할 수 있다.
+    // 기존 EPUB은 같은 경로를 쓰므로 수정 실패 때 지우지 않는다.
+    await removeUploaded(
+      id ? uploaded.filter((file) => file.bucket === "covers") : uploaded,
+    );
     redirect(`/admin/books?error=${encodeURIComponent(humanize(message))}`);
   }
 
@@ -117,26 +197,45 @@ export async function saveBook(formData: FormData) {
     values.file_size_mb = Math.round((epub.size / 1024 / 1024) * 100) / 100;
   }
 
-  const cover = formData.get("cover");
-  if (cover instanceof File && cover.size > 0) {
-    const ext = cover.name.split(".").pop()?.toLowerCase() || "png";
-    const path = `${bookId}.${ext}`;
+  if (hasCover) {
+    const path = `${bookId}/${crypto.randomUUID()}.${coverExtension}`;
     const { error } = await admin.storage
       .from("covers")
-      .upload(path, cover, { contentType: cover.type, upsert: true });
+      .upload(path, cover, { contentType: cover.type, upsert: false });
     if (error) await fail(`표지 업로드 실패: ${error.message}`);
     uploaded.push({ bucket: "covers", path });
     const {
       data: { publicUrl },
     } = admin.storage.from("covers").getPublicUrl(path);
     values.cover_url = publicUrl;
+    values.cover_design = coverDesign;
   }
 
+  let update = db.from("books").update(values).eq("id", bookId);
+  if (hasCover)
+    update = previousCoverUrl
+      ? update.eq("cover_url", previousCoverUrl)
+      : update.is("cover_url", null);
   const { error } = id
-    ? await db.from("books").update(values).eq("id", bookId)
+    ? await update.select("id").single()
     : await db.from("books").insert({ id: bookId, ...values });
 
-  if (error) await fail(error.message);
+  if (error)
+    await fail(
+      error.code === "PGRST116"
+        ? "도서가 삭제되었거나 다른 곳에서 표지가 바뀌었습니다. 목록에서 다시 열어 주세요."
+        : error.message,
+    );
+
+  // 이 도서에 속한 이전 파일만, 새 주소가 저장된 뒤 회수한다.
+  const previousCoverPath = pathFromPublicUrl(previousCoverUrl, "covers");
+  if (
+    previousCoverPath &&
+    (previousCoverPath.startsWith(`${bookId}/`) ||
+      previousCoverPath.startsWith(`${bookId}.`))
+  ) {
+    await removeUploaded([{ bucket: "covers", path: previousCoverPath }]);
+  }
 
   revalidatePath("/admin/books");
   redirect(`/admin/books?saved=1`);

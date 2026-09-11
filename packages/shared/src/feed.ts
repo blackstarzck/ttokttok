@@ -49,6 +49,8 @@ export type FeedChannel = {
 
 
 export type FeedVideo = {
+  hls_path?: string | null;
+  poster_path?: string | null;
   source_type: "upload" | "youtube";
   video_path: string | null;
   youtube_id: string | null;

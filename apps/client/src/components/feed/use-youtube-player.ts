@@ -16,6 +16,8 @@ type YTPlayer = {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   getCurrentTime(): number;
   getDuration(): number;
+  getVideoLoadedFraction(): number;
+  getPlayerState(): number;
   destroy(): void;
 };
 
@@ -29,6 +31,8 @@ type YTNamespace = {
       events?: {
         onReady?: () => void;
         onStateChange?: (event: { data: number }) => void;
+        onAutoplayBlocked?: () => void;
+        onError?: () => void;
       };
     },
   ) => YTPlayer;
@@ -104,16 +108,21 @@ function loadApi(): Promise<YTNamespace> {
 export function useYoutubePlayer({
   videoId,
   active,
+  load,
+  onBuffer,
   mountRef,
 }: {
   videoId: string;
   active: boolean;
+  load: boolean;
+  onBuffer?: (ready: boolean) => void;
   mountRef: RefObject<HTMLDivElement | null>;
 }) {
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
   const [muted, setMuted] = useState(true);
   // 사용자가 직접 멈춘 영상은 화면을 벗어났다 돌아와도 스스로 재생하지 않는다.
   // 재생/일시정지 버튼은 플레이어 것이므로 우리는 상태 이벤트로 그 의사를
@@ -128,7 +137,7 @@ export function useYoutubePlayer({
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount) return;
+    if (!mount || !load) return;
 
     let cancelled = false;
 
@@ -145,7 +154,8 @@ export function useYoutubePlayer({
           host: "https://www.youtube-nocookie.com",
           videoId,
           playerVars: {
-            autoplay: 1,
+            // Preparing a neighbour must never start background playback.
+            autoplay: 0,
             mute: 1,
             controls: 0,
             playsinline: 1,
@@ -156,23 +166,40 @@ export function useYoutubePlayer({
             iv_load_policy: 3,
           },
           events: {
+            onAutoplayBlocked: () => {
+              // Expose the real player's play button when the browser blocks autoplay.
+              if (!cancelled) setHasPlayed(true);
+            },
+            onError: () => {
+              if (!cancelled) { setHasPlayed(true); onBuffer?.(false); }
+            },
             onReady: () => {
-              if (!cancelled) setReady(true);
+              if (cancelled) return;
+              setReady(true);
+              if (activeRef.current && !pausedByUser.current) playerRef.current?.playVideo();
             },
             onStateChange: (event) => {
               if (cancelled) return;
               // BUFFERING·UNSTARTED는 상태를 흔들지 않는다 — 재생 중 버퍼링이
               // 걸려도 재생 의도는 그대로다(루프 폴링이 끊기면 안 된다).
               if (event.data === YT.PlayerState.PLAYING) {
+                if (!activeRef.current) {
+                  playerRef.current?.pauseVideo();
+                  return;
+                }
                 setPlaying(true);
+                setHasPlayed(true);
                 pausedByUser.current = false;
               } else if (event.data === YT.PlayerState.PAUSED) {
                 setPlaying(false);
+                onBuffer?.(false);
                 if (activeRef.current) pausedByUser.current = true;
               } else if (event.data === YT.PlayerState.ENDED) {
                 // 폴링이 늦어 끝에 닿은 경우의 안전망.
-                playerRef.current?.seekTo(0, true);
-                playerRef.current?.playVideo();
+                if (activeRef.current && !pausedByUser.current) {
+                  playerRef.current?.seekTo(0, true);
+                  playerRef.current?.playVideo();
+                }
               }
             },
           },
@@ -187,28 +214,40 @@ export function useYoutubePlayer({
       playerRef.current?.destroy();
       playerRef.current = null;
       mount.replaceChildren();
+      setReady(false);
+      setPlaying(false);
+      setHasPlayed(false);
+      setMuted(true);
     };
-  }, [videoId, mountRef]);
+  }, [videoId, mountRef, load, onBuffer]);
 
   useEffect(() => {
     const player = playerRef.current;
     if (!player || !ready) return;
     if (active && !pausedByUser.current) player.playVideo();
-    else player.pauseVideo();
-  }, [active, ready]);
+    else {
+      player.pauseVideo();
+      onBuffer?.(false);
+    }
+  }, [active, ready, onBuffer]);
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || !active) return;
     const id = window.setInterval(() => {
       const player = playerRef.current;
       if (!player) return;
       const duration = player.getDuration();
+      // IFrame API exposes loaded fraction, not the browser's buffered ranges.
+      const currentTime = player.getCurrentTime();
+      const ahead = duration * player.getVideoLoadedFraction() - currentTime;
+      onBuffer?.(player.getPlayerState() === 1 && duration > 0 &&
+        ahead >= Math.min(3, duration - currentTime));
       if (duration > 0 && player.getCurrentTime() >= duration - LOOP_TAIL_SEC) {
         player.seekTo(0, true);
       }
     }, LOOP_POLL_MS);
     return () => window.clearInterval(id);
-  }, [playing]);
+  }, [playing, active, onBuffer]);
 
   const toggleMute = useCallback(() => {
     const player = playerRef.current;
@@ -222,5 +261,5 @@ export function useYoutubePlayer({
     }
   }, []);
 
-  return { ready, failed, playing, muted, toggleMute };
+  return { ready, failed, playing, hasPlayed, muted, toggleMute };
 }

@@ -19,10 +19,11 @@ export default async function HomePage() {
   const sessionId = jar.get(SESSION_ID_COOKIE)?.value ?? null;
 
   // 홈은 카드 게시물만 (IA 개편 결정 1). 영상은 릴스 탭에 있다.
+  // 사용자 조회는 피드 결과에 의존하지 않으므로 먼저 시작한다.
+  const userPromise = getCurrentUser();
   const { posts, nextCursor, failed } = await getFeed(seed, sessionId, 10, null, "cards");
-
   const [user, likedIds] = await Promise.all([
-    getCurrentUser(),
+    userPromise,
     getLikedPostIds(posts.map((p) => p.id)),
   ]);
   const isGuest = user === null;

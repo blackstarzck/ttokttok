@@ -4,6 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 도서 표지 제작물 전용 팔레트. 앱의 라이트/다크 테마와 독립적으로 저장된다. */
+:root {
+  --book-cover-forest-base: #214d43;
+  --book-cover-forest-ink: #f4eedb;
+  --book-cover-forest-accent: #d0b77c;
+  --book-cover-navy-base: #243b57;
+  --book-cover-navy-ink: #f1eee6;
+  --book-cover-navy-accent: #9ebcd0;
+  --book-cover-wine-base: #6a3446;
+  --book-cover-wine-ink: #faeee2;
+  --book-cover-wine-accent: #d9aa91;
+  --book-cover-paper: #e9dfca;
+  --book-cover-light-sky: #fff8ea;
+  --book-cover-light-ground: #6e5848;
+  --book-cover-light-key: #fff6e7;
+  --book-cover-light-rim: #c8d5e5;
+  --book-cover-light-bounce: #d79b72;
+}
+
 @theme inline {
   /*
     모바일 프레임 폭 — `(main)` 레이아웃과 바텀시트가 함께 참조한다

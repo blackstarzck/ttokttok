@@ -31,7 +31,7 @@ export default async function EditBookPage({
   const { data: book, error: bookError } = await db
     .from("books")
     .select(
-      "id, title, author, translator, publisher, category, isbn, page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source, toc, source, rights_note, epub_path, cover_url, purchase_links",
+      "id, title, author, translator, publisher, category, isbn, page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source, toc, source, rights_note, epub_path, cover_url, cover_design, purchase_links",
     )
     .eq("id", bookId)
     .maybeSingle();

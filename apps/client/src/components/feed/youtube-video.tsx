@@ -1,17 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { MuteButton } from "@/components/feed/mute-button";
 import { useYoutubePlayer } from "@/components/feed/use-youtube-player";
 import { youtubeEmbedUrl, youtubeThumbnailUrl } from "@ttokttok/shared/youtube";
 import { cn } from "@ttokttok/ui/utils";
-
-/**
- * 썸네일 마스크를 잡아 두는 시간. 플레이어가 첫 프레임을 그리기 전의 검은
- * 화면만 가린다 — 짧게 잡는다.
- */
-const POSTER_HOLD_MS = 700;
 
 /**
  * 유튜브 크롬 띠를 화면 밖으로 밀어내는 크롭.
@@ -44,35 +38,29 @@ const CROP = "absolute inset-x-0 -top-30 h-[calc(100%+240px)] w-full border-0";
 export function YoutubeVideo({
   videoId,
   active,
+  load,
+  onBuffer,
 }: {
   videoId: string;
   active: boolean;
+  load: boolean;
+  onBuffer?: (ready: boolean) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const { failed, playing, muted, toggleMute } = useYoutubePlayer({
+  const { failed, hasPlayed, muted, toggleMute } = useYoutubePlayer({
     videoId,
     active,
+    load,
+    onBuffer,
     mountRef,
   });
 
-  // 마스크는 플레이어 생성 직후 한 번만 쓴다. hasPlayed는 false→true로만
-  // 바뀌므로 타이머 효과가 한 번만 돈다.
-  const [hasPlayed, setHasPlayed] = useState(false);
-  const [masked, setMasked] = useState(true);
-
-  useEffect(() => {
-    if (playing) setHasPlayed(true);
-  }, [playing]);
-
-  useEffect(() => {
-    if (!hasPlayed) return;
-    const id = window.setTimeout(() => setMasked(false), POSTER_HOLD_MS);
-    return () => window.clearTimeout(id);
-  }, [hasPlayed]);
+  // Reveal on actual playback; do not add a fixed 700ms delay after PLAYING.
+  const masked = !hasPlayed;
 
   // API 스크립트가 막혔다 — 음소거 버튼 없이 파라미터 임베드로 되돌린다.
   // 크롬이 조금 보이더라도 영상이 아예 안 나오는 것보다 낫다.
-  if (failed) {
+  if (failed && active) {
     return (
       <iframe
         src={youtubeEmbedUrl(videoId)}

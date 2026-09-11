@@ -5,12 +5,10 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { createClient } from "@/lib/supabase/server";
 import { POST_TEMPLATES, REGION_SCHEMA } from "@ttokttok/shared/cards";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { parseYoutubeId } from "@ttokttok/shared/youtube";
 import { removeUploaded } from "@/lib/admin-storage";
 import { preparePostBackground, backgroundFile } from "@/lib/post-background";
 import { pathFromPublicUrl } from "@ttokttok/shared/storage-path";
-import type { TablesInsert } from "@ttokttok/database/types";
 
 /**
  * 카드 게시물 CRUD (PRD §5.10).
@@ -202,7 +200,7 @@ export async function deletePost(formData: FormData) {
   // 사라진다 — 파일 경로를 지금 읽어 두지 않으면 알 방법이 없다.
   const { data: video } = await db
     .from("post_videos")
-    .select("source_type, video_path")
+    .select("source_type, video_path, asset_group_id")
     .eq("post_id", id)
     .maybeSingle();
 
@@ -223,7 +221,7 @@ export async function deletePost(formData: FormData) {
   // 유튜브 게시물은 우리 버킷에 파일이 없다. video_path는 이름과 달리
   // 공개 URL이라 경로로 되돌려야 한다 (storage-path.ts).
   const videoPath =
-    video?.source_type === "upload"
+    video?.source_type === "upload" && !video.asset_group_id
       ? pathFromPublicUrl(video.video_path, "videos")
       : null;
 
@@ -239,8 +237,8 @@ export async function deletePost(formData: FormData) {
 /**
  * 영상 게시물 저장 (PRD §5.3).
  *
- * mp4 업로드와 유튜브 임베드를 병행한다. 업로드는 videos 공개 버킷으로
- * 가고, 유튜브는 주소에서 ID만 뽑아 저장한다.
+ * 검증된 영상 묶음과 유튜브 임베드를 병행한다. 파일 전송은 Storage에
+ * 직접 하고 여기서는 게시물 연결만 원자적으로 저장한다.
  */
 export async function saveVideoPost(formData: FormData) {
   await requireAdmin();
@@ -260,75 +258,23 @@ export async function saveVideoPost(formData: FormData) {
 
   const db = await createClient();
 
-  // 게시물 행보다 영상을 먼저 확정한다. 순서가 반대면 영상 검증이나 업로드가
-  // 실패했을 때 post_videos 없는 영상 게시물이 남고, 그건 피드에서 재생기
-  // 대신 빈 도서 표지로 나온다 — 관리자는 저장에 실패한 줄 아는데 사용자
-  // 화면에는 빈 게시물이 뜬다.
-  //
-  // 파일 경로에 쓸 id도 여기서 정한다 — 업로드가 행 생성보다 앞서기 때문.
-  const postId = id || crypto.randomUUID();
-
-  let detail: TablesInsert<"post_videos">;
-
-  if (sourceType === "youtube") {
-    const youtubeId = parseYoutubeId(String(formData.get("youtube_url") ?? ""));
-    if (!youtubeId) {
-      redirect("/admin/posts?error=유튜브 주소에서 영상 ID를 찾지 못했습니다");
-    }
-    detail = {
-      post_id: postId,
-      source_type: "youtube",
-      youtube_id: youtubeId,
-      video_path: null,
-    };
-  } else {
-    const file = formData.get("video");
-    const existing = String(formData.get("existing_video_path") ?? "");
-
-    let publicUrl = existing;
-    if (file instanceof File && file.size > 0) {
-      const admin = createAdminClient();
-      const path = `${postId}.mp4`;
-      const { error } = await admin.storage
-        .from("videos")
-        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-      if (error) {
-        redirect(`/admin/posts?error=영상 업로드 실패: ${encodeURIComponent(error.message)}`);
-      }
-      publicUrl = admin.storage.from("videos").getPublicUrl(path).data.publicUrl;
-    }
-
-    if (!publicUrl) {
-      redirect("/admin/posts?error=mp4 파일을 올려야 합니다");
-    }
-    detail = {
-      post_id: postId,
-      source_type: "upload",
-      video_path: publicUrl,
-      youtube_id: null,
-    };
+  const youtubeId = sourceType === "youtube"
+    ? parseYoutubeId(String(formData.get("youtube_url") ?? "")) : null;
+  if (sourceType === "youtube" && !youtubeId) {
+    redirect("/admin/posts?error=유튜브 주소에서 영상 ID를 찾지 못했습니다");
   }
-
-  const values = await buildPostValues(db, {
-    id,
-    channelId,
-    bookId,
-    type: "video",
-    publish,
+  // Read verified metadata in the transaction, never a hidden URL from the browser.
+  const { error } = await db.rpc("save_video_post", {
+    // Supabase's generated RPC types omit nullable arguments; SQL accepts NULL for a new post.
+    p_id: (id || null) as unknown as string,
+    p_channel_id: channelId,
+    p_book_id: bookId,
+    p_publish: publish,
+    p_source: sourceType,
+    p_youtube_id: youtubeId ?? undefined,
+    p_upload_id: sourceType === "upload" ? String(formData.get("video_upload_id") ?? "") || undefined : undefined,
   });
-
-  const { error } = id
-    ? await db.from("posts").update(values).eq("id", postId)
-    : await db.from("posts").insert({ id: postId, ...values });
   if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
-
-  // 영상 상세는 post_id가 PK라 upsert로 갈아 끼운다.
-  const { error: detailErr } = await db.from("post_videos").upsert(detail);
-  if (detailErr) {
-    // 영상 없는 영상 게시물이 남지 않게 되돌린다.
-    if (!id) await db.from("posts").delete().eq("id", postId);
-    redirect(`/admin/posts?error=${encodeURIComponent(detailErr.message)}`);
-  }
 
   revalidatePath("/admin/posts");
   redirect("/admin/posts?saved=1");

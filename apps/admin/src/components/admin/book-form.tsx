@@ -4,6 +4,8 @@ import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import { Textarea } from "@ttokttok/ui/components/textarea";
 import { saveBook } from "@/app/admin/(dashboard)/books/actions";
+import { BookCoverField } from "./book-cover-field";
+import { readCoverDesign } from "@ttokttok/shared/cover-design";
 
 export type BookFormValues = {
   id: string;
@@ -24,6 +26,7 @@ export type BookFormValues = {
   rights_note: string | null;
   epub_path: string | null;
   cover_url: string | null;
+  cover_design?: unknown;
   purchase_links: Record<string, string> | null;
 };
 
@@ -159,14 +162,8 @@ export function BookForm({ book }: { book?: BookFormValues }) {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="cover">표지 이미지</Label>
-            <Input id="cover" name="cover" type="file" accept="image/*" />
-            <p className="text-muted-foreground text-xs">
-              {book?.cover_url ? "현재: 있음 (다시 올리면 교체)" : "현재: 없음 — 타이포그래피로 표시됩니다"}
-            </p>
-          </div>
         </div>
+        <BookCoverField coverUrl={book?.cover_url ?? null} savedDesign={readCoverDesign(book?.cover_design)} />
       </section>
 
       <section className="flex flex-col gap-4">

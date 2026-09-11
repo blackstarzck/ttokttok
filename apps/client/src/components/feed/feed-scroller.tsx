@@ -10,6 +10,8 @@ import { loadMoreFeed } from "@/app/(main)/feed-actions";
 import type { MoreFeed } from "@/app/(main)/feed-actions";
 import { dedupePages, shouldPrefetch } from "@ttokttok/shared/feed-pagination";
 import type { FeedCursor, PostType } from "@ttokttok/shared/feed";
+import { VideoSlot } from "@/components/feed/video-slot";
+import { allowsVideoPreload, nextVideoToPreload } from "@/lib/video-preload";
 
 /** 활성 게시물 기준 앞뒤로 마운트할 개수 (FRONTEND.md §6 가상화). */
 const WINDOW = 2;
@@ -66,7 +68,41 @@ export function FeedScroller({
   children: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(initialIndex);
+  const [position, setPosition] = useState({ index: initialIndex, direction: 1 });
+  const { index: active, direction } = position;
+  const [settled, setSettled] = useState<typeof position | null>(null);
+  const [buffered, setBuffered] = useState<number | null>(null);
+  const [preloadEnabled, setPreloadEnabled] = useState(false);
+
+  useEffect(() => {
+    // Identity matters: returning to the same index during rapid swipes starts a new dwell.
+    const timer = window.setTimeout(() => setSettled(position), 250);
+    return () => window.clearTimeout(timer);
+  }, [position]);
+
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: EventTarget & { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const update = () => setPreloadEnabled(
+      !document.hidden && navigator.onLine && allowsVideoPreload(connection),
+    );
+    update();
+    connection?.addEventListener("change", update);
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      connection?.removeEventListener("change", update);
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  const reportBuffer = useCallback((index: number, ready: boolean) => {
+    setBuffered((previous) => ready ? index : previous === index ? null : previous);
+  }, []);
 
   // 이미 집계한 게시물 — 리렌더를 유발할 필요가 없으므로 ref로 둔다.
   const loggedRef = useRef(new Set<string>());
@@ -130,6 +166,10 @@ export function FeedScroller({
   // 다른 조합으로 걸러낼 때) 재실행되지 않아 새 슬롯을 관찰하지 못한다.
   // 게시물 id는 uuid라 쉼표가 올 수 없다.
   const postIdsKey = postIds.join(",");
+  const preloadIndex = nextVideoToPreload({
+    active, direction, count: postIds.length,
+    settled: settled === position ? active : null, buffered, enabled: preloadEnabled,
+  });
 
   const recordView = useCallback(async (postId: string) => {
     if (loggedRef.current.has(postId)) return;
@@ -206,8 +246,12 @@ export function FeedScroller({
           const index = Number(el.dataset.index);
           if (!postId) continue;
 
-          if (entry.isIntersecting) {
-            setActive((prev) => (prev === index ? prev : index));
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            setPosition((prev) => prev.index === index ? prev : {
+              index, direction: index > prev.index ? 1 : -1,
+            });
+            const previousTimer = timers.get(postId);
+            if (previousTimer) clearTimeout(previousTimer);
             timers.set(
               postId,
               setTimeout(() => recordView(postId), VIEW_DWELL_MS),
@@ -284,7 +328,11 @@ export function FeedScroller({
           data-post-id={id}
           className="h-full snap-start snap-always"
         >
-          {Math.abs(i - active) <= WINDOW ? nodes[i] : null}
+          {Math.abs(i - active) <= WINDOW ? (
+            <VideoSlot index={i} preload={i === preloadIndex} onBuffer={reportBuffer}>
+              {nodes[i]}
+            </VideoSlot>
+          ) : null}
         </div>
       ))}
 
