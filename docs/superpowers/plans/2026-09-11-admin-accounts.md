@@ -4,7 +4,7 @@
 
 **Goal:** 관리자 신원을 `profiles.role`에서 별도 `admin_accounts` 표로 옮기고, 로그인 ID를 이메일이 아닌 `ttokttok.admin` 형태로 바꿔 관리자 계정에 소셜 identity가 자동으로 붙던 경로를 없앤다.
 
-**Architecture:** 신원은 `auth.users`에 남긴다 — 그래야 `auth.uid()`가 살아 있고 RLS 정책 28곳이 그대로 동작한다. `is_admin()` **함수 본문만** 교체해 판정 원천을 갈아 끼우고, 정책은 한 곳도 건드리지 않는다. 로그인 ID는 라우팅되지 않는 도메인(`@ttokttok.local`)을 붙인 합성 이메일로 `auth.users`에 담는다.
+**Architecture:** 신원은 `auth.users`에 남긴다 — 그래야 `auth.uid()`가 살아 있고 `is_admin()`을 부르는 24줄이 그대로 동작한다(실측 정정 — 설계 당시 "28곳"으로 적었으나 선언·주석을 포함한 수였다). `is_admin()` **함수 본문만** 교체해 판정 원천을 갈아 끼우고, 정책은 한 곳도 건드리지 않는다. 로그인 ID는 라우팅되지 않는 도메인(`@ttokttok.local`)을 붙인 합성 이메일로 `auth.users`에 담는다.
 
 **Tech Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + RLS) · TypeScript · vitest(순수 함수) · node:test(로컬 DB 인테그레이션) · Playwright(E2E)
 
@@ -293,7 +293,7 @@ create table public.admin_accounts (
 -- ------------------------------------------------------------
 -- 판정 원천을 profiles.role에서 이 표로 옮긴다
 -- ------------------------------------------------------------
--- **함수 본문만 바꾼다.** 이 함수를 쓰는 RLS 정책 28곳(8개 마이그레이션)은
+-- **함수 본문만 바꾼다.** 이 함수를 부르는 기존 마이그레이션 5개의 24줄은
 -- 한 글자도 건드리지 않는다 — is_admin()이 이미 추상화 경계였다.
 --
 -- is_active = false가 곧 즉시 차단이다. 다음 요청부터 28개 정책이 전부
@@ -788,7 +788,7 @@ npm run test:db
 npm run test:integration
 ```
 
-Expected: 모든 인테그레이션 테스트 PASS. 특히 `admin integration: admin CRUD is durable…`이 통과해야 한다 — 이것이 "판정 원천을 바꿔도 RLS 28곳이 그대로 동작한다"의 증거다.
+Expected: 모든 인테그레이션 테스트 PASS. 특히 `admin integration: admin CRUD is durable…`이 통과해야 한다 — 이것이 "판정 원천을 바꿔도 기존 호출부 24줄이 그대로 동작한다"의 증거다.
 
 - [ ] **Step 11: PRD 데이터 모델을 갱신한다**
 
@@ -1629,7 +1629,7 @@ Expected: 빌드·단위·인테그레이션은 전부 PASS. E2E가 실패하면
 §11-69을 새로 더한다:
 
 ```
-| 69 | 관리자 계정을 사용자와 분리 | **관리자 신원을 `admin_accounts`로 옮기고 로그인 ID를 합성 이메일에 맵핑한다**(2026-09-11). 문제는 가설이 아니었다 — 프로덕션 identity 타임스탬프가 경위를 그대로 보여준다: `create-admin.mjs`가 2026-08-27에 email identity만으로 만든 관리자 계정에 **2026-09-01 google identity가 저절로 붙었고**(`email_confirm: true`라 Supabase가 같은 주소의 소셜 로그인을 기존 계정에 자동 연결한다), 그 결과 운영 계정이 서비스 사용자로 댓글 2건·진행률 5건을 남겼다. **연결을 수동으로 끊어도 구글 버튼 한 번이면 되돌아온다** — 그래서 운영 규칙이 아니라 구조로 막았다: 관리자 로그인 ID를 `ttokttok.admin` 형태로 두고 `@ttokttok.local`(라우팅되지 않는 도메인)을 붙여 `auth.users`에 담는다. **그 주소의 구글·카카오 계정은 존재할 수 없으므로 자동 연결의 전제 자체가 사라진다.** 신원을 `auth.users` 밖으로 빼지 않은 것이 핵심 제약이었다 — 빼면 `auth.uid()`가 null이 되어 RLS 정책 **28곳**이 관리자를 영원히 거부하고 어드민의 모든 쓰기가 service role 우회가 된다("보안은 RLS가 담당"이 무너진다). 대신 **`is_admin()` 함수 본문만 교체**해 판정 원천을 갈아 끼웠다: 정책은 한 곳도 바뀌지 않았다. JWT 클레임 방식은 기각했다 — 빠르지만 비활성화가 토큰 만료 전까지 안 먹어 "사고 난 계정을 당장 막는다"가 깨진다. 등급은 `owner`/`admin` 2단계이고, **owner는 자기 행의 등급·활성을 바꿀 수 없다**: 없으면 마지막 owner가 스스로를 내리는 순간 아무도 관리자를 추가할 수 없는 잠긴 상태가 된다. `update` 정책에 `using`과 `with check`를 둘 다 둔 것도 같은 이유다(§11의 comment_threads·comment_likes가 겪은 함정). 기존 `bucheongosok@gmail.com`은 **관리자에서 내려 일반 사용자로 남겼다**(사용자 결정) — 따라서 이관도 cascade 삭제도 없고, 닉네임 "관리자"만 사칭이 되지 않게 중립값으로 바꿨다. 관리자는 `profiles` 행을 갖지 않으므로 클라이언트는 관리자 세션을 감지하면 로그아웃시킨다 — 그냥 두면 `getCurrentUser`의 "독자" 폴백 때문에 일반 사용자로 보이다가 댓글을 쓰는 순간 FK 위반으로 깨진다. **비밀번호는 `admin123`을 쓴다**(사용자 결정, 위험을 알린 뒤 재확인) — 정식 오픈 전 교체해야 하며, `create-admin.mjs`에 인자 없이 실행하면 난수 비밀번호를 발급한다. 설계: `docs/superpowers/specs/2026-09-11-admin-accounts-design.md` |
+| 69 | 관리자 계정을 사용자와 분리 | **관리자 신원을 `admin_accounts`로 옮기고 로그인 ID를 합성 이메일에 맵핑한다**(2026-09-11). 문제는 가설이 아니었다 — 프로덕션 identity 타임스탬프가 경위를 그대로 보여준다: `create-admin.mjs`가 2026-08-27에 email identity만으로 만든 관리자 계정에 **2026-09-01 google identity가 저절로 붙었고**(`email_confirm: true`라 Supabase가 같은 주소의 소셜 로그인을 기존 계정에 자동 연결한다), 그 결과 운영 계정이 서비스 사용자로 댓글 2건·진행률 5건을 남겼다. **연결을 수동으로 끊어도 구글 버튼 한 번이면 되돌아온다** — 그래서 운영 규칙이 아니라 구조로 막았다: 관리자 로그인 ID를 `ttokttok.admin` 형태로 두고 `@ttokttok.local`(라우팅되지 않는 도메인)을 붙여 `auth.users`에 담는다. **그 주소의 구글·카카오 계정은 존재할 수 없으므로 자동 연결의 전제 자체가 사라진다.** 신원을 `auth.users` 밖으로 빼지 않은 것이 핵심 제약이었다 — 빼면 `auth.uid()`가 null이 되어 `is_admin()`을 부르는 기존 마이그레이션 5개의 **24줄**(실측 2026-09-11 — 대부분 RLS 정책, 일부는 RPC 함수 본문)이 관리자를 영원히 거부하고 어드민의 모든 쓰기가 service role 우회가 된다("보안은 RLS가 담당"이 무너진다). 대신 **`is_admin()` 함수 본문만 교체**해 판정 원천을 갈아 끼웠다: 정책은 한 곳도 바뀌지 않았다. JWT 클레임 방식은 기각했다 — 빠르지만 비활성화가 토큰 만료 전까지 안 먹어 "사고 난 계정을 당장 막는다"가 깨진다. 등급은 `owner`/`admin` 2단계이고, **owner는 자기 행의 등급·활성을 바꿀 수 없다**: 없으면 마지막 owner가 스스로를 내리는 순간 아무도 관리자를 추가할 수 없는 잠긴 상태가 된다. `update` 정책에 `using`과 `with check`를 둘 다 둔 것도 같은 이유다(§11의 comment_threads·comment_likes가 겪은 함정). 기존 `bucheongosok@gmail.com`은 **관리자에서 내려 일반 사용자로 남겼다**(사용자 결정) — 따라서 이관도 cascade 삭제도 없고, 닉네임 "관리자"만 사칭이 되지 않게 중립값으로 바꿨다. 관리자는 `profiles` 행을 갖지 않으므로 클라이언트는 관리자 세션을 감지하면 로그아웃시킨다 — 그냥 두면 `getCurrentUser`의 "독자" 폴백 때문에 일반 사용자로 보이다가 댓글을 쓰는 순간 FK 위반으로 깨진다. **비밀번호는 `admin123`을 쓴다**(사용자 결정, 위험을 알린 뒤 재확인) — 정식 오픈 전 교체해야 하며, `create-admin.mjs`에 인자 없이 실행하면 난수 비밀번호를 발급한다. 설계: `docs/superpowers/specs/2026-09-11-admin-accounts-design.md` |
 ```
 
 Task 2 Step 4에서 실측한 트리거 결과(프로필이 생겼는지)를 이 항목에 한 문장으로 더한다.

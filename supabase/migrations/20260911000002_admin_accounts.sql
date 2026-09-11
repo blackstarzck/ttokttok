@@ -27,10 +27,13 @@ create table public.admin_accounts (
 -- ------------------------------------------------------------
 -- 판정 원천을 profiles.role에서 이 표로 옮긴다
 -- ------------------------------------------------------------
--- **함수 본문만 바꾼다.** 이 함수를 쓰는 RLS 정책 27곳(7개 마이그레이션)은
+-- **함수 본문만 바꾼다.** 이 함수를 부르는 기존 마이그레이션 5개의 24줄은
 -- 한 글자도 건드리지 않는다 — is_admin()이 이미 추상화 경계였다.
+-- (실측 2026-09-11: rls_storage 17 · video_bundles 3 · post_regions 2 ·
+--  analytics_events 1 · wikisource_works 1. 대부분 RLS 정책이고,
+--  video_bundles의 2줄은 RPC 함수 본문이다. 선언·주석은 세지 않았다.)
 --
--- is_active = false가 곧 즉시 차단이다. 다음 요청부터 27개 정책이 전부
+-- is_active = false가 곧 즉시 차단이다. 다음 요청부터 그 24줄이 전부
 -- 거부한다. JWT 클레임 방식을 쓰지 않은 이유가 이것이다(토큰 만료 전까지
 -- 비활성화가 안 먹는다).
 create or replace function public.is_admin()
