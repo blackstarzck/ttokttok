@@ -30,6 +30,32 @@ test("client: guest navigation, sheets, search and both book types", async ({
   await expect(
     page.getByRole("heading", { name: "산책하는 문장" }),
   ).toBeVisible();
+  // 게시물 수는 그리드의 30건 캡이 아니라 정확한 발행 수다 (post·linkPost·video = 3, draft 제외).
+  await expect(page.getByText("게시물 3", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "영상 이어보기", exact: true }),
+  ).toHaveAttribute("href", "/channel/test-walk/reels");
+  await expect(
+    page.getByRole("button", { name: "채널 공유", exact: true }),
+  ).toBeVisible();
+  // 타일 목적지는 유형에 따라 갈린다 (§11-58).
+  await expect(
+    page.getByRole("link", { name: "테스트 산책 영상 게시물", exact: true }),
+  ).toHaveAttribute("href", `/channel/test-walk/reels?start=${ids.video}`);
+  await expect(
+    page.getByRole("link", { name: "테스트 서점 카드 게시물", exact: true }),
+  ).toHaveAttribute("href", `/p/${ids.linkPost}`);
+  await page
+    .getByRole("link", { name: "테스트 산책 카드 게시물", exact: true })
+    .click();
+  // 카드 상세는 홈 카드다 — 도서 바 버튼이 홈과 같은 이름으로 있고, 뒤로가기는 채널 홈.
+  await expect(page).toHaveURL(`/p/${ids.post}`);
+  await expect(
+    page.getByRole("link", { name: "채널로 돌아가기", exact: true }),
+  ).toHaveAttribute("href", "/channel/test-walk");
+  await expect(
+    page.getByRole("button", { name: "테스트 산책 도서 정보", exact: true }),
+  ).toBeVisible();
   await page.goto("/profile");
   await expect(page.getByText("읽은 기록을 남겨보세요")).toBeVisible();
   await page.getByRole("radio", { name: "다크", exact: true }).click();
