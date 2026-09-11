@@ -48,7 +48,10 @@ export async function createAdminAccount(formData: FormData) {
     redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
   }
 
-  // 트리거가 app_metadata 표식을 보고 건너뛰지만 보장이 없다. 이중으로 막는다.
+  // 트리거의 app_metadata 건너뛰기는 이 경로에서 먹지 않는다 — GoTrue의 admin
+  // API가 app_metadata를 auth.users INSERT 이후에 붙여, 트리거가 도는 시점에는
+  // 표식이 없다(2026-09-11 로컬 실측 — 프로필이 실제로 생겼다. 결정 기록
+  // §11-69). 여기서 지우는 것이 관리자에게 프로필이 생기지 않게 하는 본 방어다.
   const { error: profErr } = await service
     .from("profiles")
     .delete()

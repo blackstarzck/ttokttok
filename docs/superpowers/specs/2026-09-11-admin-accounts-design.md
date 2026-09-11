@@ -259,4 +259,4 @@ alter table public.profiles drop column role;
 - 두 앱의 E2E · 실제 로컬 DB 인테그레이션 · 디자인 회귀 (`docs/monorepo-testing.md`)
 - `/admin/accounts`를 375px에서 실제 렌더 확인
 - 문서 갱신을 같은 커밋에: PRD §5.10(접근) · §6(데이터 모델) · 결정 기록 §11-33 정정 +
-  **§11-68 신규**
+  **§11-69 신규**

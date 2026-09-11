@@ -1534,7 +1534,7 @@ git commit -m "feat(admin): add owner-only admin account management screen"
 **Files:**
 - Modify: `e2e/helpers.ts:98-108` (`adminLogin`)
 - Create: `e2e/admin.accounts.spec.ts`
-- Modify: `docs/prd-ttokttok.md` §5.10, 결정 기록 §11-33 정정 + §11-68 신규
+- Modify: `docs/prd-ttokttok.md` §5.10, 결정 기록 §11-33 정정 + §11-69 신규
 
 **Interfaces:**
 - Consumes: 앞의 모든 작업
@@ -1609,7 +1609,7 @@ Expected: 빌드·단위·인테그레이션은 전부 PASS. E2E가 실패하면
 
 **디자인 회귀에서 `@visual admin login`은 반드시 어긋난다** — 그 스냅샷(`e2e/admin.visual.spec.ts:7-9`)에 「이메일」 라벨이 찍혀 있는데 이번에 「아이디」로 바뀌었다. **이 차이는 의도된 것이고, 베이스라인을 다시 찍어 덮으면 안 된다.** `scripts/visual-baseline.mjs`는 마이그레이션 이전 앱(`.tmp/monorepo-baseline`)에서만 캡처하도록 만들어져 있고 `e2e/baselines/README.md`가 "Never update these images from the migrated app to suppress differences"라고 못 박고 있다.
 
-해야 할 일은 **차이가 라벨 한 곳뿐임을 확인하는 것**이다. Playwright가 남긴 diff 이미지를 열어 입력 필드 라벨 외에 레이아웃·색·간격이 움직이지 않았는지 본다. 다른 곳이 함께 움직였다면 그건 의도치 않은 회귀이므로 고친다. 확인 결과를 Step 4의 §11-68에 한 문장으로 남긴다.
+해야 할 일은 **차이가 라벨 한 곳뿐임을 확인하는 것**이다. Playwright가 남긴 diff 이미지를 열어 입력 필드 라벨 외에 레이아웃·색·간격이 움직이지 않았는지 본다. 다른 곳이 함께 움직였다면 그건 의도치 않은 회귀이므로 고친다. 확인 결과를 Step 4의 §11-69에 한 문장으로 남긴다.
 
 - [ ] **Step 4: PRD를 갱신한다**
 
@@ -1623,10 +1623,10 @@ Expected: 빌드·단위·인테그레이션은 전부 PASS. E2E가 실패하면
 결정 기록 §11-33을 정정한다 (기존 줄 끝에 이어 붙인다):
 
 ```
-**→ §11-68로 정정** (2026-09-11): 관리자 신원이 `profiles.role`에서 `admin_accounts`로 분리됐고, 로그인 ID가 이메일이 아니게 됐다.
+**→ §11-69로 정정** (2026-09-11): 관리자 신원이 `profiles.role`에서 `admin_accounts`로 분리됐고, 로그인 ID가 이메일이 아니게 됐다.
 ```
 
-§11-68을 새로 더한다:
+§11-69을 새로 더한다:
 
 ```
 | 68 | 관리자 계정을 사용자와 분리 | **관리자 신원을 `admin_accounts`로 옮기고 로그인 ID를 합성 이메일에 맵핑한다**(2026-09-11). 문제는 가설이 아니었다 — 프로덕션 identity 타임스탬프가 경위를 그대로 보여준다: `create-admin.mjs`가 2026-08-27에 email identity만으로 만든 관리자 계정에 **2026-09-01 google identity가 저절로 붙었고**(`email_confirm: true`라 Supabase가 같은 주소의 소셜 로그인을 기존 계정에 자동 연결한다), 그 결과 운영 계정이 서비스 사용자로 댓글 2건·진행률 5건을 남겼다. **연결을 수동으로 끊어도 구글 버튼 한 번이면 되돌아온다** — 그래서 운영 규칙이 아니라 구조로 막았다: 관리자 로그인 ID를 `ttokttok.admin` 형태로 두고 `@ttokttok.local`(라우팅되지 않는 도메인)을 붙여 `auth.users`에 담는다. **그 주소의 구글·카카오 계정은 존재할 수 없으므로 자동 연결의 전제 자체가 사라진다.** 신원을 `auth.users` 밖으로 빼지 않은 것이 핵심 제약이었다 — 빼면 `auth.uid()`가 null이 되어 RLS 정책 **28곳**이 관리자를 영원히 거부하고 어드민의 모든 쓰기가 service role 우회가 된다("보안은 RLS가 담당"이 무너진다). 대신 **`is_admin()` 함수 본문만 교체**해 판정 원천을 갈아 끼웠다: 정책은 한 곳도 바뀌지 않았다. JWT 클레임 방식은 기각했다 — 빠르지만 비활성화가 토큰 만료 전까지 안 먹어 "사고 난 계정을 당장 막는다"가 깨진다. 등급은 `owner`/`admin` 2단계이고, **owner는 자기 행의 등급·활성을 바꿀 수 없다**: 없으면 마지막 owner가 스스로를 내리는 순간 아무도 관리자를 추가할 수 없는 잠긴 상태가 된다. `update` 정책에 `using`과 `with check`를 둘 다 둔 것도 같은 이유다(§11의 comment_threads·comment_likes가 겪은 함정). 기존 `bucheongosok@gmail.com`은 **관리자에서 내려 일반 사용자로 남겼다**(사용자 결정) — 따라서 이관도 cascade 삭제도 없고, 닉네임 "관리자"만 사칭이 되지 않게 중립값으로 바꿨다. 관리자는 `profiles` 행을 갖지 않으므로 클라이언트는 관리자 세션을 감지하면 로그아웃시킨다 — 그냥 두면 `getCurrentUser`의 "독자" 폴백 때문에 일반 사용자로 보이다가 댓글을 쓰는 순간 FK 위반으로 깨진다. **비밀번호는 `admin123`을 쓴다**(사용자 결정, 위험을 알린 뒤 재확인) — 정식 오픈 전 교체해야 하며, `create-admin.mjs`에 인자 없이 실행하면 난수 비밀번호를 발급한다. 설계: `docs/superpowers/specs/2026-09-11-admin-accounts-design.md` |
@@ -1645,11 +1645,39 @@ git commit -m "test: cover admin account management end to end and record the de
 
 ## 프로덕션 배포 순서
 
-**순서를 지키지 않으면 `/admin`에 아무도 못 들어간다.** 마이그레이션 직후 관리자는 0명이다.
+**순서를 지키지 않으면 `/admin`에 아무도 못 들어간다.** 마이그레이션 직후 관리자는 0명이고,
+반대로 **앱을 마이그레이션보다 먼저 배포하면 들어갈 길 자체가 사라진다** — `readAdminAccess()`
+(`apps/admin/src/lib/admin-guard.ts`)가 `admin_accounts`를 읽다 표가 없어 던지는데, 로그인 화면
+(`/admin/login`)도 그 함수를 부른다. 관리자 쿠키가 남아 있으면 로그인 화면부터 500이고, 로그인에
+성공해도 `/admin` 레이아웃의 `requireAdmin()`이 같은 자리에서 던져 500이다. 그래서 순서는 언제나
+**마이그레이션 → `create-admin.mjs` → 앱 배포**다 (사전 병합 리뷰 지적).
 
-1. 백업을 받는다. 되돌리려면 `profiles.role`을 복구해야 하는데 drop된 뒤에는 값이 남지 않는다.
-2. 마이그레이션 2개를 적용한다 (`20260911000002`, `20260911000003`).
-3. 대시보드로 적용했다면 **즉시** `supabase migration repair` — 원장이 어긋나면 다음 작업이 막힌다.
-4. `node --env-file=.env scripts/create-admin.mjs admin123` — 첫 owner 생성.
+### 이미 적용해 둔 것 — 운영 `jrabwetgciulczhnoxxi`, 2026-09-11
+
+두 마이그레이션은 **확장-축소(expand/contract)** 라 한 번에 넣지 않았다. **확장 단계인
+`20260911000002_admin_accounts`만 적용했고 `20260911000003_drop_profiles_role`은 일부러 미뤘다** —
+지금 배포돼 있는 master의 `apps/client/src/lib/auth.ts`가 아직 `.select("nickname, avatar_url, role")`
+을 하므로, 컬럼을 먼저 드롭하면 42703으로 라이브 사용자 앱의 `getCurrentUser()`가 통째로 깨진다.
+따라서 `supabase migration list`에 `0003`이 아직 비어 있는 것은 **정상이며 어긋난 원장이 아니다**.
+
+`0002`가 `is_admin()`을 `profiles.role`이 아니라 `admin_accounts`를 보도록 바꿔 놓았으므로, 그 사이에도
+배포된 master가 계속 관리자로 동작하도록 `admin_accounts`에 owner 두 행을 넣어 두었다:
+
+| id | 정체 | 수명 |
+|---|---|---|
+| `aec48cff-2e10-4f61-96db-f578b81ff096` | 기존 구글 관리자 `bucheongosok@gmail.com` | **임시 브리지** — 이 브랜치가 배포되면 제거한다 |
+| `872b7dd4-…` | `ttokttok.admin@ttokttok.local` (`create-admin.mjs`가 만든 첫 owner) | 영구 |
+
+### 머지할 때 — 두 가지를 같이 한다
+
+1. `0003`을 적용하기 **직전에** 백업을 받는다. 되돌리려면 `profiles.role` 값이 필요한데 drop 뒤에는 남지 않는다.
+2. `feat/admin-accounts`를 master에 머지한다.
+3. **두 Vercel 앱(`ttokttok`·`ttokttok-admin`)이 모두 새 커밋으로 배포된 것을 확인한 뒤에** 축소 단계를
+   진행한다 — 같은 커밋의 두 빌드가 원자적으로 바뀌지 않는다(`docs/monorepo-deployment.md`):
+   - `admin_accounts`에서 `aec48cff-2e10-4f61-96db-f578b81ff096` 행을 제거한다. 기존 구글 계정은 관리자에서
+     내려 일반 사용자로 남긴다는 결정(결정 기록 §11-69)을 그제서야 실제로 반영하는 것이다.
+   - `supabase db push --linked --include-all`로 `0003`을 적용한다. 배포된 코드가 더는 `profiles.role`을
+     읽지 않게 된 뒤여야 한다.
+4. 대시보드로 적용했다면 **즉시** `supabase migration repair` — 원장이 어긋나면 다음 작업이 막힌다.
 5. `/admin/login`에서 `ttokttok.admin` / `admin123`으로 로그인 확인.
 6. 클라이언트에서 `bucheongosok@gmail.com` 구글 로그인이 **정상 사용자로** 들어가는지 확인한다 (이제 관리자가 아니므로 거부되면 안 된다).

@@ -100,8 +100,8 @@ export async function authenticate(
 export async function adminLogin(page: Page) {
   await page.goto(`${adminOrigin()}/admin/login`);
   await page
-    .getByLabel("이메일", { exact: true })
-    .fill(process.env.TEST_ADMIN_EMAIL!);
+    .getByLabel("아이디", { exact: true })
+    .fill(process.env.TEST_ADMIN_ID!);
   await page
     .getByLabel("비밀번호", { exact: true })
     .fill(process.env.TEST_PASSWORD!);
