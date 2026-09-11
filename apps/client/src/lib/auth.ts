@@ -33,10 +33,19 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     .eq("id", user.id)
     .maybeSingle();
 
+  // 프로필이 없으면 서비스 사용자가 아니다 — 관리자 계정이거나, 삭제된
+  // 사용자의 잔여 세션이다. 게스트로 취급해 쓰기 경로에 닿지 않게 한다.
+  //
+  // 정상 사용자가 여기 걸리는 창은 없다: handle_new_user는 auth.users
+  // INSERT의 after 트리거라 같은 트랜잭션 안에서 프로필을 만든다. 세션이
+  // 존재하는 시점에는 프로필이 이미 있다. (이 전제가 깨지면 — 트리거를
+  // 비동기로 바꾸는 등 — 이 처리도 같이 바뀌어야 한다.)
+  if (!profile) return null;
+
   return {
     id: user.id,
-    nickname: profile?.nickname ?? "독자",
-    avatarUrl: profile?.avatar_url ?? null,
+    nickname: profile.nickname,
+    avatarUrl: profile.avatar_url,
   };
 }
 

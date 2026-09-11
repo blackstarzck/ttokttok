@@ -114,3 +114,20 @@ test("client integration: private EPUB rejects public download; server factory s
   assert.equal(page.status, 200);
   assert.match(await page.text(), /storage\/v1\/object\/sign\/epubs/);
 });
+
+test("client integration: an admin account has no profile row and cannot write user data", async () => {
+  const { db, user } = await account("admin");
+
+  // 관리자에게는 프로필이 없다 — 이것이 화면의 거부 판정 근거다.
+  assert.equal(
+    check(await db.from("profiles").select("id").eq("id", user.id)).data.length,
+    0,
+  );
+
+  // 프로필이 없으니 사용자 데이터 쓰기는 FK에서 막힌다. 화면이 세션을
+  // 거부하는 것과 별개로 DB도 같은 답을 준다.
+  assert.ok(
+    (await db.from("bookmarks").insert({ user_id: user.id, book_id: ids.book }))
+      .error,
+  );
+});

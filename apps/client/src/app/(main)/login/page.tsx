@@ -9,6 +9,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   missing_code: "로그인이 완료되지 않았어요. 다시 시도해 주세요.",
   exchange_failed: "로그인 처리 중 문제가 생겼어요. 다시 시도해 주세요.",
   access_denied: "로그인을 취소하셨어요.",
+  admin_account:
+    "관리자 계정으로는 서비스를 이용할 수 없어요. 관리자 페이지에서 로그인해 주세요.",
 };
 
 export default async function LoginPage({
