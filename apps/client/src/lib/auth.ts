@@ -27,14 +27,23 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
 
-  const { data: profile } = await db
+  const { data: profile, error } = await db
     .from("profiles")
     .select("nickname, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
-  // 프로필이 없으면 서비스 사용자가 아니다 — 관리자 계정이거나, 삭제된
-  // 사용자의 잔여 세션이다. 게스트로 취급해 쓰기 경로에 닿지 않게 한다.
+  // maybeSingle()은 "행 없음"과 "조회 실패"를 똑같이 data: null로 돌려준다
+  // (§11-61). 여기서 error를 무시하고 null을 반환하면, 멀쩡히 로그인한
+  // 사용자가 게스트로 강등된다 — notifications는 /login으로 밀어내고
+  // profile은 로그아웃 상태를 보여준다. 화면이 거짓말하지 않도록 던져서
+  // Next의 에러 경계로 흘려보낸다. "게스트"가 아니라 "못 불러옴"이 보여야
+  // 한다.
+  if (error) throw error;
+
+  // 조회는 성공했는데 행이 없는 경우: 서비스 사용자가 아니다 — 관리자
+  // 계정이거나, 삭제된 사용자의 잔여 세션이다. 게스트로 취급해 쓰기 경로에
+  // 닿지 않게 한다.
   //
   // 정상 사용자가 여기 걸리는 창은 없다: handle_new_user는 auth.users
   // INSERT의 after 트리거라 같은 트랜잭션 안에서 프로필을 만든다. 세션이

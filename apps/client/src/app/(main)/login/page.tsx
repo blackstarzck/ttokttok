@@ -11,6 +11,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   access_denied: "로그인을 취소하셨어요.",
   admin_account:
     "관리자 계정으로는 서비스를 이용할 수 없어요. 관리자 페이지에서 로그인해 주세요.",
+  admin_check_failed:
+    "로그인 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
 };
 
 export default async function LoginPage({

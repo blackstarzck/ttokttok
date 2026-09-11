@@ -44,11 +44,23 @@ export async function GET(request: NextRequest) {
   //
   // exchangeCodeForSession이 이미 user를 돌려주므로 getUser()를 다시
   // 부르지 않는다 — 토큰 교환 응답 자체가 인증 서버의 최신 응답이다.
-  const { data: adminAccount } = await db
+  const { data: adminAccount, error: adminCheckError } = await db
     .from("admin_accounts")
     .select("id")
     .eq("id", exchangeData.user.id)
     .maybeSingle();
+
+  // maybeSingle()은 "행 없음"과 "조회 실패"를 구분해 주지 않는다(§11-61).
+  // 여기서 error를 무시하면 adminAccount가 falsy가 되어 관리자가 그냥
+  // 통과한다 — 이 관문이 존재하는 이유가 조용히 사라진다. 관리자인지
+  // 아닌지 판정 자체가 안 된 상태이므로 통과시키지 않고 닫는 쪽으로:
+  // signOut 후 로그인 화면으로 돌려보낸다. "관리자 계정입니다"라고
+  // 단정하지 않는다 — 아닐 수도 있다.
+  if (adminCheckError) {
+    console.error("관리자 계정 조회 실패:", adminCheckError.message);
+    await db.auth.signOut();
+    return NextResponse.redirect(`${origin}/login?error=admin_check_failed`);
+  }
 
   if (adminAccount) {
     await db.auth.signOut();
