@@ -39,20 +39,40 @@ export default async function AdminAccountsPage({
   if (error) throw new Error(error.message);
 
   // 로그인 ID와 마지막 로그인은 auth.users가 원천이다 — 복제하지 않고 여기서
-  // 한 번 불러 메모리에서 붙인다 (설계 §5). 관리자 수는 한 자릿수다.
-  const { data: authUsers, error: authError } = await createAdminClient()
-    .auth.admin.listUsers({ perPage: 1000 });
-  if (authError) throw new Error(authError.message);
+  // 붙인다 (설계 §5). listUsers()는 auth.users 전부를 반환한다 — 관리자가
+  // 아니라 서비스 전체 독자다. 독자가 한 페이지(perPage)를 넘으면 관리자가
+  // 그 밖으로 밀려나 로그인 ID·마지막 로그인이 "모른다"로 잘못 그려지고,
+  // 매 렌더마다 전체 독자 이메일을 끌어오게 된다. 관리자 수는 한 자릿수이니
+  // admin_accounts 행마다 id로 직접 조회한다 — 목록을 받지 않으니 둘 다
+  // 없다.
+  const adminClient = createAdminClient();
+  const authResults = await Promise.all(
+    accounts.map((a) => adminClient.auth.admin.getUserById(a.id)),
+  );
 
-  const byId = new Map(authUsers.users.map((u) => [u.id, u]));
   const nameById = new Map(accounts.map((a) => [a.id, a.name]));
 
-  const rows = accounts.map((a) => {
-    const authUser = byId.get(a.id);
+  const rows = accounts.map((a, i) => {
+    const { data, error: authRowError } = authResults[i];
+    // 관리자 한 명의 auth.users 조회가 실패했다고 목록 전체를 막지 않는다
+    // — admin_accounts 행(이름·등급·활성)은 이미 손에 있고 나머지 행은
+    // 멀쩡하다. 다만 이 칸이 "기록 없음"·"—"처럼 아는 척하면 화면이
+    // 거짓말을 하게 되므로, 실패는 구분되는 값으로 보여주고 콘솔에도
+    // 남긴다 — 삼키는 것과는 다르다 (결정 기록 §11-61: 어드민은 삼키지
+    // 않는다. 전체를 throw하는 대신 실패를 정직하게 드러내는 쪽을 골랐다).
+    if (authRowError) {
+      console.error(
+        `관리자 auth 조회 실패 (id=${a.id}): ${authRowError.message}`,
+      );
+    }
+    const authUser = data?.user;
     return {
       ...a,
-      loginId: emailToAdminId(authUser?.email) ?? "—",
-      lastSignInAt: authUser?.last_sign_in_at ?? null,
+      loginId: authRowError
+        ? "조회 실패"
+        : (emailToAdminId(authUser?.email) ?? "—"),
+      lastSignInAt: authRowError ? null : (authUser?.last_sign_in_at ?? null),
+      authFetchFailed: Boolean(authRowError),
       createdByName: a.created_by ? (nameById.get(a.created_by) ?? "—") : "—",
     };
   });
@@ -168,9 +188,11 @@ export default async function AdminAccountsPage({
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {row.lastSignInAt
-                        ? new Date(row.lastSignInAt).toLocaleString("ko-KR")
-                        : "기록 없음"}
+                      {row.authFetchFailed
+                        ? "조회 실패"
+                        : row.lastSignInAt
+                          ? new Date(row.lastSignInAt).toLocaleString("ko-KR")
+                          : "기록 없음"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {row.createdByName}

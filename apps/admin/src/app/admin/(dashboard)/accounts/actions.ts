@@ -54,6 +54,10 @@ export async function createAdminAccount(formData: FormData) {
     .delete()
     .eq("id", data.user.id);
   if (profErr) {
+    // 여기서 멈추면 admin_accounts 행 없는 auth 계정만 남는다 — 아래
+    // acctErr와 같은 유령이다. 같은 롤백으로 없앤다: 합성 이메일이 남으면
+    // 이 관리자 ID는 이 화면에서 영영 못 쓴다(재시도 시 이메일 중복 오류).
+    await service.auth.admin.deleteUser(data.user.id);
     redirect(`/admin/accounts?error=${encodeURIComponent(profErr.message)}`);
   }
 

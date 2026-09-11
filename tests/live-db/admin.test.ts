@@ -138,42 +138,60 @@ test("admin integration: an owner cannot demote or disable their own row", async
 
   // 자기 행 수정은 RLS가 막는다. 없으면 마지막 owner가 스스로를 내려
   // 아무도 관리자를 추가할 수 없는 잠긴 상태를 만들 수 있다.
-  assert.ok(
+  assert.equal(
     (
       await db
         .from("admin_accounts")
         .update({ level: "admin" })
         .eq("id", user.id)
         .select()
-    ).data?.length === 0,
+    ).data?.length,
+    0,
   );
 
+  // "disable" 쪽 — 이름이 그렇게 말하는데 지금까지 level만 확인했다. 이
+  // 시나리오가 오히려 더 위험하다: 마지막 owner가 스스로를 끄면 demote와
+  // 달리 아무도 다시 owner로 승격시킬 관리자가 없는 잠금이 된다.
   assert.equal(
-    check(
+    (
       await db
         .from("admin_accounts")
-        .select("level, is_active")
+        .update({ is_active: false })
         .eq("id", user.id)
-        .single(),
-    ).data.level,
-    "owner",
+        .select()
+    ).data?.length,
+    0,
   );
+
+  const row = check(
+    await db
+      .from("admin_accounts")
+      .select("level, is_active")
+      .eq("id", user.id)
+      .single(),
+  ).data;
+  assert.equal(row.level, "owner");
+  assert.equal(row.is_active, true);
 });
 
 test("admin integration: a non-owner admin cannot write to admin_accounts", async () => {
   const { db, user } = await account("staffAdmin"); // level: "admin", owner 아님
+  // admin_accounts.id는 auth.users(id)를 참조한다(마이그레이션
+  // 20260911000002:17). 존재하지 않는 무작위 UUID로 insert하면 with check가
+  // 통과를 허용하도록 잘못 바뀌어도 외래 키 위반이 나 assert.ok(error)가
+  // 그냥 통과해버린다 — 정책 회귀를 못 잡는다. reader는 실재하는
+  // auth.users 행이라 외래 키는 항상 통과하고 RLS만 결과를 가른다. 오류
+  // 코드(42501 = RLS 위반)까지 단언해 "정책이 막았다"를 못 박는다.
+  const { user: reader } = await account("user");
 
-  // insert: with check가 새 행을 검사한다. owner가 아니므로 정책 위반으로
-  // 실제 오류가 난다(update의 0행과 다르다 — 아래 참고).
-  assert.ok(
-    (
-      await db.from("admin_accounts").insert({
-        id: randomUUID(),
-        name: "무단 추가",
-        level: "admin",
-      })
-    ).error,
-  );
+  // insert: with check가 새 행을 검사한다. owner가 아니므로 정책 위반이다
+  // (update의 0행과 다르다 — 아래 참고).
+  const insertResult = await db.from("admin_accounts").insert({
+    id: reader.id,
+    name: "무단 추가",
+    level: "admin",
+  });
+  assert.equal(insertResult.error?.code, "42501");
 
   // update: using이 대상 행을 먼저 거른다. owner가 아니므로 어떤 행도
   // 대상에 들지 못해 0행 — 자기 행을 못 바꾸는 owner 테스트와 같은 이유다.
@@ -204,8 +222,20 @@ test("admin integration: is_active=false blocks writes on the same already-issue
   // 마이그레이션 20260911000002 주석 — "사고 난 계정을 당장 막는다".)
   const { db, user } = await account("staffAdmin");
   const service = serviceDb();
+  const controlSlug = `active-check-${randomUUID().slice(0, 8)}`;
 
   try {
+    // (B)(1) 양성 대조 — 비활성화 **전에** 활성 staffAdmin이 실제로 쓸 수
+    // 있다는 것부터 못 박는다. 없으면 "정책이 원래 이 표를 막는다"인 경우
+    // 아래 거부 확인이 공허하게 통과한다. 지금 channels_admin_write는
+    // is_admin_owner()가 아니라 is_admin()을 써서 실제로 공허하지는 않지만,
+    // 정책 한 번 수정에 공허해질 수 있다.
+    check(
+      await db
+        .from("channels")
+        .insert({ name: "활성 확인", slug: controlSlug, genre: "소설" }),
+    );
+
     check(
       await service
         .from("admin_accounts")
@@ -228,12 +258,26 @@ test("admin integration: is_active=false blocks writes on the same already-issue
       ).error,
     );
   } finally {
-    // 다른 테스트가 이 계정을 다시 쓰므로 활성 상태로 되돌린다.
-    check(
-      await service
-        .from("admin_accounts")
-        .update({ is_active: true })
-        .eq("id", user.id),
-    );
+    // 다른 테스트가 이 계정을 다시 쓰므로 활성 상태로 되돌린다. 여기서
+    // check()로 던지지 않는다 — try에서 이미 단언이 실패해 예외가 진행
+    // 중이면 finally의 새 throw가 그 실패를 가려버린다(JS의 finally
+    // 의미론). 복구 실패는 admin-storage.ts의 removeUploaded()와 같은
+    // 관용구로 로그만 남긴다.
+    const restore = await service
+      .from("admin_accounts")
+      .update({ is_active: true })
+      .eq("id", user.id);
+    if (restore.error) {
+      console.error(`staffAdmin 활성화 복구 실패: ${restore.error.message}`);
+    }
+    const cleanup = await service
+      .from("channels")
+      .delete()
+      .eq("slug", controlSlug);
+    if (cleanup.error) {
+      console.error(
+        `양성 대조 채널 정리 실패 (slug=${controlSlug}): ${cleanup.error.message}`,
+      );
+    }
   }
 });

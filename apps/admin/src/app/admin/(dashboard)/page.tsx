@@ -58,7 +58,10 @@ export default async function AdminHomePage({
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold">관리자</h1>
 
-      <AdminNotice error={error ? (ERROR_MESSAGES[error] ?? error) : undefined} />
+      {/* 모르는 코드는 그대로 그리지 않는다 — 조작된 /admin?error=… 링크가
+          로그인한 관리자 눈앞에 임의 문구를 띄우는 경로를 막는다. 이 화면엔
+          이제 매핑 표(ERROR_MESSAGES)가 있으니 비용 없이 없앨 수 있다. */}
+      <AdminNotice error={error ? ERROR_MESSAGES[error] : undefined} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {CARDS.map((c) => (

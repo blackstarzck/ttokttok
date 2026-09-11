@@ -31,6 +31,13 @@ export function serviceDb() {
 // 인테그레이션 테스트가 이 이름에 이미 의존한다. "staffAdmin"은 비-owner
 // 관리자다(level = 'admin') — owner 전용 경계(admin_accounts 쓰기 등)를
 // 검증하려면 owner가 아닌 관리자 신원이 필요한데, 그때까지 픽스처에 없었다.
+//
+// 경고: tests/live-db/admin.test.ts의 "is_active=false blocks writes..."
+// 테스트가 이 계정의 is_active를 실행 중에 껐다 켠다(finally에서 복구,
+// 실패해도 던지지 않고 로그만 남긴다). 지금은 그 파일 안에서만 쓰고
+// node:test가 파일 내부를 순차 실행해 문제가 없지만, 다른 테스트 파일이
+// 나중에 staffAdmin을 함께 쓰면 실행 순서에 따라 비결정적으로 깨질 수
+// 있다 — 공유 픽스처를 전역으로 변형하는 패턴이라는 것을 알고 쓸 것.
 export async function account(role: "admin" | "staffAdmin" | "user") {
   const db = publicDb();
   const { data, error } = await db.auth.signInWithPassword({
