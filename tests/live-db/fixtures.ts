@@ -27,13 +27,19 @@ export function serviceDb() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
-export async function account(role: "admin" | "user") {
+// "admin"은 owner 등급 픽스처다(admin_accounts.level = 'owner') — 기존
+// 인테그레이션 테스트가 이 이름에 이미 의존한다. "staffAdmin"은 비-owner
+// 관리자다(level = 'admin') — owner 전용 경계(admin_accounts 쓰기 등)를
+// 검증하려면 owner가 아닌 관리자 신원이 필요한데, 그때까지 픽스처에 없었다.
+export async function account(role: "admin" | "staffAdmin" | "user") {
   const db = publicDb();
   const { data, error } = await db.auth.signInWithPassword({
     email:
       role === "admin"
         ? adminIdToEmail(process.env.TEST_ADMIN_ID!)
-        : process.env.TEST_USER_EMAIL!,
+        : role === "staffAdmin"
+          ? adminIdToEmail(process.env.TEST_STAFF_ADMIN_ID!)
+          : process.env.TEST_USER_EMAIL!,
     password: process.env.TEST_PASSWORD!,
   });
   if (error || !data.session) throw error ?? new Error("No fixture session");
@@ -80,13 +86,19 @@ export async function seedFixtures() {
     await db.from("channels").delete().eq("slug", "integration-test-channel"),
   );
   const existing = check(await db.auth.admin.listUsers()).data.users;
-  for (const role of ["admin", "user"] as const) {
+  // staffAdmin은 owner가 아닌 관리자다 — owner 전용 경계(admin_accounts
+  // 쓰기 등)를 검증하려면 owner가 아닌 관리자 신원이 필요한데, 이 픽스처가
+  // 생기기 전에는 테스트 스위트에 그런 신원이 아예 없었다.
+  for (const role of ["admin", "staffAdmin", "user"] as const) {
+    const isAdminRole = role === "admin" || role === "staffAdmin";
     // 관리자는 라우팅되지 않는 합성 이메일을 쓴다 — 사용자와 신원 공간이
     // 겹치지 않는다는 것이 이 설계의 요점이다.
     const email =
       role === "admin"
         ? adminIdToEmail(process.env.TEST_ADMIN_ID!)
-        : process.env.TEST_USER_EMAIL!;
+        : role === "staffAdmin"
+          ? adminIdToEmail(process.env.TEST_STAFF_ADMIN_ID!)
+          : process.env.TEST_USER_EMAIL!;
     const found = existing.find((user) => user.email === email);
     const user =
       found ??
@@ -95,15 +107,20 @@ export async function seedFixtures() {
           email,
           password: process.env.TEST_PASSWORD!,
           email_confirm: true,
-          app_metadata: role === "admin" ? { ttokttok_admin: true } : {},
+          app_metadata: isAdminRole ? { ttokttok_admin: true } : {},
           user_metadata: {
-            name: role === "admin" ? "테스트 관리자" : "테스트 독자",
+            name:
+              role === "admin"
+                ? "테스트 관리자"
+                : role === "staffAdmin"
+                  ? "테스트 스태프 관리자"
+                  : "테스트 독자",
           },
         }),
       ).data.user;
     if (!user) throw new Error("Fixture user missing");
 
-    if (role === "admin") {
+    if (isAdminRole) {
       // 트리거의 건너뛰기는 이 경로에서 먹지 않는다 — GoTrue가 app_metadata를
       // INSERT 이후에 붙여 트리거가 볼 때는 표식이 없다. 여기서 지우는 것이
       // 관리자에게 프로필이 생기지 않게 하는 실질적 방어다 (마이그레이션 주석).
@@ -111,8 +128,8 @@ export async function seedFixtures() {
       check(
         await db.from("admin_accounts").upsert({
           id: user.id,
-          name: "테스트 관리자",
-          level: "owner",
+          name: role === "admin" ? "테스트 관리자" : "테스트 스태프 관리자",
+          level: role === "admin" ? "owner" : "admin",
           is_active: true,
         }),
       );

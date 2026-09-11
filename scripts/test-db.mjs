@@ -43,6 +43,9 @@ if (process.argv.includes("--stop")) {
     CLIENT_URL: "http://localhost:3000",
     ADMIN_URL: "http://localhost:3001",
     TEST_ADMIN_ID: "test.admin",
+    // owner가 아닌 관리자 픽스처. owner 전용 경계(admin_accounts 쓰기 등)를
+    // 검증하려면 owner가 아닌 관리자 신원이 필요하다 (tests/live-db/fixtures.ts).
+    TEST_STAFF_ADMIN_ID: "test.staffadmin",
     TEST_USER_EMAIL: "reader@ttokttok.test",
     TEST_PASSWORD: "Local-test-only-2026!",
   };
