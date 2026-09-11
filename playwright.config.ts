@@ -2,6 +2,12 @@ import { defineConfig } from "@playwright/test";
 import { loadTestEnv } from "./tests/live-db/env";
 loadTestEnv();
 
+// .env.test의 CLIENT_URL/ADMIN_URL(scripts/test-db.mjs가 쓴 값)이 단일 출처다 —
+// 개발 서버(3000/3001)와 겹치면 reuseExistingServer가 그 서버를 재사용해
+// 운영 Supabase에 쓰게 된다.
+const clientUrl = process.env.CLIENT_URL!;
+const adminUrl = process.env.ADMIN_URL!;
+
 export default defineConfig({
   testDir: "./e2e",
   snapshotPathTemplate: "{testDir}/baselines/{projectName}/{arg}{ext}",
@@ -32,7 +38,7 @@ export default defineConfig({
       name: "client",
       testMatch: "**/client*.spec.ts",
       use: {
-        baseURL: "http://localhost:3000",
+        baseURL: clientUrl,
         viewport: { width: 375, height: 812 },
       },
     },
@@ -40,7 +46,7 @@ export default defineConfig({
       name: "admin",
       testMatch: "**/admin*.spec.ts",
       use: {
-        baseURL: "http://localhost:3001",
+        baseURL: adminUrl,
         viewport: { width: 1440, height: 1000 },
       },
     },
@@ -51,13 +57,13 @@ export default defineConfig({
       : [
           {
             command: "node scripts/serve-test.mjs client",
-            url: "http://localhost:3000",
+            url: clientUrl,
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
           },
           {
             command: "node scripts/serve-test.mjs admin",
-            url: "http://localhost:3001/admin/login",
+            url: `${adminUrl}/admin/login`,
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
           },

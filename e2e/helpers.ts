@@ -11,9 +11,11 @@ import {
   ids,
   serviceDb,
   check,
+  clientOrigin,
+  adminOrigin,
 } from "../tests/live-db/fixtures";
 
-export { expect, ids, serviceDb, check };
+export { expect, ids, serviceDb, check, clientOrigin, adminOrigin };
 // Reproduced in the preserved app with Chromium 153. EPUB intentionally forbids
 // scripts; do not weaken its sandbox to silence this browser diagnostic.
 const epubSandboxDiagnostic =
@@ -96,7 +98,7 @@ export async function authenticate(
 }
 
 export async function adminLogin(page: Page) {
-  await page.goto("http://localhost:3001/admin/login");
+  await page.goto(`${adminOrigin()}/admin/login`);
   await page
     .getByLabel("이메일", { exact: true })
     .fill(process.env.TEST_ADMIN_EMAIL!);

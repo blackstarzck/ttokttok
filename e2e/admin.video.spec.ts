@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { authenticate, serviceDb, ids, check } from './helpers';
+import { authenticate, serviceDb, ids, check, clientOrigin, adminOrigin } from './helpers';
 import { hlsFixture } from './video-fixture';
 
 test('admin video: ZIP upload, interruption/retry, preview, atomic publication and guarded cleanup', async ({ page, context, browser }, testInfo) => {
@@ -54,7 +54,7 @@ test('admin video: ZIP upload, interruption/retry, preview, atomic publication a
     await expect(page).toHaveURL(/\/admin\/posts(?:\?|$)/);
     const video = check(await db.from('post_videos').select('*').eq('asset_group_id', group).single()).data;
     post = video.post_id;
-    await client.goto(`http://localhost:3000/p/${post}`);
+    await client.goto(`${clientOrigin()}/p/${post}`);
     await expect.poll(() => client.locator('video').evaluate((v: HTMLVideoElement) => !v.paused && v.readyState >= 3)).toBe(true);
     expect(video.hls_path).toContain(`/bundles/${group}/master.m3u8`);
     const result = await page.evaluate(async id => {
@@ -71,7 +71,7 @@ test('admin video: ZIP upload, interruption/retry, preview, atomic publication a
 });
 
 test('admin video: permission, incomplete upload and forged playlist fail without publishing', async ({ page, context, request }) => {
-  const forbidden = await request.post('http://localhost:3001/api/video-uploads', { maxRedirects: 0, data: { action: 'start', manifest: {} } });
+  const forbidden = await request.post(`${adminOrigin()}/api/video-uploads`, { maxRedirects: 0, data: { action: 'start', manifest: {} } });
   expect([303, 307, 403]).toContain(forbidden.status());
   await authenticate(context, 'admin');
   await page.goto('/admin/posts/new?type=video');

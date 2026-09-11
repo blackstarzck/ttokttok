@@ -17,6 +17,14 @@ export const ids = {
 };
 export const originalHook = "한 문장이 하루를 바꿀 때";
 export const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+// CLIENT_URL/ADMIN_URL(.env.test, scripts/test-db.mjs가 씀)이 테스트 서버 포트의
+// 단일 출처다 — 스펙마다 포트를 다시 적으면 포트를 옮길 때 또 어긋난다.
+export function clientOrigin() {
+  return new URL(process.env.CLIENT_URL!).origin;
+}
+export function adminOrigin() {
+  return new URL(process.env.ADMIN_URL!).origin;
+}
 export function publicDb() {
   return createClient(dbUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },

@@ -2,7 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServerDatabase } from "@ttokttok/database/server";
 import { createServiceDatabase } from "@ttokttok/database/service";
-import { account, publicDb, serviceDb, dbUrl, ids, check } from "./fixtures.ts";
+import {
+  account,
+  publicDb,
+  serviceDb,
+  dbUrl,
+  ids,
+  check,
+  clientOrigin,
+} from "./fixtures.ts";
 
 test("client integration: request factory reads published content and excludes drafts", async () => {
   const db = createServerDatabase(
@@ -110,7 +118,7 @@ test("client integration: private EPUB rejects public download; server factory s
   const response = await fetch(signed.signedUrl);
   assert.equal(response.status, 200);
   assert.ok((await response.arrayBuffer()).byteLength > 500);
-  const page = await fetch(`http://localhost:3000/read/${ids.book}`);
+  const page = await fetch(`${clientOrigin()}/read/${ids.book}`);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /storage\/v1\/object\/sign\/epubs/);
 });

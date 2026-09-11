@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { authenticate, ids } from "./helpers";
+import { authenticate, ids, adminOrigin } from "./helpers";
 import { snapshot, legacyUrl, capturingLegacy } from "./visual";
 
-test.use({ baseURL: legacyUrl ?? "http://localhost:3001" });
+// legacyUrl(3100)은 분리 전 앱을 찍을 때만 쓰는 별개의 기준선이다 — 그 외에는
+// 실제 admin 테스트 서버 주소(ADMIN_URL)를 따른다.
+test.use({ baseURL: legacyUrl ?? adminOrigin() });
 
 test("@visual admin login", async ({ page }, info) => {
   await page.goto("/admin/login");

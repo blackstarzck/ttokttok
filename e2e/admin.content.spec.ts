@@ -1,4 +1,12 @@
-import { test, expect, ids, authenticate, serviceDb, check } from "./helpers";
+import {
+  test,
+  expect,
+  ids,
+  authenticate,
+  serviceDb,
+  check,
+  clientOrigin,
+} from "./helpers";
 import { fixtureEpub, account } from "../tests/live-db/fixtures";
 import { PNG } from "pngjs";
 
@@ -44,7 +52,7 @@ test("admin: EPUB and cover upload can be read by client, then deleted", async (
   });
   try {
     expect((await fetch(book.cover_url)).status).toBe(200);
-    await client.goto(`http://localhost:3000/read/${book.id}`);
+    await client.goto(`${clientOrigin()}/read/${book.id}`);
     await expect(client.frameLocator("iframe").locator("body")).toContainText(
       "첫 번째 산책",
     );
@@ -82,7 +90,7 @@ test("admin: featured visibility updates the independent client", async ({
     await expect(
       row.getByRole("button", { name: "올리기", exact: true }),
     ).toBeVisible();
-    await client.goto("http://localhost:3000/discover");
+    await client.goto(`${clientOrigin()}/discover`);
     await expect(
       client.getByRole("heading", { name: "오늘의 추천", exact: true }),
     ).toHaveCount(0);

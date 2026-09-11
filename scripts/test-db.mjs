@@ -40,8 +40,10 @@ if (process.argv.includes("--stop")) {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
     NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
-    CLIENT_URL: "http://localhost:3000",
-    ADMIN_URL: "http://localhost:3001",
+    // 개발 서버(3000/3001)와 겹치면 npx playwright test가 로컬에서 그 서버를
+    // 재사용해 운영 Supabase로 쓰게 된다 — 테스트 서버는 항상 다른 포트를 쓴다.
+    CLIENT_URL: "http://localhost:3003",
+    ADMIN_URL: "http://localhost:3004",
     TEST_ADMIN_ID: "test.admin",
     // owner가 아닌 관리자 픽스처. owner 전용 경계(admin_accounts 쓰기 등)를
     // 검증하려면 owner가 아닌 관리자 신원이 필요하다 (tests/live-db/fixtures.ts).

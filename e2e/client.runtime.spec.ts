@@ -1,4 +1,12 @@
-import { test, expect, ids, authenticate, serviceDb, check } from "./helpers";
+import {
+  test,
+  expect,
+  ids,
+  authenticate,
+  serviceDb,
+  check,
+  adminOrigin,
+} from "./helpers";
 
 test("client: guest navigation, sheets, search and both book types", async ({
   page,
@@ -192,10 +200,12 @@ test("client: legacy admin address keeps path and query; draft is hidden", async
   });
   expect(response.status()).toBe(307);
   expect(response.headers().location).toBe(
-    "http://localhost:3001/admin/posts?from=old",
+    `${adminOrigin()}/admin/posts?from=old`,
   );
   await page.goto("/admin/posts?from=old");
-  await expect(page).toHaveURL(/localhost:3001\/admin\/login\?next=/);
+  await expect(page).toHaveURL(
+    new RegExp(`${new URL(adminOrigin()).host}/admin/login\\?next=`),
+  );
   const draft = await request.get(`/p/${ids.draft}`);
   expect(draft.status()).toBe(404);
 });

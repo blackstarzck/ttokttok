@@ -6,6 +6,8 @@ import {
   adminLogin,
   serviceDb,
   check,
+  clientOrigin,
+  adminOrigin,
 } from "./helpers";
 import { originalHook } from "../tests/live-db/fixtures";
 
@@ -28,7 +30,7 @@ test("admin: password login, every management page and logout", async ({
   }
   await expect(page.getByRole("link", { name: "서비스 보기" })).toHaveAttribute(
     "href",
-    "http://localhost:3000",
+    clientOrigin(),
   );
   await page.goto("/admin/posts");
   await expect(
@@ -44,7 +46,7 @@ test("admin: password login, every management page and logout", async ({
     .getByRole("link", { name: "보기", exact: true })
     .click();
   const client = await opened;
-  await expect(client).toHaveURL(`http://localhost:3000/p/${ids.post}`);
+  await expect(client).toHaveURL(`${clientOrigin()}/p/${ids.post}`);
   await expect(client.getByText(originalHook, { exact: true })).toBeVisible();
   await client.close();
   await page.getByRole("button", { name: "로그아웃", exact: true }).click();
@@ -79,11 +81,11 @@ test("admin: login and logout preserve the separate client session", async ({
     true,
   );
   expect(names.some((name) => name.startsWith("sb-"))).toBe(true);
-  await page.goto("http://localhost:3000/profile");
+  await page.goto(`${clientOrigin()}/profile`);
   await expect(page.getByText("테스트 독자", { exact: true })).toBeVisible();
-  await page.goto("http://localhost:3001/admin");
+  await page.goto(`${adminOrigin()}/admin`);
   await page.getByRole("button", { name: "로그아웃", exact: true }).click();
-  await page.goto("http://localhost:3000/profile");
+  await page.goto(`${clientOrigin()}/profile`);
   await expect(page.getByText("테스트 독자", { exact: true })).toBeVisible();
 });
 
@@ -113,7 +115,7 @@ test("admin: edit preview, publish and confirm updated client content", async ({
     viewport: { width: 375, height: 812 },
   });
   try {
-    await client.goto("http://localhost:3000/");
+    await client.goto(`${clientOrigin()}/`);
     await expect(client.getByText(hook, { exact: true })).toBeVisible();
     await page.goto(`/admin/posts/${ids.post}`);
     await page.getByRole("button", { name: "임시저장", exact: true }).click();

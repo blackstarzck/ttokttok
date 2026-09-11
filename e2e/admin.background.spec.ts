@@ -1,4 +1,12 @@
-import { test, expect, ids, authenticate, serviceDb, check } from "./helpers";
+import {
+  test,
+  expect,
+  ids,
+  authenticate,
+  serviceDb,
+  check,
+  clientOrigin,
+} from "./helpers";
 import { PNG } from "pngjs";
 import { mkdirSync } from "node:fs";
 
@@ -68,7 +76,7 @@ test("admin: background upload, text editing, persistence, replacement and remov
     let bg = await save();
     expect(bg.color).toBe("#274d43");
     expect(bg.text).toBe("light");
-    await client.goto("http://localhost:3000/");
+    await client.goto(`${clientOrigin()}/`);
     const article = client.locator("article").filter({ hasText: "배경 위에서도 관리자가 정한 문장이 보입니다" });
     await expect(article).toBeVisible();
     await expect(article.locator("[data-card-background]")).toHaveCSS("background-color", "rgb(39, 77, 67)");
@@ -120,11 +128,11 @@ test("admin: background upload, text editing, persistence, replacement and remov
     await save();
     for (const width of [320, 375, 480]) {
       await client.setViewportSize({ width, height: 812 });
-      await client.goto("http://localhost:3000/");
+      await client.goto(`${clientOrigin()}/`);
       await expect(client.getByText(/긴 문장을 작은 화면에서도/).first()).toBeVisible();
       expect(await client.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
-    await client.goto(`http://localhost:3000/p/${ids.post}`);
+    await client.goto(`${clientOrigin()}/p/${ids.post}`);
     const surface = client.locator("[data-card-background]");
     await expect(surface).toBeVisible();
     expect((await surface.boundingBox())!.height).toBeGreaterThan(600);
