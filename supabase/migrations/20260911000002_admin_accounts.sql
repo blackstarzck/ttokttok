@@ -27,10 +27,10 @@ create table public.admin_accounts (
 -- ------------------------------------------------------------
 -- 판정 원천을 profiles.role에서 이 표로 옮긴다
 -- ------------------------------------------------------------
--- **함수 본문만 바꾼다.** 이 함수를 쓰는 RLS 정책 28곳(8개 마이그레이션)은
+-- **함수 본문만 바꾼다.** 이 함수를 쓰는 RLS 정책 27곳(7개 마이그레이션)은
 -- 한 글자도 건드리지 않는다 — is_admin()이 이미 추상화 경계였다.
 --
--- is_active = false가 곧 즉시 차단이다. 다음 요청부터 28개 정책이 전부
+-- is_active = false가 곧 즉시 차단이다. 다음 요청부터 27개 정책이 전부
 -- 거부한다. JWT 클레임 방식을 쓰지 않은 이유가 이것이다(토큰 만료 전까지
 -- 비활성화가 안 먹는다).
 create or replace function public.is_admin()
@@ -104,10 +104,13 @@ create policy admin_accounts_update_owner on public.admin_accounts
 -- 직후에 profiles 행을 한 번 더 지워 이중으로 막는다.
 --
 -- 2026-09-11 로컬 실측: auth.users에 직접 INSERT하면 아래 분기가 정상 동작해
--- 프로필이 생기지 않는다. 그러나 GoTrue admin API(createUser)로 만들면 프로필이
--- **생긴다** — app_metadata를 INSERT 이후 단계에서 붙이기 때문이다. 즉 이
--- 분기는 소셜 로그인 경로의 안전망일 뿐이고, 관리자 생성 경로에서 프로필이
--- 남지 않게 하는 실질적 방어는 생성 직후의 delete다.
+-- 프로필이 생기지 않는다. 그러나 GoTrue admin API(auth.admin.createUser)로
+-- 만들면 프로필이 **생긴다** — app_metadata를 INSERT 이후 단계에서 붙이기
+-- 때문이다. 즉 **지금은 어떤 경로도 이 분기에 닿지 않는다**: INSERT 이전에
+-- 표식을 세우는 경로가 없다. 그래도 분기는 남겨 둔다 — 장래에 INSERT보다
+-- 먼저 app_metadata를 붙이는 경로(예: pre-insert 훅)가 생기면 그때부터
+-- 바로 동작한다. 지금 실질적으로 프로필이 남지 않게 막는 것은 계정 생성
+-- 경로(create-admin.mjs, /admin/accounts)가 생성 직후에 실행하는 delete다.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql

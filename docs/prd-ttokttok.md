@@ -413,13 +413,13 @@ video_uploads
   manifest jsonb, public_base text -- 관리자 읽기, 서버 검증/정리 전용 쓰기
 
 admin_accounts
-  id PK FK auth.users, name, level ('owner'|'admin'),
-  is_active bool, created_at, created_by FK admin_accounts
+  id uuid PK FK auth.users(id), name text, level text CHECK (level IN ('owner','admin')),
+  is_active bool, created_at timestamptz, created_by uuid NULL FK admin_accounts(id)
   -- 관리자 신원. profiles와 분리되어 관리자는 profiles 행을 갖지 않는다.
   -- 로그인 ID는 <id>@ttokttok.local 합성 이메일로 auth.users에 담는다.
 
 profiles
-  id PK FK auth.users, nickname, avatar_url, created_at
+  id uuid PK FK auth.users(id), nickname text, avatar_url text, created_at timestamptz
 
 likes        (user_id, post_id) PK 복합, created_at
 comment_likes (user_id, comment_id) PK 복합, created_at
