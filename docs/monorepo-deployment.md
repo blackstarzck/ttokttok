@@ -50,7 +50,7 @@
 아래 순서는 이후 재전환에도 적용한다.
 
 1. 기존 사용자 프로젝트와 도메인을 보존한다. 같은 Git 저장소에 관리자 프로젝트를 추가하고 Root Directory를 `apps/admin`으로 지정한다. 프레임워크는 Next.js, 빌드 명령은 앱 기준 `npm run build`, 출력은 기본값을 사용한다. 앱 루트 밖의 공용 소스를 포함하는 설정을 켠다. 설치는 저장소 루트의 npm 워크스페이스와 단일 잠금 파일을 사용해야 한다.
-2. 관리자 프로젝트에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CLIENT_URL`을 등록한다. `CLIENT_URL`은 현재 사용자 사이트의 출처다. `ADMIN_EMAIL`·`ADMIN_PASSWORD`는 배포 앱에 필요하지 않다. 관리자 도메인에서 로그인·업로드·발행·사용자 화면 보기까지 확인한다.
+2. 관리자 프로젝트에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CLIENT_URL`을 등록한다. `CLIENT_URL`은 현재 사용자 사이트의 출처다. 관리자 계정은 `admin_accounts` 표가 원천이며 첫 owner는 `scripts/create-admin.mjs`로 로컬에서 만든다 — 배포 앱 환경변수로 관리자 이메일·비밀번호를 등록할 필요가 없다. 관리자 도메인에서 로그인·업로드·발행·사용자 화면 보기까지 확인한다.
 3. 기존 사용자 프로젝트 Root Directory를 `apps/client`로 변경한다. 사용자용 Supabase 값과 `NEXT_PUBLIC_SITE_URL`은 유지하고 `ADMIN_URL`을 새 관리자 출처로 지정한다. 공용 소스 포함 설정과 루트 잠금 파일 설치를 확인한다. 사용자 도메인은 변경하지 않는다.
 4. 두 프로젝트의 미리보기 배포에서 각각 E2E를 실행하고 배포 검토를 마친 뒤 운영 전환한다. 이 저장소의 자동 테스트는 로컬 전용 DB만 허용하므로 운영 데이터에 그대로 실행하지 않는다. 운영에서는 읽기·로그인·별도 승인한 테스트 콘텐츠만으로 확인한다.
 5. 같은 커밋의 두 빌드가 동시에 원자적으로 바뀌지는 않는다. 이번 변경은 DB·카드 형식을 바꾸지 않으므로 기존 단일 앱과 새 관리자 앱이 전환 중 공존할 수 있다. 새 관리자 검증 후 사용자 프로젝트를 전환하는 순서를 권장한다.

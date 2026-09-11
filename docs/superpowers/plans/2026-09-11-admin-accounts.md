@@ -1629,7 +1629,7 @@ Expected: 빌드·단위·인테그레이션은 전부 PASS. E2E가 실패하면
 §11-69을 새로 더한다:
 
 ```
-| 68 | 관리자 계정을 사용자와 분리 | **관리자 신원을 `admin_accounts`로 옮기고 로그인 ID를 합성 이메일에 맵핑한다**(2026-09-11). 문제는 가설이 아니었다 — 프로덕션 identity 타임스탬프가 경위를 그대로 보여준다: `create-admin.mjs`가 2026-08-27에 email identity만으로 만든 관리자 계정에 **2026-09-01 google identity가 저절로 붙었고**(`email_confirm: true`라 Supabase가 같은 주소의 소셜 로그인을 기존 계정에 자동 연결한다), 그 결과 운영 계정이 서비스 사용자로 댓글 2건·진행률 5건을 남겼다. **연결을 수동으로 끊어도 구글 버튼 한 번이면 되돌아온다** — 그래서 운영 규칙이 아니라 구조로 막았다: 관리자 로그인 ID를 `ttokttok.admin` 형태로 두고 `@ttokttok.local`(라우팅되지 않는 도메인)을 붙여 `auth.users`에 담는다. **그 주소의 구글·카카오 계정은 존재할 수 없으므로 자동 연결의 전제 자체가 사라진다.** 신원을 `auth.users` 밖으로 빼지 않은 것이 핵심 제약이었다 — 빼면 `auth.uid()`가 null이 되어 RLS 정책 **28곳**이 관리자를 영원히 거부하고 어드민의 모든 쓰기가 service role 우회가 된다("보안은 RLS가 담당"이 무너진다). 대신 **`is_admin()` 함수 본문만 교체**해 판정 원천을 갈아 끼웠다: 정책은 한 곳도 바뀌지 않았다. JWT 클레임 방식은 기각했다 — 빠르지만 비활성화가 토큰 만료 전까지 안 먹어 "사고 난 계정을 당장 막는다"가 깨진다. 등급은 `owner`/`admin` 2단계이고, **owner는 자기 행의 등급·활성을 바꿀 수 없다**: 없으면 마지막 owner가 스스로를 내리는 순간 아무도 관리자를 추가할 수 없는 잠긴 상태가 된다. `update` 정책에 `using`과 `with check`를 둘 다 둔 것도 같은 이유다(§11의 comment_threads·comment_likes가 겪은 함정). 기존 `bucheongosok@gmail.com`은 **관리자에서 내려 일반 사용자로 남겼다**(사용자 결정) — 따라서 이관도 cascade 삭제도 없고, 닉네임 "관리자"만 사칭이 되지 않게 중립값으로 바꿨다. 관리자는 `profiles` 행을 갖지 않으므로 클라이언트는 관리자 세션을 감지하면 로그아웃시킨다 — 그냥 두면 `getCurrentUser`의 "독자" 폴백 때문에 일반 사용자로 보이다가 댓글을 쓰는 순간 FK 위반으로 깨진다. **비밀번호는 `admin123`을 쓴다**(사용자 결정, 위험을 알린 뒤 재확인) — 정식 오픈 전 교체해야 하며, `create-admin.mjs`에 인자 없이 실행하면 난수 비밀번호를 발급한다. 설계: `docs/superpowers/specs/2026-09-11-admin-accounts-design.md` |
+| 69 | 관리자 계정을 사용자와 분리 | **관리자 신원을 `admin_accounts`로 옮기고 로그인 ID를 합성 이메일에 맵핑한다**(2026-09-11). 문제는 가설이 아니었다 — 프로덕션 identity 타임스탬프가 경위를 그대로 보여준다: `create-admin.mjs`가 2026-08-27에 email identity만으로 만든 관리자 계정에 **2026-09-01 google identity가 저절로 붙었고**(`email_confirm: true`라 Supabase가 같은 주소의 소셜 로그인을 기존 계정에 자동 연결한다), 그 결과 운영 계정이 서비스 사용자로 댓글 2건·진행률 5건을 남겼다. **연결을 수동으로 끊어도 구글 버튼 한 번이면 되돌아온다** — 그래서 운영 규칙이 아니라 구조로 막았다: 관리자 로그인 ID를 `ttokttok.admin` 형태로 두고 `@ttokttok.local`(라우팅되지 않는 도메인)을 붙여 `auth.users`에 담는다. **그 주소의 구글·카카오 계정은 존재할 수 없으므로 자동 연결의 전제 자체가 사라진다.** 신원을 `auth.users` 밖으로 빼지 않은 것이 핵심 제약이었다 — 빼면 `auth.uid()`가 null이 되어 RLS 정책 **28곳**이 관리자를 영원히 거부하고 어드민의 모든 쓰기가 service role 우회가 된다("보안은 RLS가 담당"이 무너진다). 대신 **`is_admin()` 함수 본문만 교체**해 판정 원천을 갈아 끼웠다: 정책은 한 곳도 바뀌지 않았다. JWT 클레임 방식은 기각했다 — 빠르지만 비활성화가 토큰 만료 전까지 안 먹어 "사고 난 계정을 당장 막는다"가 깨진다. 등급은 `owner`/`admin` 2단계이고, **owner는 자기 행의 등급·활성을 바꿀 수 없다**: 없으면 마지막 owner가 스스로를 내리는 순간 아무도 관리자를 추가할 수 없는 잠긴 상태가 된다. `update` 정책에 `using`과 `with check`를 둘 다 둔 것도 같은 이유다(§11의 comment_threads·comment_likes가 겪은 함정). 기존 `bucheongosok@gmail.com`은 **관리자에서 내려 일반 사용자로 남겼다**(사용자 결정) — 따라서 이관도 cascade 삭제도 없고, 닉네임 "관리자"만 사칭이 되지 않게 중립값으로 바꿨다. 관리자는 `profiles` 행을 갖지 않으므로 클라이언트는 관리자 세션을 감지하면 로그아웃시킨다 — 그냥 두면 `getCurrentUser`의 "독자" 폴백 때문에 일반 사용자로 보이다가 댓글을 쓰는 순간 FK 위반으로 깨진다. **비밀번호는 `admin123`을 쓴다**(사용자 결정, 위험을 알린 뒤 재확인) — 정식 오픈 전 교체해야 하며, `create-admin.mjs`에 인자 없이 실행하면 난수 비밀번호를 발급한다. 설계: `docs/superpowers/specs/2026-09-11-admin-accounts-design.md` |
 ```
 
 Task 2 Step 4에서 실측한 트리거 결과(프로필이 생겼는지)를 이 항목에 한 문장으로 더한다.
@@ -1674,10 +1674,17 @@ git commit -m "test: cover admin account management end to end and record the de
 2. `feat/admin-accounts`를 master에 머지한다.
 3. **두 Vercel 앱(`ttokttok`·`ttokttok-admin`)이 모두 새 커밋으로 배포된 것을 확인한 뒤에** 축소 단계를
    진행한다 — 같은 커밋의 두 빌드가 원자적으로 바뀌지 않는다(`docs/monorepo-deployment.md`):
+   - 원장이 실제 적용 상태와 어긋나 있는지(예: 대시보드로 직접 적용한 이력) 먼저 `supabase migration
+     list`로 확인한다. 어긋나 있다면 **push보다 먼저** `supabase migration repair`로 맞춘다 — 어긋난
+     원장으로 push하면 그 push 자체가 실패한다(사전 병합 리뷰 지적: repair는 push의 사후 정리가
+     아니라 사전 조건이다).
    - `admin_accounts`에서 `aec48cff-2e10-4f61-96db-f578b81ff096` 행을 제거한다. 기존 구글 계정은 관리자에서
      내려 일반 사용자로 남긴다는 결정(결정 기록 §11-69)을 그제서야 실제로 반영하는 것이다.
-   - `supabase db push --linked --include-all`로 `0003`을 적용한다. 배포된 코드가 더는 `profiles.role`을
-     읽지 않게 된 뒤여야 한다.
-4. 대시보드로 적용했다면 **즉시** `supabase migration repair` — 원장이 어긋나면 다음 작업이 막힌다.
-5. `/admin/login`에서 `ttokttok.admin` / `admin123`으로 로그인 확인.
-6. 클라이언트에서 `bucheongosok@gmail.com` 구글 로그인이 **정상 사용자로** 들어가는지 확인한다 (이제 관리자가 아니므로 거부되면 안 된다).
+   - `supabase db push --linked --include-all`로 적용한다. 배포된 코드가 더는 `profiles.role`을 읽지
+     않게 된 뒤여야 한다. **주의:** `--include-all`은 `0003`(`drop_profiles_role`)만 수술적으로 골라
+     넣지 않는다 — 이 시점까지 아직 적용되지 않은 마이그레이션이 있다면(예: 이 문서 작성 이후 머지된
+     `20260912000001_book_cover_design_images`·`20260912000002_channel_cover`) 그것들도 같이 들어간다.
+     이 저장소는 그 상태를 의도한 것으로 두었다 — `0003`만 골라 넣으려면 `--include-all` 대신
+     `supabase db push --linked <0003의 마이그레이션 이름>`처럼 대상을 명시할 것.
+4. `/admin/login`에서 `ttokttok.admin` / `admin123`으로 로그인 확인.
+5. 클라이언트에서 `bucheongosok@gmail.com` 구글 로그인이 **정상 사용자로** 들어가는지 확인한다 (이제 관리자가 아니므로 거부되면 안 된다).

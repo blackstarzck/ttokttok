@@ -66,11 +66,18 @@ export default async function AdminAccountsPage({
       );
     }
     const authUser = data?.user;
+    // emailToAdminId는 합성 이메일(@ttokttok.local)이 아니면 전부 null을
+    // 준다 — "모른다"(auth 조회 실패)와 "이메일은 있는데 합성이 아니다"가
+    // 같은 글자가 되면 안 된다. 후자는 배포 과도기의 브리지 행(결정 기록
+    // §11-69, docs/superpowers/plans/2026-09-11-admin-accounts.md 「프로덕션
+    // 배포 순서」)처럼 이 브랜치가 없애려는 바로 그 위험 신원이므로 화면에서
+    // 눈에 띄어야 한다.
+    const adminId = emailToAdminId(authUser?.email);
     return {
       ...a,
       loginId: authRowError
         ? "조회 실패"
-        : (emailToAdminId(authUser?.email) ?? "—"),
+        : (adminId ?? (authUser?.email ? `⚠ ${authUser.email}` : "—")),
       lastSignInAt: authRowError ? null : (authUser?.last_sign_in_at ?? null),
       authFetchFailed: Boolean(authRowError),
       createdByName: a.created_by ? (nameById.get(a.created_by) ?? "—") : "—",

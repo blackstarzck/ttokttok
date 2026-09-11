@@ -14,7 +14,7 @@ apps/
 │  ├─ hooks/
 │  └─ lib/             # 사용자 데이터 접근과 앱별 Supabase 설정
 └─ admin/src/
-   ├─ app/admin/       # 관리자 CMS, admin role 전용
+   ├─ app/admin/       # 관리자 CMS, admin_accounts 기반 관리자 전용 (owner/admin)
    ├─ components/admin/
    └─ lib/             # 관리자 권한·데이터 접근과 앱별 Supabase 설정
 packages/

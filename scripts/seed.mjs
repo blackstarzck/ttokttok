@@ -570,37 +570,14 @@ async function run() {
     console.log(`✓ 금칙어 ${words.length}개`);
   }
 
-  // 9) 관리자 승격 — ADMIN_EMAIL 계정이 이미 로그인한 적 있어야 한다.
-  {
-    const email = process.env.ADMIN_EMAIL;
-    if (!email) {
-      console.log("· ADMIN_EMAIL 없음 — 관리자 승격 건너뜀");
-    } else {
-      const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 });
-      if (error) throw new Error(`listUsers: ${error.message}`);
-
-      const user = data.users.find((u) => u.email === email);
-      if (!user) {
-        console.log(
-          `· ${email} 계정 없음 — 소셜 로그인을 한 번 한 뒤 다시 실행하면 관리자로 승격된다`,
-        );
-      } else {
-        // 관리자는 profiles가 아니라 admin_accounts에 등록한다. 시드는
-        // 기존 소셜 계정을 승격시키는 용도라 프로필 행이 남아 있을 수 있다 —
-        // 관리자는 프로필을 갖지 않으므로 함께 지운다.
-        const { error: delErr } = await db
-          .from("profiles")
-          .delete()
-          .eq("id", user.id);
-        if (delErr) throw new Error(`profiles: ${delErr.message}`);
-        const { error: upErr } = await db
-          .from("admin_accounts")
-          .upsert({ id: user.id, name: "관리자", level: "owner" });
-        if (upErr) throw new Error(`admin_accounts: ${upErr.message}`);
-        console.log(`✓ 관리자 승격: ${email}`);
-      }
-    }
-  }
+  // 9) 관리자 계정 — 이 스크립트는 만들지 않는다. 관리자는 더 이상 소셜
+  //    계정이 아니라 admin_accounts가 판정 원천인 별도 신원이라 "기존
+  //    소셜 계정을 승격한다"는 개념 자체가 없다(결정 기록 §11-69). 계정
+  //    생성 경로는 scripts/create-admin.mjs(첫 owner)와 /admin/accounts
+  //    (owner 전용 화면) 둘뿐이다.
+  console.log(
+    "· 관리자 계정이 필요하면: node --env-file=.env scripts/create-admin.mjs",
+  );
 
   console.log("\n시드 완료.");
 }

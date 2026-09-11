@@ -90,13 +90,20 @@ export async function setAdminActive(formData: FormData) {
 
   // 일반 클라이언트 — RLS가 "owner이고 자기 행이 아님"을 판정한다.
   const db = await createClient();
-  const { error } = await db
+  const { data, error } = await db
     .from("admin_accounts")
     .update({ is_active: isActive })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) {
     redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
+  }
+  // .select() 없이는 RLS가 조용히 0행을 갱신해도 error가 null이라 "저장했습니다"가
+  // 뜬다 — 자기 행 버튼은 disabled라 화면으로는 안 닿지만 서버 액션은 POST
+  // 엔드포인트이므로 직접 호출을 막지 못한다.
+  if (!data || data.length === 0) {
+    redirect("/admin/accounts?error=not_found_or_forbidden");
   }
 
   revalidatePath("/admin/accounts");
@@ -114,13 +121,18 @@ export async function setAdminLevel(formData: FormData) {
   }
 
   const db = await createClient();
-  const { error } = await db
+  const { data, error } = await db
     .from("admin_accounts")
     .update({ level })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) {
     redirect(`/admin/accounts?error=${encodeURIComponent(error.message)}`);
+  }
+  // setAdminActive와 같은 이유 — .select() 없이는 RLS 거부가 성공으로 렌더된다.
+  if (!data || data.length === 0) {
+    redirect("/admin/accounts?error=not_found_or_forbidden");
   }
 
   revalidatePath("/admin/accounts");

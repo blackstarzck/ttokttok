@@ -19,7 +19,7 @@ npm run test:visual
 
 `test:db`는 기존 개발 DB와 다른 `ttokttok-e2e` 프로젝트·포트(54421)·볼륨을 만든다. 저장소의 모든 마이그레이션을 적용하며 운영 DB에는 연결하지 않는다. 생성된 `.env.test`는 Git에서 제외하고 테스트는 정확히 이 로컬 주소만 허용한다. 테스트 데이터 초기화는 예약된 테스트 ID와 테스트 계정의 기록에만 적용한다. 기존 `ttokttok` 로컬 DB도 초기화하지 않는다.
 
-E2E·화면 비교는 두 프로덕션 빌드를 **client 3003 · admin 3004**에서 자동 시작한다 — 포트의 단일 출처는 `.env.test`의 `CLIENT_URL`/`ADMIN_URL`(`scripts/test-db.mjs`가 쓴다)이다. 개발 서버(3000·3001)와 일부러 겹치지 않게 두었으므로 개발 서버를 끌 필요가 없다. 겹치면 `reuseExistingServer`가 운영 Supabase에 붙은 개발 서버를 그대로 재사용해 테스트가 운영 DB에 쓰게 된다. 다른 환경으로 빌드한 서버를 재사용하지 않는다. 실제 DB 인테그레이션은 실행 중인 client의 전자책 응답도 확인하므로 다음처럼 서버를 띄운 뒤 다른 터미널에서 실행한다.
+E2E·화면 비교는 두 프로덕션 빌드를 **client 3003 · admin 3004**에서 자동 시작한다 — 포트의 단일 출처는 `.env.test`의 `CLIENT_URL`/`ADMIN_URL`(`scripts/test-db.mjs`가 쓴다)이다. 개발 서버(3000·3001)와 일부러 겹치지 않게 두었으므로 개발 서버를 끌 필요가 없다. 겹치면 `reuseExistingServer`가 운영 Supabase에 붙은 개발 서버를 그대로 재사용해 테스트가 운영 DB에 쓰게 된다. 다른 환경으로 빌드한 서버를 재사용하지 않는다. `tests/live-db/env.ts`의 `loadTestEnv()`가 `.env.test`의 `CLIENT_URL`/`ADMIN_URL`이 정확히 3003/3004인지 검증하지만, **브랜치를 옮긴 뒤에는 `npm run test:db`를 다시 돌려 `.env.test`를 갱신한다** — 다른 브랜치나 이전 실행이 남긴 낡은 값(예: 3000/3001)을 그대로 물려받지 않는다. 실제 DB 인테그레이션은 실행 중인 client의 전자책 응답도 확인하므로 다음처럼 서버를 띄운 뒤 다른 터미널에서 실행한다.
 
 ```bash
 node scripts/serve-test.mjs client

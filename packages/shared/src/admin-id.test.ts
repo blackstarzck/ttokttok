@@ -7,12 +7,20 @@ import {
 } from "./admin-id";
 
 describe("관리자 ID 형식", () => {
-  it.each(["ttokttok.admin", "admin", "a-b_c.d", "abc123"])(
-    "받아들인다: %s",
-    (id) => {
-      expect(isValidAdminId(id)).toBe(true);
-    },
-  );
+  // 길이 경계 — 패턴은 1(첫 글자) + {2,31} = 3~32자다. 하한(abc, 3자)과
+  // 상한(32자)을 직접 고정해 둔다 — 33자(아래 거부 목록의 "a".repeat(33))는
+  // 이미 거부로 잡혀 있지만 32자가 받아들여지는 쪽은 지금까지 아무 테스트도
+  // 짚지 않았다.
+  it.each([
+    "ttokttok.admin",
+    "admin",
+    "a-b_c.d",
+    "abc123",
+    "abc",
+    "a".repeat(32),
+  ])("받아들인다: %s", (id) => {
+    expect(isValidAdminId(id)).toBe(true);
+  });
 
   // 대문자를 막는 이유: 같은 사람이 Admin/admin 두 계정을 갖게 된다.
   // @를 막는 이유: 이어 붙이면 a@b.com@ttokttok.local 이 된다.
