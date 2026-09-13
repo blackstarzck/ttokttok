@@ -57,17 +57,31 @@ test('admin trailer: mp4 is converted in the browser, uploaded and attached', as
   const db = serviceDb();
   const title = '트레일러 변환 도서';
   await db.from('books').delete().eq('title', title);
+  // 서버는 action:"start" 응답 시점에 이미 video_uploads 행과 스토리지 객체를
+  // 만든다 — 화면에 "업로드 확인 완료"가 뜨기 전에 테스트가 실패해도 묶음을
+  // 정리할 수 있도록, group을 그 네트워크 응답에서 곧바로 채운다.
   let group = '';
+  page.on('response', async (response) => {
+    const request = response.request();
+    if (!response.url().includes('/api/video-uploads') || request.method() !== 'POST') return;
+    let body: unknown = null;
+    try { body = request.postDataJSON(); } catch { return; }
+    if ((body as { action?: string } | null)?.action !== 'start') return;
+    const json = await response.json().catch(() => null) as { id?: string } | null;
+    if (json?.id) group = json.id;
+  });
   try {
     await fillBook(page, title);
     await page.getByLabel('트레일러 소스').selectOption('upload');
     await page.getByLabel('영상 파일 또는 변환한 ZIP').setInputFiles(mp4Fixture());
     await expect(page.getByText(/360×640 · 3초/)).toBeVisible();
     await page.getByRole('button', { name: '변환', exact: true }).click();
-    await expect(page.getByText(/360p .* 변환 완료|변환 완료/)).toBeVisible({ timeout: 480000 });
+    await expect(page.getByText(/변환 완료/)).toBeVisible({ timeout: 480000 });
     await page.getByRole('button', { name: '영상 업로드', exact: true }).click();
     await expect(page.getByText('업로드 확인 완료. 발행하거나 임시저장하세요.')).toBeVisible({ timeout: 120000 });
+    const startedId = group;
     group = await page.locator('[name="video_upload_id"]').inputValue();
+    expect(group).toBe(startedId);
     expect(group).toMatch(/^[0-9a-f-]{36}$/);
     await page.getByRole('button', { name: '저장', exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/books\?saved=1|\/admin\/books$/);
@@ -82,18 +96,36 @@ test('admin trailer: mp4 is converted in the browser, uploaded and attached', as
     const cleanupResponse = await cleanupUpload(page, group);
     expect(cleanupResponse.status()).toBe(400);
   } finally {
+    // 책을 먼저 지워야 book_trailers 참조가 cascade로 사라지고, 그래야 묶음
+    // 정리가 "사용 중" 거부(400)에 걸리지 않는다.
     await db.from('books').delete().eq('title', title);
-    if (group) await cleanupUpload(page, group);
+    if (group) {
+      try {
+        const cleanupResponse = await cleanupUpload(page, group);
+        if (!cleanupResponse.ok()) {
+          console.warn(`영상 업로드 정리 실패 (${cleanupResponse.status()}): ${group} — 수동 정리가 필요합니다.`);
+        }
+      } catch (error) {
+        console.warn(`영상 업로드 정리 요청 실패: ${group} — 수동 정리가 필요합니다.`, error);
+      }
+    }
   }
 });
 
 test('admin trailer: submitting an upload trailer before the upload finishes is blocked', async ({ page, context }) => {
   await authenticate(context, 'admin');
   await page.setViewportSize({ width: 375, height: 812 });
-  await fillBook(page, '트레일러 가드 도서');
-  await page.getByLabel('트레일러 소스').selectOption('upload');
-  await page.getByRole('button', { name: '저장', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: '영상 업로드를 먼저 완료하세요' })).toBeVisible();
-  await expect(page).toHaveURL(/\/admin\/books\/new/);
-  expect((await serviceDb().from('books').select('id').eq('title', '트레일러 가드 도서').maybeSingle()).data).toBeNull();
+  const db = serviceDb();
+  const title = '트레일러 가드 도서';
+  await db.from('books').delete().eq('title', title);
+  try {
+    await fillBook(page, title);
+    await page.getByLabel('트레일러 소스').selectOption('upload');
+    await page.getByRole('button', { name: '저장', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: '영상 업로드를 먼저 완료하세요' })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/books\/new/);
+    expect(check(await db.from('books').select('id').eq('title', title).maybeSingle()).data).toBeNull();
+  } finally {
+    await db.from('books').delete().eq('title', title);
+  }
 });
