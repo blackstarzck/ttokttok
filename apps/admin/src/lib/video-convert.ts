@@ -68,12 +68,14 @@ function checkLimits(file: File, durationSec: number) {
     throw new ConvertError(`브라우저 변환은 ${BROWSER_LIMITS.maxDurationSec}초 이하 영상만 받습니다.` + PC_TOOL, "pc-tool");
 }
 
+const toBytes = (data: Uint8Array | string) => typeof data === "string" ? new TextEncoder().encode(data) : data;
+
 async function readDirFiles(ffmpeg: FFmpeg, dir: string): Promise<Record<string, Uint8Array>> {
   const out: Record<string, Uint8Array> = {};
   for (const entry of await ffmpeg.listDir(dir)) {
     if (entry.isDir) continue;
     const data = await ffmpeg.readFile(`${dir}/${entry.name}`);
-    out[`${dir}/${entry.name}`] = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    out[`${dir}/${entry.name}`] = toBytes(data);
   }
   return out;
 }
@@ -124,9 +126,12 @@ export async function convertVideoFile(
     aborted();
 
     let current = 0;
-    ffmpeg.on("progress", ({ progress }) => {
+    let phase: "encode" | "finish" = "encode";
+    const onProgressEvent = ({ progress }: { progress: number }) => {
+      if (phase !== "encode") return;
       opts.onProgress({ stage: "encode", label: renditions[current]?.label, index: current + 1, total, ratio: Math.min(1, Math.max(0, progress)) });
-    });
+    };
+    ffmpeg.on("progress", onProgressEvent);
     for (const [i, r] of renditions.entries()) {
       current = i;
       opts.onProgress({ stage: "encode", label: r.label, index: i + 1, total, ratio: 0 });
@@ -135,6 +140,8 @@ export async function convertVideoFile(
       aborted();
       if (code !== 0) throw new ConvertError(`${r.label} 변환에 실패했습니다: ${logs.filter((l) => /error/i.test(l)).slice(-1)[0] ?? `ffmpeg 종료 ${code}`}`);
     }
+    ffmpeg.off("progress", onProgressEvent);
+    phase = "finish";
 
     opts.onProgress({ stage: "finish", index: total, total, ratio: 0 });
     if ((await ffmpeg.exec(fallbackArgs(fallback.playlist))) !== 0) throw new ConvertError("호환 mp4 생성에 실패했습니다.");
@@ -145,7 +152,7 @@ export async function convertVideoFile(
     for (const r of renditions) Object.assign(bytes, await readDirFiles(ffmpeg, r.label));
     for (const name of ["fallback.mp4", "poster.jpg"]) {
       const data = await ffmpeg.readFile(name);
-      bytes[name] = typeof data === "string" ? new TextEncoder().encode(data) : data;
+      bytes[name] = toBytes(data);
     }
     bytes["master.m3u8"] = new TextEncoder().encode(buildMasterPlaylist(renditions));
     const files = Object.entries(bytes).map(([path, data]) => ({ path, size: data.length }));
@@ -162,6 +169,11 @@ export async function convertVideoFile(
     opts.onProgress({ stage: "finish", index: total, total, ratio: 1 });
     // ZIP과 같은 검증 — 여기서 걸리면 우리 산출물이 우리 규칙을 어긴 것이다.
     return validateBundleFiles(bytes);
+  } catch (error) {
+    // terminate()가 진행 중이던 await를 라이브러리 고유 에러로 거부시킨다 —
+    // 사용자 취소라면 그 원문 대신 우리 메시지로 감싼다.
+    if (opts.signal.aborted) throw new ConvertError("변환을 중단했습니다.");
+    throw error;
   } finally {
     opts.signal.removeEventListener("abort", abort);
     try { ffmpeg.terminate(); } catch { /* 이미 종료됨 */ }
