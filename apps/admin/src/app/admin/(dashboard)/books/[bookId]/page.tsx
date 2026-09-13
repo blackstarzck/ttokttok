@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminToast } from "@/components/admin/admin-toast";
+import { AdminNotice } from "@/components/admin/admin-notice";
 import { BookForm, type BookFormValues } from "@/components/admin/book-form";
+import type { BookTrailerValues } from "@/components/admin/book-trailer-field";
 
 export async function generateMetadata({
   params,
@@ -31,7 +33,7 @@ export default async function EditBookPage({
   const { data: book, error: bookError } = await db
     .from("books")
     .select(
-      "id, title, author, translator, publisher, category, isbn, page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source, toc, source, rights_note, epub_path, cover_url, cover_design, purchase_links",
+      "id, title, author, translator, publisher, category, isbn, page_count, pub_date_paper, pub_date_ebook, intro, quote, quote_source, toc, source, rights_note, epub_path, cover_url, cover_design, purchase_links, book_trailers ( source_type, youtube_id, poster_path, duration_sec, renditions )",
     )
     .eq("id", bookId)
     .maybeSingle();
@@ -47,6 +49,7 @@ export default async function EditBookPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-bold break-keep">{book.title}</h1>
+      <AdminNotice error={q(sp.error)} />
       {/*
         saveBook은 생성·수정 모두 /admin/books?saved=1로 리다이렉트한다 —
         이 화면(수정 상세)으로 돌아오는 흐름이 없으니 "저장했습니다"는
@@ -66,7 +69,10 @@ export default async function EditBookPage({
         // 보이면 관리자가 방금 새로 들여온 걸로 오해한다.
         variant={q(sp.exists) ? "info" : "success"}
       />
-      <BookForm book={book as BookFormValues} />
+      <BookForm
+        book={book as BookFormValues}
+        trailer={(book.book_trailers as unknown as BookTrailerValues | null) ?? null}
+      />
     </div>
   );
 }

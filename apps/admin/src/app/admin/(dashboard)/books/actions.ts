@@ -14,6 +14,7 @@ import {
 import { pathFromPublicUrl } from "@ttokttok/shared/storage-path";
 import type { TablesInsert } from "@ttokttok/database/types";
 import { readCoverDesign } from "@ttokttok/shared/cover-design";
+import { parseYoutubeId } from "@ttokttok/shared/youtube";
 
 /**
  * 도서 CRUD (PRD §5.10).
@@ -92,6 +93,31 @@ export async function saveBook(formData: FormData) {
     rights_note: str(formData, "rights_note"),
     purchase_links: parsePurchaseLinks(formData),
   };
+
+  // 트레일러 입력은 어떤 업로드보다 먼저 검증한다 — 표지·EPUB이 올라간 뒤
+  // 트레일러 때문에 되돌리는 일이 없게 (설계 §6.2).
+  const trailerSource = str(formData, "trailer_source") ?? "none";
+  if (!["none", "youtube", "upload"].includes(trailerSource)) {
+    redirect("/admin/books?error=트레일러 소스를 골라야 합니다");
+  }
+  const trailerYoutubeId =
+    trailerSource === "youtube"
+      ? parseYoutubeId(String(formData.get("trailer_youtube_url") ?? ""))
+      : null;
+  if (trailerSource === "youtube" && !trailerYoutubeId) {
+    redirect("/admin/books?error=유튜브 주소에서 영상 ID를 찾지 못했습니다");
+  }
+  const trailerUploadId = trailerSource === "upload" ? str(formData, "video_upload_id") : null;
+  if (trailerSource === "upload" && !trailerUploadId) {
+    // 기존 upload 트레일러가 있을 때만 "유지"가 성립한다.
+    const existing = id
+      ? await db.from("book_trailers").select("source_type").eq("book_id", id).maybeSingle()
+      : { data: null, error: null };
+    if (existing.error) redirect("/admin/books?error=트레일러 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+    if (existing.data?.source_type !== "upload") {
+      redirect("/admin/books?error=영상 업로드를 먼저 완료하세요");
+    }
+  }
 
   // 파일 경로에 id가 필요하지만, 행을 먼저 만들 수는 없다 — EPUB 없이
   // INSERT하면 books_needs_epub_or_store_ref CHECK(본문·ISBN·구매 링크 중
@@ -282,6 +308,23 @@ export async function saveBook(formData: FormData) {
     ),
   );
   await removeUploaded(orphans);
+
+  // 도서가 저장된 뒤에만 부른다. 실패하면 도서는 남고 트레일러만 없다 —
+  // 메시지에 그 사실을 적고 수정 화면으로 보내 한 번의 저장으로 재시도하게 한다.
+  const { error: trailerError } = await db.rpc("save_book_trailer", {
+    p_book_id: bookId,
+    p_source: trailerSource,
+    p_youtube_id: trailerYoutubeId ?? undefined,
+    p_upload_id: trailerUploadId ?? undefined,
+  });
+  if (trailerError) {
+    revalidatePath("/admin/books");
+    redirect(
+      `/admin/books/${bookId}?error=${encodeURIComponent(
+        `도서는 저장했지만 트레일러를 저장하지 못했습니다: ${trailerError.message}`,
+      )}`,
+    );
+  }
 
   revalidatePath("/admin/books");
   redirect(`/admin/books?saved=1`);

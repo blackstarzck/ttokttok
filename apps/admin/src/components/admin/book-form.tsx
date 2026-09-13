@@ -6,6 +6,7 @@ import { Textarea } from "@ttokttok/ui/components/textarea";
 import { saveBook } from "@/app/admin/(dashboard)/books/actions";
 import { BookCoverField } from "./book-cover-field";
 import { readCoverDesign } from "@ttokttok/shared/cover-design";
+import { BookTrailerField, type BookTrailerValues } from "./book-trailer-field";
 
 export type BookFormValues = {
   id: string;
@@ -53,7 +54,7 @@ function Field({
  * 도서 등록/수정 폼 (PRD §5.10).
  * 서버 컴포넌트 — 파일 업로드를 포함해 전부 서버 액션이 처리한다.
  */
-export function BookForm({ book }: { book?: BookFormValues }) {
+export function BookForm({ book, trailer = null }: { book?: BookFormValues; trailer?: BookTrailerValues | null }) {
   const links = book?.purchase_links ?? {};
 
   return (
@@ -164,6 +165,18 @@ export function BookForm({ book }: { book?: BookFormValues }) {
 
         </div>
         <BookCoverField coverUrl={book?.cover_url ?? null} savedDesign={readCoverDesign(book?.cover_design)} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-sm font-medium">트레일러</h2>
+          <p className="text-muted-foreground text-xs">
+            도서당 하나입니다. 유튜브 주소를 넣거나 mp4를 골라 브라우저에서
+            변환해 올립니다. 「없음」으로 저장하면 제거됩니다. 사용자 화면 노출은
+            다음 단계입니다.
+          </p>
+        </div>
+        <BookTrailerField trailer={trailer} />
       </section>
 
       <section className="flex flex-col gap-4">
