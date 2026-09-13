@@ -724,7 +724,10 @@ import { validateBundleFiles } from "@/lib/video-upload";
  * 코어(GPL)는 jsdelivr에서 버전 고정으로 받는다. 워커가 blob URL에서 뜨므로
  * CORS 설정이 필요 없다. 단일 스레드라 느리다 — 상한은 BROWSER_LIMITS.
  */
-const CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+// 반드시 esm 빌드다 (Task 2 스파이크 실측). 래퍼는 워커를 type:"module"로
+// 만들고, module 워커는 importScripts를 못 써서 코어를 import()로 읽는다 —
+// default export가 있는 esm 코어만 된다. umd 코어를 주면 조용히 멈춘다.
+const CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 
 export type ConvertProgress = {
   stage: "load" | "probe" | "encode" | "finish";
@@ -803,6 +806,15 @@ export async function convertVideoFile(
 
   try {
     opts.onProgress({ stage: "load", index: 0, total, ratio: 0 });
+    // 워커는 래퍼가 `new URL("./worker.js", import.meta.url)`로 만든다 — 번들러
+    // (Turbopack)가 그 워커 파일을 같은 출처 자산으로 내보내야 한다. Task 2
+    // 스파이크 실측: 워커를 CDN blob으로 넘기는 classWorkerURL 방식은 어느
+    // 빌드로도 동작하지 않는다(ESM worker.js는 상대 import가 blob에서 풀리지
+    // 않고, UMD 워커는 module 워커에서 importScripts가 막힌다). 빌드 뒤
+    // 브라우저에서 load()가 풀리는지 반드시 확인하고, Turbopack이 worker.js를
+    // 자산으로 내보내지 못하면 `apps/admin/public/ffmpeg/`에 dist/esm의
+    // worker.js·const.js·errors.js를 복사해 `classWorkerURL: "/ffmpeg/worker.js"`
+    // (같은 출처, 상대 import 해결)로 넘기는 것이 대안이다.
     await ffmpeg.load({
       coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
