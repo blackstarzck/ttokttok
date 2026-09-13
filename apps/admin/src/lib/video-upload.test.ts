@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateBundleFiles } from "@/lib/video-upload";
+import { validateBundleFiles } from "./video-upload";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 function bundle() {
