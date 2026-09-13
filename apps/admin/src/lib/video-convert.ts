@@ -42,6 +42,20 @@ export class ConvertError extends Error {
 
 const PC_TOOL = " PC 변환 도구(scripts/convert-video.cmd)로 만든 ZIP을 올려 주세요.";
 
+const LOAD_TIMEOUT_MS = 30_000;
+
+/**
+ * 래퍼가 worker.onerror를 연결하지 않는다 — /ffmpeg/worker.js가 404거나
+ * 번들러 회귀로 워커가 비동기로 깨지면 ffmpeg.load()가 영원히 settle되지
+ * 않고 "변환 도구를 내려받는 중" 화면에서 멈춘다. load()만 타임아웃과
+ * 경합시켜 이 경우를 사용자에게 보이는 에러로 바꾼다.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(onTimeout()), ms); });
+  try { return await Promise.race([promise, timeout]); } finally { clearTimeout(timer); }
+}
+
 /** <video> 메타데이터로 표시 크기·길이를 읽는다. 회전은 브라우저가 이미 반영한다. */
 export function probeVideoFile(file: File): Promise<{ width: number; height: number; durationSec: number }> {
   return new Promise((resolve, reject) => {
@@ -120,11 +134,15 @@ export async function convertVideoFile(
     //    막힌다. classWorkerURL을 처음부터 완전한 origin URL로 주면(첫 인자가
     //    이미 절대 URL이면 URL 생성자가 base를 무시한다) 이 오염된 base를
     //    피해간다.
-    await ffmpeg.load({
-      classWorkerURL: `${location.origin}/ffmpeg/worker.js`,
-      coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-    });
+    await withTimeout(
+      ffmpeg.load({
+        classWorkerURL: `${location.origin}/ffmpeg/worker.js`,
+        coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
+      }),
+      LOAD_TIMEOUT_MS,
+      () => new ConvertError("변환 도구를 불러오지 못했습니다. 네트워크를 확인하거나" + PC_TOOL, "pc-tool"),
+    );
     aborted();
     await ffmpeg.writeFile("input", new Uint8Array(await file.arrayBuffer()));
 

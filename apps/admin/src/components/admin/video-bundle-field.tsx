@@ -6,7 +6,7 @@ import { Button } from "@ttokttok/ui/components/button";
 import { Input } from "@ttokttok/ui/components/input";
 import { Label } from "@ttokttok/ui/components/label";
 import { readVideoBundle, uploadVideoFiles, videoUploadRequest } from "@/lib/video-upload";
-import { convertVideoFile, probeVideoFile, ConvertError, type ConvertProgress } from "@/lib/video-convert";
+import { convertVideoFile, probeVideoFile, type ConvertProgress } from "@/lib/video-convert";
 import { BROWSER_LIMITS } from "@ttokttok/shared/video-encode";
 import type { VideoController } from "@ttokttok/ui/media/hls-controller";
 import type { VideoManifest } from "@ttokttok/shared/video-bundle";
@@ -66,6 +66,7 @@ export function VideoBundleField({ existing, onReadyChange }: { existing: boolea
     onReadyChange(!file && existing);
   }
   function adopt(parsed: Awaited<ReturnType<typeof readVideoBundle>>) {
+    setConverting(null);
     setBundle(parsed);
     setPoster(URL.createObjectURL(new Blob([new Uint8Array(parsed.bytes[parsed.manifest.poster])], { type: 'image/jpeg' })));
   }
