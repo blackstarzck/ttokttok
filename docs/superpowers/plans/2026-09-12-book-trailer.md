@@ -907,7 +907,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 - [ ] **Step 1: 컴포넌트를 바꾼다**
 
-`apps/admin/src/components/admin/video-bundle-field.tsx`의 `VideoBundleField` 함수 전체를 다음으로 교체한다(위쪽 `Preview`와 import는 유지하고, import에 `convertVideoFile, probeVideoFile, ConvertError` 와 `type ConvertProgress` 를 `@/lib/video-convert`에서 추가한다):
+`apps/admin/src/components/admin/video-bundle-field.tsx`의 `VideoBundleField` 함수 전체를 다음으로 교체한다(위쪽 `Preview`와 import는 유지하고, import에 `convertVideoFile, probeVideoFile` 과 `type ConvertProgress` 를 `@/lib/video-convert`에서 추가한다 — `ConvertError`는 쓰지 않으므로 import하지 않는다):
 
 ```tsx
 const VIDEO_TYPES = ["video/mp4", "video/quicktime"];
@@ -939,6 +939,8 @@ export function VideoBundleField({ existing, onReadyChange }: { existing: boolea
     onReadyChange(!file && existing);
   }
   function adopt(parsed: Awaited<ReturnType<typeof readVideoBundle>>) {
+    // 변환 진행 상태를 비운다 — 남겨 두면 `busy && !converting`인 「업로드 중단」이 안 뜬다.
+    setConverting(null);
     setBundle(parsed);
     setPoster(URL.createObjectURL(new Blob([new Uint8Array(parsed.bytes[parsed.manifest.poster])], { type: 'image/jpeg' })));
   }
