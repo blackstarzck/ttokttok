@@ -98,10 +98,19 @@ describe("buildVideoLadder", () => {
   });
 
   it("작은 원본은 짝수로 내린 원본 크기 한 화질만 만든다", () => {
+    // 분모는 원본 짧은 변(361) 그대로다 — 옛 PC 도구와 같은 값이어야 한다.
+    // 641×360/361 = 639.2 → 638.
     const { renditions, fallback } = buildVideoLadder(361, 641);
     expect(renditions).toHaveLength(1);
-    expect(renditions[0]).toMatchObject({ label: "360p", width: 360, height: 640, rate: 800 });
+    expect(renditions[0]).toMatchObject({ label: "360p", width: 360, height: 638, rate: 800 });
     expect(fallback.label).toBe("360p");
+  });
+
+  it("홀수 짧은 변도 분모는 원본 그대로다 — 옛 PC 도구와 같은 값", () => {
+    const { renditions } = buildVideoLadder(721, 1281);
+    expect(renditions.map((r) => r.label)).toEqual(["480p", "720p"]);
+    expect(renditions[0]).toMatchObject({ width: 480, height: 852 });
+    expect(renditions[1]).toMatchObject({ width: 720, height: 1278 });
   });
 
   it("bandwidth는 (rate×1.15 + 96)×1000을 반올림한 값이다", () => {
@@ -217,7 +226,7 @@ export function buildMasterPlaylist(renditions: LadderRendition[]): string {
 - [ ] **Step 4: 통과 확인**
 
 Run: `npx vitest run packages/shared/src/video-ladder.test.ts`
-Expected: PASS (6 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 5: PC 도구가 같은 함수를 쓰게 바꾼다**
 
