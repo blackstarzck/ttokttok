@@ -3,6 +3,23 @@ import { Upload } from "tus-js-client";
 import { createClient } from "@/lib/supabase/client";
 import { parseVideoManifest, validateVideoPlaylist, videoContentType, VIDEO_BUNDLE_LIMIT, VIDEO_FILE_LIMIT, type VideoManifest } from "@ttokttok/shared/video-bundle";
 
+/** ZIP·브라우저 변환 두 경로가 같은 검증을 탄다 — manifest·파일 목록·재생 목록. */
+export function validateBundleFiles(bytes: Record<string, Uint8Array>) {
+  if (!bytes['manifest.json'] || bytes['manifest.json'].length > 512000) throw new Error("변환 도구가 만든 ZIP 파일을 선택하세요.");
+  let metadata: unknown;
+  try { metadata = JSON.parse(new TextDecoder().decode(bytes['manifest.json'])); }
+  catch { throw new Error('영상 묶음 정보가 손상되었습니다. PC 변환 도구에서 다시 만들어 주세요.'); }
+  const manifest = parseVideoManifest(metadata);
+  const allowed = new Set(['manifest.json', ...manifest.files.map(f => f.path)]);
+  const names = Object.keys(bytes);
+  if (names.length !== allowed.size || names.some(name => !allowed.has(name))) throw new Error("묶음에 허용되지 않는 파일이 있습니다.");
+  for (const f of manifest.files) {
+    if (bytes[f.path]?.length !== f.size) throw new Error(`파일 누락 또는 크기 불일치: ${f.path}`);
+    if (f.path.endsWith('.m3u8')) validateVideoPlaylist(f.path, new TextDecoder().decode(bytes[f.path]), manifest);
+  }
+  return { manifest, bytes };
+}
+
 export async function readVideoBundle(file: File) {
   if (file.size > VIDEO_BUNDLE_LIMIT + 1024 * 1024) throw new Error("ZIP 파일은 512MB 이하여야 합니다.");
   let expanded = 0, entries = 0;
@@ -15,18 +32,7 @@ export async function readVideoBundle(file: File) {
     }, (err, data) => err ? reject(new Error('ZIP 파일을 읽을 수 없습니다. PC 변환 도구에서 다시 만들어 주세요.')) : resolve(data))).catch(reject);
   });
   if (expanded > VIDEO_BUNDLE_LIMIT + 512000 || entries > 1501) throw new Error("압축 해제 크기가 제한을 초과했습니다.");
-  if (!bytes['manifest.json'] || bytes['manifest.json'].length > 512000) throw new Error("변환 도구가 만든 ZIP 파일을 선택하세요.");
-  let metadata: unknown;
-  try { metadata = JSON.parse(new TextDecoder().decode(bytes['manifest.json'])); }
-  catch { throw new Error('영상 묶음 정보가 손상되었습니다. PC 변환 도구에서 다시 만들어 주세요.'); }
-  const manifest = parseVideoManifest(metadata);
-  const allowed = new Set(['manifest.json', ...manifest.files.map(f => f.path)]);
-  if (entries !== allowed.size || Object.keys(bytes).some(name => !allowed.has(name))) throw new Error("묶음에 허용되지 않는 파일이 있습니다.");
-  for (const f of manifest.files) {
-    if (bytes[f.path]?.length !== f.size) throw new Error(`파일 누락 또는 크기 불일치: ${f.path}`);
-    if (f.path.endsWith('.m3u8')) validateVideoPlaylist(f.path, new TextDecoder().decode(bytes[f.path]), manifest);
-  }
-  return { manifest, bytes };
+  return validateBundleFiles(bytes);
 }
 
 export async function videoUploadRequest(body: object) {
