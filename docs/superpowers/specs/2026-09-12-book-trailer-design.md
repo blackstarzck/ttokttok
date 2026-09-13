@@ -84,7 +84,8 @@
 ### 4.5 로딩과 라이선스
 
 - `@ffmpeg/ffmpeg`·`@ffmpeg/util`은 admin 의존성으로 두고 **래퍼와 워커는 번들러가 같은 출처로 내보낸다.** 코어(`ffmpeg-core.js`·`.wasm`)는 jsdelivr의 **esm 빌드**(`@ffmpeg/core@0.12.10/dist/esm`)를 **버전 고정**으로 `toBlobURL`을 거쳐 지연 로드한다 — blob이라 CORS 문제가 없고, 관리자 앱에 CSP가 없어 막히지 않는다. 영상 칸이 처음 「변환」을 누를 때만 내려받는다(FRONTEND.md §6 무거운 라이브러리 규칙).
-- **스파이크 실측(2026-09-13)으로 굳어진 제약:** 래퍼는 워커를 `type: "module"`로 만든다. 그래서 ① ESM `worker.js`는 `./const.js`·`./errors.js` 상대 import가 풀려야 하므로 blob URL로 넘길 수 없고, ② UMD 워커 청크는 module 워커에서 `importScripts`가 막혀 코어를 못 읽고, ③ 코어는 module 워커가 `import()`로 읽으므로 default export가 있는 **esm 빌드**여야 한다(umd 코어를 주면 오류 없이 멈춘다). 따라서 `classWorkerURL`로 CDN 워커를 넘기는 방식은 쓰지 않고, 워커는 번들 자산으로 같은 출처에서 뜨게 한다. Turbopack이 `new URL("./worker.js", import.meta.url)`을 자산으로 내보내지 못하면 `apps/admin/public/ffmpeg/`에 `dist/esm`의 `worker.js`·`const.js`·`errors.js`를 복사해 `classWorkerURL: "/ffmpeg/worker.js"`로 넘기는 것이 대안이다.
+- **스파이크 실측(2026-09-13)으로 굳어진 제약:** 래퍼는 워커를 `type: "module"`로 만든다. 그래서 ① ESM `worker.js`는 `./const.js`·`./errors.js` 상대 import가 풀려야 하므로 blob URL로 넘길 수 없고, ② UMD 워커 청크는 module 워커에서 `importScripts`가 막혀 코어를 못 읽고, ③ 코어는 module 워커가 `import()`로 읽으므로 default export가 있는 **esm 빌드**여야 한다(umd 코어를 주면 오류 없이 멈춘다). 따라서 `classWorkerURL`로 CDN 워커를 넘기는 방식은 쓰지 않는다.
+- **채택된 방식(2026-09-13, Task 5 실측):** Turbopack은 `@ffmpeg/ffmpeg` 안의 `new URL("./worker.js", import.meta.url)`을 자산으로 내보내지 않고 `import.meta.url`을 빌드 시점의 `file://` 경로로 굳혀 버린다. 그래서 `dist/esm`의 `worker.js`·`const.js`·`errors.js`를 `apps/admin/public/ffmpeg/`에 복사하고 `classWorkerURL`을 **출처까지 붙인 절대 URL** (`${location.origin}/ffmpeg/worker.js`)로 넘긴다 — 상대 경로(`/ffmpeg/worker.js`)는 래퍼가 `new URL(classWorkerURL, import.meta.url)`로 합치면서 굳어진 `file://` 베이스에 붙어 SecurityError가 난다. 복사본은 래퍼 버전(0.12.15)과 같아야 하며, 업그레이드 시 함께 갱신한다(MIT 라이선스 사본을 같은 폴더에 둔다).
 - 코어는 GPL-2.0-or-later다(x264 포함). 래퍼는 MIT. 관리자 브라우저에서만 실행되고 우리 코드와 링크되지 않지만, 사용 사실과 출처를 `docs/licenses/ffmpeg-wasm.txt`에 남긴다.
 
 ## 5. 스키마 — `20260912000003_book_trailers.sql`
@@ -176,8 +177,8 @@ E2E ②의 wasm 변환은 헤드리스 Chromium에서도 돌지만 느리다 —
 
 - PRD: §5.3 아래 「도서 트레일러」 항목(무엇을 저장하고, 사용자 노출은 후속), §6에 `book_trailers`, §11 결정 기록 — 밀리 조사 요약(§1), 1:1 선택 이유, 브라우저 변환 채택과 서버 변환 미채택, 스파이크 결과 수치.
 - `docs/video-operations.md`: 「관리자 화면에서 mp4 직접 변환」 절(절차·상한·HDR 거부·PC 도구 우회로), 정리 규칙에 트레일러 추가, 검증 목록 갱신.
-- `docs/FRONTEND.md` §6: 브라우저 FFmpeg는 관리자 영상 칸에서만 지연 로드한다는 한 줄.
-- `docs/licenses/ffmpeg-wasm.txt`: 코어 GPL 고지와 출처·버전.
+- `docs/FRONTEND.md` §6: 브라우저 FFmpeg는 관리자 영상 칸에서만 지연 로드한다는 한 줄 + 워커 파일이 `apps/admin/public/ffmpeg/`에 복사돼 있어 래퍼 업그레이드 시 함께 갱신해야 한다는 한 줄.
+- `docs/licenses/ffmpeg-wasm.txt`: 코어 GPL 고지와 출처·버전, 복사된 워커 파일의 위치. `apps/admin/public/ffmpeg/LICENSE`에 래퍼의 MIT 원문을 둔다.
 
 ## 10. 완료 기준
 

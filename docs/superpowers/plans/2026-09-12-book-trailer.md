@@ -1925,7 +1925,7 @@ book_trailers
 §6의 첫 불릿("- 새 업로드 영상은 HLS 자동 화질을 사용한다. …") 끝에 문장을 덧붙인다:
 
 ```markdown
- mp4 직접 변환은 관리자 영상 칸(`video-bundle-field.tsx`)이 「변환」을 누를 때만 `@ffmpeg/ffmpeg`와 CDN 코어를 지연 로드한다 — 다른 화면·클라이언트 앱은 이 라이브러리를 모른다.
+ mp4 직접 변환은 관리자 영상 칸(`video-bundle-field.tsx`)이 「변환」을 누를 때만 `@ffmpeg/ffmpeg`와 CDN 코어를 지연 로드한다 — 다른 화면·클라이언트 앱은 이 라이브러리를 모른다. 래퍼의 워커 파일(`worker.js`·`const.js`·`errors.js`)은 Turbopack이 자산으로 내보내지 않아 `apps/admin/public/ffmpeg/`에 복사돼 있고 `classWorkerURL`로 절대 URL을 넘긴다 — `@ffmpeg/ffmpeg`를 올리면 이 복사본도 같은 버전으로 갱신한다.
 ```
 
 - [ ] **Step 6: 라이선스 고지**
@@ -1936,6 +1936,10 @@ book_trailers
 ffmpeg.wasm — in-browser video conversion for the admin app
 
 Wrapper: @ffmpeg/ffmpeg 0.12.15, @ffmpeg/util 0.12.2 — MIT (installed in apps/admin).
+         The wrapper's ESM worker files (dist/esm/worker.js, const.js, errors.js) are
+         copied verbatim into apps/admin/public/ffmpeg/ because Turbopack does not emit
+         the worker as an asset; keep them in sync with the installed version and keep
+         the MIT licence text next to them (apps/admin/public/ffmpeg/LICENSE).
 Core:    @ffmpeg/core 0.12.10 — GPL-2.0-or-later (FFmpeg built with libx264).
          Not bundled in this repository. Loaded at runtime in the administrator's
          browser from https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/
@@ -1947,10 +1951,19 @@ admin then uploads. No FFmpeg code is linked into or shipped with our
 application bundles. Users of the client app never load it.
 ```
 
+복사된 워커 파일 옆에 래퍼의 MIT 원문을 둔다(MIT는 사본에 고지 동반을 요구한다):
+
+```bash
+cp node_modules/@ffmpeg/ffmpeg/LICENSE apps/admin/public/ffmpeg/LICENSE
+head -3 apps/admin/public/ffmpeg/LICENSE
+```
+
+Expected: `MIT License` 로 시작한다. 패키지에 LICENSE 파일이 없으면 `npm view @ffmpeg/ffmpeg@0.12.15 license`가 MIT임을 확인하고 표준 MIT 본문에 `Copyright (c) 2023 Jerome Wu` 를 적어 만든다(`node_modules/@ffmpeg/ffmpeg/package.json`의 author 참고).
+
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add docs/prd-ttokttok.md docs/video-operations.md docs/FRONTEND.md docs/licenses/ffmpeg-wasm.txt
+git add docs/prd-ttokttok.md docs/video-operations.md docs/FRONTEND.md docs/licenses/ffmpeg-wasm.txt apps/admin/public/ffmpeg/LICENSE
 git commit -m "docs: record book trailers, in-browser conversion and the ffmpeg.wasm licence
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
