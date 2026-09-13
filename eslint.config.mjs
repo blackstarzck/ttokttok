@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "**/next-env.d.ts", ".tmp/**", "playwright-report/**", "test-results/**",
+    // Verbatim copy of @ffmpeg/ffmpeg dist (worker.js, const.js, errors.js); guarded by ffmpeg-worker-copy.test.ts.
+    "apps/admin/public/ffmpeg/**",
   ]),
 ]);
 

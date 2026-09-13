@@ -92,6 +92,12 @@ test('admin trailer: mp4 is converted in the browser, uploaded and attached', as
     expect(row.hls_path).toContain(`/bundles/${group}/master.m3u8`);
     expect(row.duration_sec).toBe(3);
     expect((await fetch(row.poster_path!)).status).toBe(200);
+
+    await page.goto(`/admin/books/${book.id}`);
+    await expect(page.getByLabel('트레일러 소스')).toHaveValue('upload');
+    await expect(page.getByRole('img', { name: '현재 트레일러 첫 화면' })).toBeVisible();
+    await expect(page.getByText(/현재 영상 · 360p/)).toBeVisible();
+
     // 사용 중인 묶음은 정리를 거부한다.
     const cleanupResponse = await cleanupUpload(page, group);
     expect(cleanupResponse.status()).toBe(400);

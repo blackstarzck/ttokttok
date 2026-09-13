@@ -1,14 +1,21 @@
 ffmpeg.wasm — in-browser video conversion for the admin app
 
-Wrapper: @ffmpeg/ffmpeg 0.12.15, @ffmpeg/util 0.12.2 — MIT (installed in apps/admin).
+Wrapper: @ffmpeg/ffmpeg 0.12.15 — MIT (installed in apps/admin).
          The wrapper's ESM worker files (dist/esm/worker.js, const.js, errors.js) are
          copied verbatim into apps/admin/public/ffmpeg/ because Turbopack does not emit
          the worker as an asset; keep them in sync with the installed version and keep
          the MIT licence text next to them (apps/admin/public/ffmpeg/LICENSE).
+         (@ffmpeg/util was removed — video-convert.ts fetches and verifies the core
+         itself instead of using its toBlobURL helper.)
 Core:    @ffmpeg/core 0.12.10 — GPL-2.0-or-later (FFmpeg built with libx264).
          Not bundled in this repository. Loaded at runtime in the administrator's
          browser from https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/
-         (apps/admin/src/lib/video-convert.ts). Version is pinned.
+         (apps/admin/src/lib/video-convert.ts). Version is pinned, and the fetched
+         bytes are verified against a pinned SHA-256 before use (jsdelivr responses
+         become same-origin blob URLs, so browser SRI cannot apply):
+           ffmpeg-core.js:   67a48f11645f85439f3fde4f2119042c16b374b910206b7a7a24f342e28dcae3
+           ffmpeg-core.wasm: 9f57947a5bd530d8f00c5b3f2cb2a3492faa7e5d823315342d6a8656d0a6b7b7
+         Recompute both hashes on upgrade (see the comment above CORE_FILES).
 Source:  https://github.com/ffmpegwasm/ffmpeg.wasm · https://ffmpeg.org · https://www.videolan.org/developers/x264.html
 
 The core runs only inside the admin browser to produce HLS bundles that the

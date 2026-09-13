@@ -1,5 +1,4 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { toBlobURL } from "@ffmpeg/util";
 import { BROWSER_LIMITS, fallbackArgs, hlsEncodeArgs, parseStreamInfo, posterArgs } from "@ttokttok/shared/video-encode";
 import { buildMasterPlaylist, buildVideoLadder, toManifestRendition } from "@ttokttok/shared/video-ladder";
 import type { VideoManifest } from "@ttokttok/shared/video-bundle";
@@ -13,8 +12,11 @@ import { validateBundleFiles } from "@/lib/video-upload";
  * 결과는 readVideoBundle과 같은 { manifest, bytes } 모양이라, 그 뒤 업로드·
  * 서버 검증은 ZIP을 올렸을 때와 한 줄도 다르지 않다.
  *
- * 코어(GPL)는 jsdelivr에서 버전 고정으로 받는다. 워커가 blob URL에서 뜨므로
- * CORS 설정이 필요 없다. 단일 스레드라 느리다 — 상한은 BROWSER_LIMITS.
+ * 코어(GPL)는 jsdelivr에서 버전 고정으로 받는다. jsdelivr 응답은 관리자
+ * origin의 blob URL로 바뀌어 워커에 넘어가므로 브라우저 SRI(integrity 속성)가
+ * 적용되지 않는다 — 대신 받은 바이트의 SHA-256을 직접 검사한다(CORE_FILES).
+ * 워커가 blob URL에서 뜨므로 CORS 설정이 필요 없다. 단일 스레드라 느리다 —
+ * 상한은 BROWSER_LIMITS.
  */
 // 반드시 esm 빌드다 (Task 2 스파이크 실측). 래퍼는 워커를 type:"module"로
 // 만들고, module 워커는 importScripts를 못 써서 코어를 import()로 읽는다 —
@@ -43,6 +45,23 @@ export class ConvertError extends Error {
 const PC_TOOL = " PC 변환 도구(scripts/convert-video.cmd)로 만든 ZIP을 올려 주세요.";
 
 const LOAD_TIMEOUT_MS = 30_000;
+
+// @ffmpeg/core@0.12.10 dist/esm의 SHA-256. 코어 버전을 올릴 때 반드시
+// 다시 계산한다: `curl -sL <CORE_BASE>/<name> | sha256sum`.
+const CORE_FILES = {
+  js: { name: "ffmpeg-core.js", type: "text/javascript", sha256: "67a48f11645f85439f3fde4f2119042c16b374b910206b7a7a24f342e28dcae3" },
+  wasm: { name: "ffmpeg-core.wasm", type: "application/wasm", sha256: "9f57947a5bd530d8f00c5b3f2cb2a3492faa7e5d823315342d6a8656d0a6b7b7" },
+} as const;
+
+/** jsdelivr에서 받은 바이트를 SHA-256으로 검증한 뒤에만 blob URL을 만든다. */
+async function fetchPinned(file: { name: string; type: string; sha256: string }): Promise<string> {
+  const response = await fetch(`${CORE_BASE}/${file.name}`);
+  if (!response.ok) throw new ConvertError(`변환 도구를 내려받지 못했습니다 (${response.status}).` + PC_TOOL, "pc-tool");
+  const bytes = await response.arrayBuffer();
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+  if (digest !== file.sha256) throw new ConvertError("변환 도구의 무결성 검사에 실패했습니다. 관리자에게 알리세요.");
+  return URL.createObjectURL(new Blob([bytes], { type: file.type }));
+}
 
 /**
  * 래퍼가 worker.onerror를 연결하지 않는다 — /ffmpeg/worker.js가 404거나
@@ -75,7 +94,8 @@ export function probeVideoFile(file: File): Promise<{ width: number; height: num
   });
 }
 
-function checkLimits(file: File, durationSec: number) {
+/** 파일 선택 시점(video-bundle-field.tsx)과 변환 시작 시점 양쪽에서 쓰는 상한 검사. */
+export function checkVideoLimits(file: File, durationSec: number): void {
   if (file.size > BROWSER_LIMITS.maxFileBytes)
     throw new ConvertError(`브라우저 변환은 ${Math.round(BROWSER_LIMITS.maxFileBytes / 1024 / 1024)}MB 이하 파일만 받습니다.` + PC_TOOL, "pc-tool");
   if (durationSec > BROWSER_LIMITS.maxDurationSec)
@@ -99,7 +119,7 @@ export async function convertVideoFile(
   opts: { onProgress: (p: ConvertProgress) => void; signal: AbortSignal },
 ): Promise<{ manifest: VideoManifest; bytes: Record<string, Uint8Array> }> {
   const probe = await probeVideoFile(file);
-  checkLimits(file, probe.durationSec);
+  checkVideoLimits(file, probe.durationSec);
   const ladder = buildVideoLadder(probe.width, probe.height);
   const renditions = ladder.renditions.filter((r) => Number(r.label.replace("p", "")) <= BROWSER_LIMITS.maxLevel);
   const fallback = renditions.includes(ladder.fallback) ? ladder.fallback : renditions[renditions.length - 1];
@@ -111,6 +131,8 @@ export async function convertVideoFile(
   const abort = () => ffmpeg.terminate();
   opts.signal.addEventListener("abort", abort, { once: true });
   const aborted = () => { if (opts.signal.aborted) throw new ConvertError("변환을 중단했습니다."); };
+  let coreURL: string | undefined;
+  let wasmURL: string | undefined;
 
   try {
     opts.onProgress({ stage: "load", index: 0, total, ratio: 0 });
@@ -134,11 +156,13 @@ export async function convertVideoFile(
     //    막힌다. classWorkerURL을 처음부터 완전한 origin URL로 주면(첫 인자가
     //    이미 절대 URL이면 URL 생성자가 base를 무시한다) 이 오염된 base를
     //    피해간다.
+    coreURL = await fetchPinned(CORE_FILES.js);
+    wasmURL = await fetchPinned(CORE_FILES.wasm);
     await withTimeout(
       ffmpeg.load({
         classWorkerURL: `${location.origin}/ffmpeg/worker.js`,
-        coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
+        coreURL,
+        wasmURL,
       }),
       LOAD_TIMEOUT_MS,
       () => new ConvertError("변환 도구를 불러오지 못했습니다. 네트워크를 확인하거나" + PC_TOOL, "pc-tool"),
@@ -207,5 +231,8 @@ export async function convertVideoFile(
   } finally {
     opts.signal.removeEventListener("abort", abort);
     try { ffmpeg.terminate(); } catch { /* 이미 종료됨 */ }
+    // 코어(약 31MB)를 blob으로 쥐고 있으면 변환마다 메모리에 남는다.
+    if (coreURL) URL.revokeObjectURL(coreURL);
+    if (wasmURL) URL.revokeObjectURL(wasmURL);
   }
 }

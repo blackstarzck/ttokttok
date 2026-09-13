@@ -32,14 +32,12 @@ export function BookTrailerField({ trailer }: { trailer: BookTrailerValues | nul
   const [videoReady, setVideoReady] = useState(trailer?.source_type === "upload");
   const [blocked, setBlocked] = useState(false);
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ source, videoReady });
-  state.current = { source, videoReady };
 
   useEffect(() => {
     const form = host.current?.closest("form");
     if (!form) return;
     const guard = (event: Event) => {
-      if (state.current.source === "upload" && !state.current.videoReady) {
+      if (source === "upload" && !videoReady) {
         event.preventDefault();
         setBlocked(true);
         host.current?.scrollIntoView({ block: "center" });
@@ -47,7 +45,7 @@ export function BookTrailerField({ trailer }: { trailer: BookTrailerValues | nul
     };
     form.addEventListener("submit", guard);
     return () => form.removeEventListener("submit", guard);
-  }, []);
+  }, [source, videoReady]);
 
   const labels = Array.isArray(trailer?.renditions)
     ? (trailer.renditions as { label?: string }[]).map((r) => r.label).filter(Boolean).join(" · ")

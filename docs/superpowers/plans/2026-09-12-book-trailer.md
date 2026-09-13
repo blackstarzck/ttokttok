@@ -19,7 +19,7 @@
 - 마이그레이션 파일명은 `20260912000003_book_trailers.sql`. 운영 DB에는 적용하지 않는다 — 로컬 격리 DB(`ttokttok-e2e`, 포트 54421)에만 (§10).
 - 격리 DB는 다른 세션과 공유된다. `db reset` 금지, `migration up`으로 추가만 한다. 작업 직전 `docker ps`로 컨테이너 상태를 확인한다 (메모리 `concurrent-sessions-share-tree-and-e2e-db`).
 - 브라우저 변환 경로 상한: 길이 180초, 파일 300MB(초안, Task 2 스파이크 결과로 확정). HDR(`smpte2084`·`arib-std-b67`) 원본은 거부하고 PC 도구를 안내한다 (§4.4).
-- wasm 코어는 `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/` 에서 `toBlobURL`로 지연 로드한다. 버전을 다른 값으로 바꾸지 않는다 (§4.5).
+- wasm 코어는 `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/` 에서 `toBlobURL`로 지연 로드한다. 버전을 다른 값으로 바꾸지 않는다 (§4.5).
 - 라벨 문구: 파일 칸 「영상 파일 또는 변환한 ZIP」, 버튼 「변환」·「변환 중단」·「영상 업로드」, 트레일러 소스 「없음 / 유튜브 / 영상 파일」, 가드 문구 「영상 업로드를 먼저 완료하세요」 (§4.2, §6.1).
 - 완료 기준: `npm run build`, `npm test`, `node --conditions=react-server --import tsx --test tests/live-db/book-trailers.test.ts tests/live-db/video-bundles.test.ts`, `npx playwright test e2e/admin.trailer.spec.ts e2e/admin.video.spec.ts` 통과 + 375px 실제 렌더 확인 (§10).
 - 커밋 메시지 끝에 `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`을 붙인다. 작업 트리는 워크트리 `.claude/worktrees/book-trailer`(브랜치 `worktree-book-trailer`)다. 부모 트리에서 checkout 하지 않는다.
@@ -1944,7 +1944,7 @@ Wrapper: @ffmpeg/ffmpeg 0.12.15, @ffmpeg/util 0.12.2 — MIT (installed in apps/
          the MIT licence text next to them (apps/admin/public/ffmpeg/LICENSE).
 Core:    @ffmpeg/core 0.12.10 — GPL-2.0-or-later (FFmpeg built with libx264).
          Not bundled in this repository. Loaded at runtime in the administrator's
-         browser from https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/
+         browser from https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/
          (apps/admin/src/lib/video-convert.ts). Version is pinned.
 Source:  https://github.com/ffmpegwasm/ffmpeg.wasm · https://ffmpeg.org · https://www.videolan.org/developers/x264.html
 

@@ -83,7 +83,7 @@
 
 ### 4.5 로딩과 라이선스
 
-- `@ffmpeg/ffmpeg`·`@ffmpeg/util`은 admin 의존성으로 두고 **래퍼와 워커는 번들러가 같은 출처로 내보낸다.** 코어(`ffmpeg-core.js`·`.wasm`)는 jsdelivr의 **esm 빌드**(`@ffmpeg/core@0.12.10/dist/esm`)를 **버전 고정**으로 `toBlobURL`을 거쳐 지연 로드한다 — blob이라 CORS 문제가 없고, 관리자 앱에 CSP가 없어 막히지 않는다. 영상 칸이 처음 「변환」을 누를 때만 내려받는다(FRONTEND.md §6 무거운 라이브러리 규칙).
+- `@ffmpeg/ffmpeg`은 admin 의존성으로 두고 **래퍼와 워커는 번들러가 같은 출처로 내보낸다.** 코어(`ffmpeg-core.js`·`.wasm`)는 jsdelivr의 **esm 빌드**(`@ffmpeg/core@0.12.10/dist/esm`)를 **버전 고정**으로 받는다 — jsdelivr 응답이 관리자 origin의 blob URL로 바뀌어 워커에 넘어가므로 브라우저 SRI(integrity 속성)를 못 쓴다. 대신 받은 바이트를 SHA-256으로 직접 검사(pin)한 뒤에만 blob URL로 만든다(`fetchPinned`, §9 라이선스 고지에 해시 기록) — blob이라 CORS 문제가 없고, 관리자 앱에 CSP가 없어 막히지 않는다. 영상 칸이 처음 「변환」을 누를 때만 내려받는다(FRONTEND.md §6 무거운 라이브러리 규칙). `@ffmpeg/util`은 더 이상 쓰지 않는다 — `toBlobURL` 대신 직접 fetch + 해시 검증으로 대체했다.
 - **스파이크 실측(2026-09-13)으로 굳어진 제약:** 래퍼는 워커를 `type: "module"`로 만든다. 그래서 ① ESM `worker.js`는 `./const.js`·`./errors.js` 상대 import가 풀려야 하므로 blob URL로 넘길 수 없고, ② UMD 워커 청크는 module 워커에서 `importScripts`가 막혀 코어를 못 읽고, ③ 코어는 module 워커가 `import()`로 읽으므로 default export가 있는 **esm 빌드**여야 한다(umd 코어를 주면 오류 없이 멈춘다). 따라서 `classWorkerURL`로 CDN 워커를 넘기는 방식은 쓰지 않는다.
 - **채택된 방식(2026-09-13, Task 5 실측):** Turbopack은 `@ffmpeg/ffmpeg` 안의 `new URL("./worker.js", import.meta.url)`을 자산으로 내보내지 않고 `import.meta.url`을 빌드 시점의 `file://` 경로로 굳혀 버린다. 그래서 `dist/esm`의 `worker.js`·`const.js`·`errors.js`를 `apps/admin/public/ffmpeg/`에 복사하고 `classWorkerURL`을 **출처까지 붙인 절대 URL** (`${location.origin}/ffmpeg/worker.js`)로 넘긴다 — 상대 경로(`/ffmpeg/worker.js`)는 래퍼가 `new URL(classWorkerURL, import.meta.url)`로 합치면서 굳어진 `file://` 베이스에 붙어 SecurityError가 난다. 복사본은 래퍼 버전(0.12.15)과 같아야 하며, 업그레이드 시 함께 갱신한다(MIT 라이선스 사본을 같은 폴더에 둔다).
 - 코어는 GPL-2.0-or-later다(x264 포함). 래퍼는 MIT. 관리자 브라우저에서만 실행되고 우리 코드와 링크되지 않지만, 사용 사실과 출처를 `docs/licenses/ffmpeg-wasm.txt`에 남긴다.
@@ -166,10 +166,10 @@ create policy book_trailers_admin_write on public.book_trailers
 
 | 층 | 무엇 |
 |---|---|
-| 단위 (vitest) | `video-ladder.ts`: 1080 세로·720 가로·작은 원본(짝수 내림)·정사각·fallback 선택 |
-| 격리 DB (`tests/live-db/book-trailers.test.ts`) | 일반 사용자·anon의 `save_book_trailer` 거부 · 미검증(`uploading`) 묶음 거부 · 게시물에 붙은 묶음을 트레일러에 붙이면 거부, 반대도 거부 · youtube→upload→none 전환 시 필드 정리 · `claim_video_cleanup`이 트레일러 참조를 존중 · 도서 삭제 cascade |
+| 단위 (vitest) | `video-ladder.ts`: 1080 세로·720 가로·작은 원본(짝수 내림)·fallback 선택. 정사각·회전·HDR 패리티는 vitest 단위 테스트가 아니라 실제 FFmpeg로 돌리는 `tests/video-conversion.test.mjs`에 있다(아래 검증 섹션) |
+| 격리 DB (`tests/live-db/book-trailers.test.ts`) | 일반 사용자·anon의 `save_book_trailer` 거부 · 미검증(`uploading`) 묶음 거부 · 게시물에 붙은 묶음을 트레일러에 붙이면 거부, 반대도 거부(독점 케이스 양방향 모두 여기에 있다) · youtube→upload→none 전환 시 필드 정리 · `claim_video_cleanup`이 트레일러 참조를 존중 · 도서 삭제 cascade |
 | E2E (`e2e/admin.trailer.spec.ts`, 375px) | ① 새 도서 + 유튜브 트레일러 저장 → 수정 화면에 썸네일 → 「없음」으로 저장 → 행 없음. ② 3초 mp4 픽스처를 실제 Chromium에서 「변환」 → 업로드 → 저장 → `book_trailers.hls_path`가 `master.m3u8`. ③ 업로드 미완료 상태의 제출 가드 |
-| 기존 갱신 | `e2e/admin.video.spec.ts`의 라벨(`변환한 영상 ZIP` → 새 라벨), `tests/live-db/video-bundles.test.ts`에 트레일러 독점 케이스 |
+| 기존 갱신 | `e2e/admin.video.spec.ts`의 라벨(`변환한 영상 ZIP` → 새 라벨). `tests/live-db/video-bundles.test.ts`는 트레일러를 다루지 않는다 — 독점 케이스는 위 `book-trailers.test.ts` 행 하나에만 있다 |
 
 E2E ②의 wasm 변환은 헤드리스 Chromium에서도 돌지만 느리다 — 픽스처는 3초·360p 한 화질로 작게 둔다. 실제 속도 판정은 §4.4 스파이크가 담당한다.
 
