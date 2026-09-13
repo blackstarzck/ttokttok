@@ -1,0 +1,99 @@
+import { test, expect, authenticate, serviceDb, check, adminOrigin } from './helpers';
+import { mp4Fixture } from './video-fixture';
+
+// page.request는 브라우저 페이지가 아니라 컨텍스트의 API 클라이언트를 쓴다 — 인증
+// 쿠키는 그대로 공유되지만 page의 network 이벤트로는 안 잡혀, 의도적으로 유발한
+// 400(사용 중인 묶음 정리 거부)이 helpers의 runtimeErrors 감시에 오탐으로 걸리지
+// 않는다.
+function cleanupUpload(page: import('@playwright/test').Page, id: string) {
+  return page.request.post('/api/video-uploads', {
+    headers: { origin: adminOrigin() },
+    data: { action: 'cleanup', id },
+  });
+}
+
+async function fillBook(page: import('@playwright/test').Page, title: string) {
+  await page.goto('/admin/books/new');
+  await page.getByLabel('제목 *', { exact: true }).fill(title);
+  await page.getByLabel('저자 *', { exact: true }).fill('테스트 작가');
+  await page.getByLabel('카테고리 *', { exact: true }).fill('소설');
+  // EPUB 없이 저장하려면 ISBN이나 구매 링크가 있어야 한다 (books_needs_epub_or_store_ref).
+  await page.getByLabel('ISBN', { exact: true }).fill('9788900000002');
+}
+
+test('admin trailer: youtube trailer is saved with the book, shown on edit, removed with 없음', async ({ page, context }) => {
+  await authenticate(context, 'admin');
+  await page.setViewportSize({ width: 375, height: 812 });
+  const db = serviceDb();
+  const title = '트레일러 유튜브 도서';
+  await db.from('books').delete().eq('title', title);
+  try {
+    await fillBook(page, title);
+    await page.getByLabel('트레일러 소스').selectOption('youtube');
+    await page.getByLabel('유튜브 주소 또는 ID').fill('https://youtu.be/dQw4w9WgXcQ');
+    await page.getByRole('button', { name: '저장', exact: true }).click();
+    await expect(page.getByRole('row').filter({ hasText: title })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: title }).getByText('트레일러', { exact: true })).toBeVisible();
+    const book = check(await db.from('books').select('id').eq('title', title).single()).data;
+    const row = check(await db.from('book_trailers').select('*').eq('book_id', book.id).single()).data;
+    expect(row).toMatchObject({ source_type: 'youtube', youtube_id: 'dQw4w9WgXcQ', asset_group_id: null });
+
+    await page.goto(`/admin/books/${book.id}`);
+    await expect(page.getByLabel('트레일러 소스')).toHaveValue('youtube');
+    await expect(page.getByRole('img', { name: '트레일러 썸네일' })).toHaveAttribute('src', /dQw4w9WgXcQ/);
+    await page.getByLabel('트레일러 소스').selectOption('none');
+    await page.getByRole('button', { name: '저장', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/books\?saved=1|\/admin\/books$/);
+    expect((await db.from('book_trailers').select('book_id').eq('book_id', book.id).maybeSingle()).data).toBeNull();
+  } finally {
+    await db.from('books').delete().eq('title', title);
+  }
+});
+
+test('admin trailer: mp4 is converted in the browser, uploaded and attached', async ({ page, context }) => {
+  test.setTimeout(600000);
+  await authenticate(context, 'admin');
+  await page.setViewportSize({ width: 375, height: 812 });
+  const db = serviceDb();
+  const title = '트레일러 변환 도서';
+  await db.from('books').delete().eq('title', title);
+  let group = '';
+  try {
+    await fillBook(page, title);
+    await page.getByLabel('트레일러 소스').selectOption('upload');
+    await page.getByLabel('영상 파일 또는 변환한 ZIP').setInputFiles(mp4Fixture());
+    await expect(page.getByText(/360×640 · 3초/)).toBeVisible();
+    await page.getByRole('button', { name: '변환', exact: true }).click();
+    await expect(page.getByText(/360p .* 변환 완료|변환 완료/)).toBeVisible({ timeout: 480000 });
+    await page.getByRole('button', { name: '영상 업로드', exact: true }).click();
+    await expect(page.getByText('업로드 확인 완료. 발행하거나 임시저장하세요.')).toBeVisible({ timeout: 120000 });
+    group = await page.locator('[name="video_upload_id"]').inputValue();
+    expect(group).toMatch(/^[0-9a-f-]{36}$/);
+    await page.getByRole('button', { name: '저장', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/books\?saved=1|\/admin\/books$/);
+    const book = check(await db.from('books').select('id').eq('title', title).single()).data;
+    const row = check(await db.from('book_trailers').select('*').eq('book_id', book.id).single()).data;
+    expect(row.source_type).toBe('upload');
+    expect(row.asset_group_id).toBe(group);
+    expect(row.hls_path).toContain(`/bundles/${group}/master.m3u8`);
+    expect(row.duration_sec).toBe(3);
+    expect((await fetch(row.poster_path!)).status).toBe(200);
+    // 사용 중인 묶음은 정리를 거부한다.
+    const cleanupResponse = await cleanupUpload(page, group);
+    expect(cleanupResponse.status()).toBe(400);
+  } finally {
+    await db.from('books').delete().eq('title', title);
+    if (group) await cleanupUpload(page, group);
+  }
+});
+
+test('admin trailer: submitting an upload trailer before the upload finishes is blocked', async ({ page, context }) => {
+  await authenticate(context, 'admin');
+  await page.setViewportSize({ width: 375, height: 812 });
+  await fillBook(page, '트레일러 가드 도서');
+  await page.getByLabel('트레일러 소스').selectOption('upload');
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: '영상 업로드를 먼저 완료하세요' })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/books\/new/);
+  expect((await serviceDb().from('books').select('id').eq('title', '트레일러 가드 도서').maybeSingle()).data).toBeNull();
+});

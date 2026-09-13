@@ -15,3 +15,15 @@ export function hlsFixture() {
   const manifest = parseVideoManifest(JSON.parse(readFileSync(`${directory}/manifest.json`, 'utf8')));
   return { directory, manifest, zip: resolve(`${directory}.zip`) };
 }
+
+/** 브라우저 변환 E2E용 작은 원본 — 3초·360×640·무음. 사다리는 360p 한 화질이 된다. */
+export function mp4Fixture() {
+  const file = '.tmp/test-assets/trailer-source.mp4';
+  if (!existsSync(file)) {
+    mkdirSync('.tmp/test-assets', { recursive: true });
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+      'testsrc2=size=360x640:rate=30:duration=3', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file], { windowsHide: true });
+  }
+  return resolve(file);
+}
