@@ -29,7 +29,7 @@ export default async function AdminBooksPage({
 
   const { data: books, error } = await db
     .from("books")
-    .select("id, title, author, category, epub_path, isbn, cover_url, intro, rights_note")
+    .select("id, title, author, category, epub_path, isbn, cover_url, intro, rights_note, book_trailers ( book_id )")
     .order("title");
 
   // 삼키면 실패가 빈 목록이 되어 "아직 도서가 없다"와 구분되지 않는다.
@@ -115,6 +115,7 @@ export default async function AdminBooksPage({
                       요구한다. 표지·인용구는 유형과 무관하게 없어도
                       정상이므로 판정에서 뺀다 (PRD §5.11, §5.12).
                     */}
+                    {b.book_trailers ? <Badge variant="outline">트레일러</Badge> : null}
                     {(!b.intro || (b.epub_path && !b.rights_note)) && (
                       <Badge variant="outline">미완성</Badge>
                     )}

@@ -9,7 +9,7 @@ export function VideoCleanup({ id }: { id: string }) {
   const router = useRouter();
   return <div className="flex flex-col gap-2">
     <Button type="button" variant="outline" disabled={busy} onClick={async () => {
-      if (!window.confirm('게시물에서 사용하지 않는 영상 파일을 삭제합니다. 필요한 백업을 확인했나요?')) return;
+      if (!window.confirm('게시물·트레일러에서 사용하지 않는 영상 파일을 삭제합니다. 필요한 백업을 확인했나요?')) return;
       setBusy(true); setError('');
       try { await videoUploadRequest({ action: 'cleanup', id }); router.refresh(); }
       catch (e) { setError(e instanceof Error ? e.message : '삭제에 실패했습니다.'); }
