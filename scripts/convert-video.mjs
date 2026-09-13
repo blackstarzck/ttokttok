@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { zipSync } from 'fflate';
 import { parseVideoManifest, validateVideoPlaylist } from '../packages/shared/src/video-bundle.ts';
 import { buildMasterPlaylist, buildVideoLadder, toManifestRendition } from '../packages/shared/src/video-ladder.ts';
+import { fallbackArgs, hlsEncodeArgs, posterArgs } from '../packages/shared/src/video-encode.ts';
 
 async function ffmpeg(args) {
   await new Promise((ok, fail) => {
@@ -25,23 +26,22 @@ export async function convertVideo(input, output) {
   const width = rotated ? v.height : v.width, height = rotated ? v.width : v.height;
   const ladder = buildVideoLadder(width, height);
   const hdr = ['smpte2084', 'arib-std-b67'].includes(v.color_transfer);
-  const prefix = hdr ? 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,' : '';
   output = resolve(output || join(dirname(input), `${basename(input).replace(/\.[^.]+$/, '')}-web-${Date.now()}`));
   await mkdir(output, { recursive: false }); // Never overwrite an existing bundle.
   const renditions = [];
   for (const r of ladder.renditions) {
-    const { width: w, height: h, rate, label: name } = r;
+    const { label: name } = r;
     await mkdir(join(output, name));
     console.log(`${name} 변환 중 (${renditions.length + 1}/${ladder.renditions.length})`);
-    // Constrained quality encoding: static book/text clips should not fill a fixed bitrate budget.
-    const codec = ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-maxrate', `${Math.round(rate * 1.15)}k`, '-bufsize', `${rate * 2}k`, '-pix_fmt', 'yuv420p', ...(hdr ? ['-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709'] : []), '-r', '30', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0', '-force_key_frames', 'expr:gte(t,n_forced*2)', '-c:a', 'aac', '-b:a', '96k', '-ac', '2'];
-    await ffmpeg(['-i', input, '-map', '0:v:0', '-map', '0:a:0?', '-vf', `${prefix}scale=${w}:${h},setsar=1`, ...codec, '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod', '-hls_flags', 'independent_segments', '-hls_segment_filename', join(output, name, 'segment_%04d.ts'), join(output, name, 'index.m3u8')]);
+    const hasAudio = probe.streams.some(s => s.codec_type === 'audio');
+    const args = hlsEncodeArgs(input, r, { preset: 'fast', hdr, hasAudio }).map(a => a.startsWith(`${name}/`) ? join(output, a) : a);
+    await ffmpeg(args);
     renditions.push(toManifestRendition(r));
   }
   const fallback = toManifestRendition(ladder.fallback);
   console.log('미리보기와 호환 영상 생성 중');
-  await ffmpeg(['-i', join(output, fallback.playlist), '-c', 'copy', '-movflags', '+faststart', join(output, 'fallback.mp4')]);
-  await ffmpeg(['-i', join(output, fallback.playlist), '-frames:v', '1', '-q:v', '3', join(output, 'poster.jpg')]);
+  await ffmpeg(fallbackArgs(join(output, fallback.playlist)).map(a => a === 'fallback.mp4' ? join(output, a) : a));
+  await ffmpeg(posterArgs(join(output, fallback.playlist)).map(a => a === 'poster.jpg' ? join(output, a) : a));
   await writeFile(join(output, 'master.m3u8'), buildMasterPlaylist(ladder.renditions));
   const files = [], bytes = {};
   for (const name of await readdir(output, { recursive: true })) {
