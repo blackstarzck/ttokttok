@@ -100,16 +100,28 @@ export async function convertVideoFile(
 
   try {
     opts.onProgress({ stage: "load", index: 0, total, ratio: 0 });
-    // 워커는 래퍼가 `new URL("./worker.js", import.meta.url)`로 만든다 — 번들러
-    // (Turbopack)가 그 워커 파일을 같은 출처 자산으로 내보내야 한다. Task 2
-    // 스파이크 실측: 워커를 CDN blob으로 넘기는 classWorkerURL 방식은 어느
-    // 빌드로도 동작하지 않는다(ESM worker.js는 상대 import가 blob에서 풀리지
-    // 않고, UMD 워커는 module 워커에서 importScripts가 막힌다). 빌드 뒤
-    // 브라우저에서 load()가 풀리는지 반드시 확인하고, Turbopack이 worker.js를
-    // 자산으로 내보내지 못하면 `apps/admin/public/ffmpeg/`에 dist/esm의
-    // worker.js·const.js·errors.js를 복사해 `classWorkerURL: "/ffmpeg/worker.js"`
-    // (같은 출처, 상대 import 해결)로 넘기는 것이 대안이다.
+    // Task 5 빌드된 admin(Turbopack) 실측 (두 겹의 함정, 콘솔에는 아무 것도
+    // 안 남고 catch로 조용히 들어온다):
+    // 1) 래퍼 기본값인 `new URL("./worker.js", import.meta.url)`로 워커를
+    //    만들면 Turbopack이 worker.js를 프로젝트 자산으로 번들링하면서, 그
+    //    안의 `import(/* @vite-ignore */ _coreURL)`(coreURL은 런타임 blob:
+    //    URL이라 정적으로 알 수 없다)를 자기 방식대로 다시 써서 브라우저에서
+    //    "Cannot find module as expression is too dynamic"으로 즉시 실패한다.
+    //    고쳐서: worker.js·const.js·errors.js를
+    //    `apps/admin/public/ffmpeg/`에 그대로 복사해 두고 `classWorkerURL`로
+    //    그 정적 자산을 가리키면, 번들러가 이 파일을 전혀 건드리지 않아 안의
+    //    동적 import()가 브라우저 네이티브로(blob: URL 포함) 그대로 실행된다.
+    // 2) 그런데 래퍼(@ffmpeg/ffmpeg classes.js)가 워커를 만드는 코드 자체가
+    //    `new Worker(new URL(classWorkerURL, import.meta.url))`라, Turbopack이
+    //    `new URL(x, import.meta.url)` 패턴을 (x가 런타임 값이어도) 정적으로
+    //    다시 쓰면서 이 파일에서는 import.meta.url을 `file:///...` 빌드 경로
+    //    문자열로 굳혀버린다 — `new URL("/ffmpeg/worker.js", "file:///...")`가
+    //    `file:///ffmpeg/worker.js`가 되어 SecurityError로 워커 생성 자체가
+    //    막힌다. classWorkerURL을 처음부터 완전한 origin URL로 주면(첫 인자가
+    //    이미 절대 URL이면 URL 생성자가 base를 무시한다) 이 오염된 base를
+    //    피해간다.
     await ffmpeg.load({
+      classWorkerURL: `${location.origin}/ffmpeg/worker.js`,
       coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
     });

@@ -11,7 +11,7 @@ test('admin video: ZIP upload, interruption/retry, preview, atomic publication a
   await page.goto('/admin/posts/new?type=video');
   await page.getByLabel('채널 *').selectOption(ids.channel);
   await page.getByLabel('도서 *', { exact: true }).selectOption(ids.book);
-  await page.getByLabel('변환한 영상 ZIP').setInputFiles(fixture.zip);
+  await page.getByLabel('영상 파일 또는 변환한 ZIP').setInputFiles(fixture.zip);
   await expect(page.getByText(/480p · 720p · 1080p/)).toBeVisible();
   await expect(page.getByRole('button', { name: '발행', exact: true })).toBeDisabled();
   const successes = new Map<string, number>();
@@ -86,7 +86,7 @@ test('admin video: permission, incomplete upload and forged playlist fail withou
     finally { await post({ action: 'cleanup', id: upload.data.id }); }
   }, fixture.manifest);
   expect(result).toEqual({ started: 200, completed: 400 });
-  await page.getByLabel('변환한 영상 ZIP').setInputFiles({ name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('invalid') });
+  await page.getByLabel('영상 파일 또는 변환한 ZIP').setInputFiles({ name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('invalid') });
   await expect(page.getByRole('alert').filter({ hasText: 'ZIP 파일을 읽을 수 없습니다.' })).toBeVisible();
   await expect(page.getByRole('button', { name: '발행', exact: true })).toBeDisabled();
 });
@@ -95,7 +95,7 @@ test('admin video: cancel stops transfer and allows continuing the same bundle',
   test.setTimeout(90000);
   await authenticate(context, 'admin');
   await page.goto('/admin/posts/new?type=video');
-  await page.getByLabel('변환한 영상 ZIP').setInputFiles(hlsFixture().zip);
+  await page.getByLabel('영상 파일 또는 변환한 ZIP').setInputFiles(hlsFixture().zip);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   let waiting = 0;
