@@ -1,0 +1,16 @@
+ffmpeg.wasm — in-browser video conversion for the admin app
+
+Wrapper: @ffmpeg/ffmpeg 0.12.15, @ffmpeg/util 0.12.2 — MIT (installed in apps/admin).
+         The wrapper's ESM worker files (dist/esm/worker.js, const.js, errors.js) are
+         copied verbatim into apps/admin/public/ffmpeg/ because Turbopack does not emit
+         the worker as an asset; keep them in sync with the installed version and keep
+         the MIT licence text next to them (apps/admin/public/ffmpeg/LICENSE).
+Core:    @ffmpeg/core 0.12.10 — GPL-2.0-or-later (FFmpeg built with libx264).
+         Not bundled in this repository. Loaded at runtime in the administrator's
+         browser from https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/
+         (apps/admin/src/lib/video-convert.ts). Version is pinned.
+Source:  https://github.com/ffmpegwasm/ffmpeg.wasm · https://ffmpeg.org · https://www.videolan.org/developers/x264.html
+
+The core runs only inside the admin browser to produce HLS bundles that the
+admin then uploads. No FFmpeg code is linked into or shipped with our
+application bundles. Users of the client app never load it.
