@@ -75,13 +75,14 @@
 코어 로드 0.2s(헤드풀 0.3s) · 480p 55.1s(헤드풀 55.2s) · 720p 97.8s(헤드풀 98.5s) · 1080p 145.7s · 합계(480+720, veryfast) 153.1s(헤드풀 154.0s) · (fast) 250.6s · (480+720+1080, veryfast) 299.1s.
 → 확정: 브라우저 경로 상한 길이 **180초**, 파일 **300MB**, preset **veryfast**, 1080p **포함**.
 
-- 브라우저 경로 입력 상한(초안): 길이 **3분**, 파일 **300MB**. 넘으면 "PC 변환 도구를 사용하세요"로 안내한다(PC 도구는 10분·512MiB). MEMFS는 입력·산출물을 모두 메모리에 두므로 이 상한이 곧 메모리 상한이다.
+- 브라우저 경로 입력 상한(위 실측으로 확정): 길이 **3분(180초)**, 파일 **300MB**. 넘으면 "PC 변환 도구를 사용하세요"로 안내한다(PC 도구는 10분·512MiB). MEMFS는 입력·산출물을 모두 메모리에 두므로 이 상한이 곧 메모리 상한이다.
 - HDR(`smpte2084`·`arib-std-b67`) 원본은 브라우저 경로에서 **거부**하고 PC 도구를 안내한다 — 브라우저 코어에는 톤매핑 필터(zscale)가 없다. 판별은 `-i` 스트림 덤프 로그에서 한다.
 - 권장 길이는 기존과 같이 30~60초다(트레일러도 짧다).
 
 ### 4.5 로딩과 라이선스
 
-- `@ffmpeg/ffmpeg`·`@ffmpeg/util`은 admin 의존성으로 두고, 코어(`ffmpeg-core.js`·`.wasm`)는 jsdelivr에서 **버전 고정**(`@ffmpeg/core@0.12.10`)으로 `toBlobURL`을 거쳐 지연 로드한다. 워커가 blob URL에서 뜨므로 CORS 문제가 없고, 관리자 앱에 CSP가 없어 막히지 않는다. 영상 칸이 처음 「변환」을 누를 때만 내려받는다(FRONTEND.md §6 무거운 라이브러리 규칙).
+- `@ffmpeg/ffmpeg`·`@ffmpeg/util`은 admin 의존성으로 두고 **래퍼와 워커는 번들러가 같은 출처로 내보낸다.** 코어(`ffmpeg-core.js`·`.wasm`)는 jsdelivr의 **esm 빌드**(`@ffmpeg/core@0.12.10/dist/esm`)를 **버전 고정**으로 `toBlobURL`을 거쳐 지연 로드한다 — blob이라 CORS 문제가 없고, 관리자 앱에 CSP가 없어 막히지 않는다. 영상 칸이 처음 「변환」을 누를 때만 내려받는다(FRONTEND.md §6 무거운 라이브러리 규칙).
+- **스파이크 실측(2026-09-13)으로 굳어진 제약:** 래퍼는 워커를 `type: "module"`로 만든다. 그래서 ① ESM `worker.js`는 `./const.js`·`./errors.js` 상대 import가 풀려야 하므로 blob URL로 넘길 수 없고, ② UMD 워커 청크는 module 워커에서 `importScripts`가 막혀 코어를 못 읽고, ③ 코어는 module 워커가 `import()`로 읽으므로 default export가 있는 **esm 빌드**여야 한다(umd 코어를 주면 오류 없이 멈춘다). 따라서 `classWorkerURL`로 CDN 워커를 넘기는 방식은 쓰지 않고, 워커는 번들 자산으로 같은 출처에서 뜨게 한다. Turbopack이 `new URL("./worker.js", import.meta.url)`을 자산으로 내보내지 못하면 `apps/admin/public/ffmpeg/`에 `dist/esm`의 `worker.js`·`const.js`·`errors.js`를 복사해 `classWorkerURL: "/ffmpeg/worker.js"`로 넘기는 것이 대안이다.
 - 코어는 GPL-2.0-or-later다(x264 포함). 래퍼는 MIT. 관리자 브라우저에서만 실행되고 우리 코드와 링크되지 않지만, 사용 사실과 출처를 `docs/licenses/ffmpeg-wasm.txt`에 남긴다.
 
 ## 5. 스키마 — `20260912000003_book_trailers.sql`
