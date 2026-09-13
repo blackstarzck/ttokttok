@@ -38,8 +38,8 @@ export function buildVideoLadder(width: number, height: number): {
     const rate = rateFor(level);
     return {
       label: `${level}p`,
-      width: even((width * level) / shortEven),
-      height: even((height * level) / shortEven),
+      width: even((width * level) / short),
+      height: even((height * level) / short),
       rate,
       bandwidth: Math.round((rate * 1.15 + 96) * 1000),
       playlist: `${level}p/index.m3u8`,
