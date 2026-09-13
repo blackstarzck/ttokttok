@@ -139,6 +139,60 @@ export type Database = {
         }
         Relationships: []
       }
+      book_trailers: {
+        Row: {
+          asset_group_id: string | null
+          book_id: string
+          created_at: string
+          duration_sec: number | null
+          hls_path: string | null
+          poster_path: string | null
+          renditions: Json | null
+          source_type: string
+          video_path: string | null
+          youtube_id: string | null
+        }
+        Insert: {
+          asset_group_id?: string | null
+          book_id: string
+          created_at?: string
+          duration_sec?: number | null
+          hls_path?: string | null
+          poster_path?: string | null
+          renditions?: Json | null
+          source_type: string
+          video_path?: string | null
+          youtube_id?: string | null
+        }
+        Update: {
+          asset_group_id?: string | null
+          book_id?: string
+          created_at?: string
+          duration_sec?: number | null
+          hls_path?: string | null
+          poster_path?: string | null
+          renditions?: Json | null
+          source_type?: string
+          video_path?: string | null
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_trailers_asset_group_id_fkey"
+            columns: ["asset_group_id"]
+            isOneToOne: false
+            referencedRelation: "video_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "book_trailers_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: true
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookmarks: {
         Row: {
           book_id: string
@@ -891,6 +945,15 @@ export type Database = {
       record_share: { Args: { p_post_id: string }; Returns: undefined }
       record_view: {
         Args: { p_post_id: string; p_session_id: string }
+        Returns: undefined
+      }
+      save_book_trailer: {
+        Args: {
+          p_book_id: string
+          p_source: string
+          p_upload_id?: string
+          p_youtube_id?: string
+        }
         Returns: undefined
       }
       save_video_post: {
