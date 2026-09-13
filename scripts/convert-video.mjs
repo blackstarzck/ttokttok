@@ -4,6 +4,7 @@ import { resolve, join, basename, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { zipSync } from 'fflate';
 import { parseVideoManifest, validateVideoPlaylist } from '../packages/shared/src/video-bundle.ts';
+import { buildMasterPlaylist, buildVideoLadder, toManifestRendition } from '../packages/shared/src/video-ladder.ts';
 
 async function ffmpeg(args) {
   await new Promise((ok, fail) => {
@@ -22,30 +23,26 @@ export async function convertVideo(input, output) {
   const rotation = Number(v.side_data_list?.find(s => s.rotation !== undefined)?.rotation || v.tags?.rotate || 0);
   const rotated = Math.abs(rotation) % 180 === 90;
   const width = rotated ? v.height : v.width, height = rotated ? v.width : v.height;
-  const short = Math.min(width, height);
-  const levels = [480, 720, 1080].filter(n => n <= short);
-  if (!levels.length) levels.push(Math.floor(short / 2) * 2);
+  const ladder = buildVideoLadder(width, height);
   const hdr = ['smpte2084', 'arib-std-b67'].includes(v.color_transfer);
   const prefix = hdr ? 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,' : '';
   output = resolve(output || join(dirname(input), `${basename(input).replace(/\.[^.]+$/, '')}-web-${Date.now()}`));
   await mkdir(output, { recursive: false }); // Never overwrite an existing bundle.
   const renditions = [];
-  for (const level of levels) {
-    const w = Math.max(2, Math.floor(width * level / short / 2) * 2);
-    const h = Math.max(2, Math.floor(height * level / short / 2) * 2);
-    const rate = level <= 480 ? 800 : level <= 720 ? 1600 : 3000;
-    const name = `${level}p`; await mkdir(join(output, name));
-    console.log(`${name} 변환 중 (${renditions.length + 1}/${levels.length})`);
+  for (const r of ladder.renditions) {
+    const { width: w, height: h, rate, label: name } = r;
+    await mkdir(join(output, name));
+    console.log(`${name} 변환 중 (${renditions.length + 1}/${ladder.renditions.length})`);
     // Constrained quality encoding: static book/text clips should not fill a fixed bitrate budget.
     const codec = ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-maxrate', `${Math.round(rate * 1.15)}k`, '-bufsize', `${rate * 2}k`, '-pix_fmt', 'yuv420p', ...(hdr ? ['-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709'] : []), '-r', '30', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0', '-force_key_frames', 'expr:gte(t,n_forced*2)', '-c:a', 'aac', '-b:a', '96k', '-ac', '2'];
     await ffmpeg(['-i', input, '-map', '0:v:0', '-map', '0:a:0?', '-vf', `${prefix}scale=${w}:${h},setsar=1`, ...codec, '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod', '-hls_flags', 'independent_segments', '-hls_segment_filename', join(output, name, 'segment_%04d.ts'), join(output, name, 'index.m3u8')]);
-    renditions.push({ label: name, width: w, height: h, bandwidth: Math.round((rate * 1.15 + 96) * 1000), playlist: `${name}/index.m3u8` });
+    renditions.push(toManifestRendition(r));
   }
-  const fallback = [...renditions].reverse().find(r => Math.min(r.width, r.height) <= 720) || renditions[0];
+  const fallback = toManifestRendition(ladder.fallback);
   console.log('미리보기와 호환 영상 생성 중');
   await ffmpeg(['-i', join(output, fallback.playlist), '-c', 'copy', '-movflags', '+faststart', join(output, 'fallback.mp4')]);
   await ffmpeg(['-i', join(output, fallback.playlist), '-frames:v', '1', '-q:v', '3', join(output, 'poster.jpg')]);
-  await writeFile(join(output, 'master.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-INDEPENDENT-SEGMENTS\n' + renditions.map(r => `#EXT-X-STREAM-INF:BANDWIDTH=${r.bandwidth},RESOLUTION=${r.width}x${r.height}\n${r.playlist}\n`).join(''));
+  await writeFile(join(output, 'master.m3u8'), buildMasterPlaylist(ladder.renditions));
   const files = [], bytes = {};
   for (const name of await readdir(output, { recursive: true })) {
     const full = join(output, name); if (!(await stat(full)).isFile()) continue;
